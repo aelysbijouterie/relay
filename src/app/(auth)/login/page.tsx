@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 const DEMO_DEPTS = [
-  { slug: 'marketing',     name: 'Marketing',     color: '#FF6B35' },
+  { slug: 'marketing',     name: 'Marketing',     color: '#ECEFBD' },
   { slug: 'web',           name: 'Web',           color: '#EB5C82' },
   { slug: 'administratif', name: 'Administratif', color: '#54673C' },
   { slug: 'rh',            name: 'RH',            color: '#C9E1F8' },
