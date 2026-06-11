@@ -54,6 +54,7 @@ export function TaskModal({ task, open, onClose }: TaskModalProps) {
   const doneSub = subtasks.filter(s => s.done).length
 
   function handleStatusChange(status: TaskStatus) {
+    const oldStatus = task.status
     moveTask(task.id, status)
     updateTask(task.id, { status })
     if (status === 'Bloqué') {
@@ -61,15 +62,42 @@ export function TaskModal({ task, open, onClose }: TaskModalProps) {
     } else {
       toast.success(`Statut mis à jour : ${status}`)
     }
+    if (task.assignees?.length && status !== oldStatus) {
+      fetch('/api/notify/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assignees: task.assignees.map(a => ({ name: a.name, email: a.email })),
+          task: { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, status },
+          oldStatus,
+          department: { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
+          changedByName: 'Manon M.',
+        }),
+      }).catch(() => {})
+    }
   }
 
   function submitComment() {
     if (!newComment.trim()) return
+    const text = newComment.trim()
     setComments(prev => [...prev, {
       id: `c-${Date.now()}`, author: 'Manon M.',
-      text: newComment.trim(), createdAt: new Date().toISOString(),
+      text, createdAt: new Date().toISOString(),
     }])
     setNewComment('')
+    if (task.assignees?.length) {
+      fetch('/api/notify/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assignees: task.assignees.map(a => ({ name: a.name, email: a.email })),
+          comment: text,
+          task: { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, status: task.status },
+          department: { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
+          authorName: 'Manon M.',
+        }),
+      }).catch(() => {})
+    }
   }
 
   function toggleSubtask(id: string) {

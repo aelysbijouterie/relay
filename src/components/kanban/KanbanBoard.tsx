@@ -58,9 +58,24 @@ export function KanbanBoard({ currentDepartmentId }: { currentDepartmentId?: str
       : tasks.find(t => t.id === over.id)?.status
 
     if (newStatus && newStatus !== task.status) {
+      const oldStatus = task.status
       moveTask(task.id, newStatus)
       try {
         await updateTaskStatus(task.id, newStatus)
+        // Notifier les assignés du changement de statut
+        if (task.assignees?.length) {
+          fetch('/api/notify/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              assignees: task.assignees.map(a => ({ name: a.name, email: a.email })),
+              task: { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, status: newStatus },
+              oldStatus,
+              department: { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
+              changedByName: 'Manon M.',
+            }),
+          }).catch(() => {})
+        }
       } catch {
         moveTask(task.id, task.status)
         toast.error('Erreur lors du déplacement de la tâche')
