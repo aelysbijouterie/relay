@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-heading: 'Playfair Display';
+    --font-body: 'DM Sans';
+
+    /* Départements */
+    --dept-marketing:    #FF6B35;
+    --dept-web:          #4A90D9;
+    --dept-comptabilite: #F5C518;
+    --dept-rh:           #9B59B6;
+    --dept-logistique:   #27AE60;
+    --dept-direction:    #E74C3C;
+
+    /* Statuts */
+    --status-todo:       #94A3B8;
+    --status-inprogress: #3B82F6;
+    --status-blocked:    #EF4444;
+    --status-review:     #F59E0B;
+    --status-done:       #10B981;
+    --status-archived:   #6B7280;
+
+    /* Layout */
+    --sidebar-width:  256px;
+    --header-height:  64px;
+    --radius:         0.875rem;
+
+    /* Glass */
+    --glass-bg:     rgba(255,255,255,0.08);
+    --glass-border: rgba(255,255,255,0.15);
+    --glass-blur:   16px;
+    --glass-shadow: 0 8px 32px rgba(0,0,0,0.12);
+
+    --background:         220 20% 10%;
+    --foreground:         210 40% 95%;
+    --card:               220 18% 13%;
+    --card-foreground:    210 40% 95%;
+    --popover:            220 18% 13%;
+    --popover-foreground: 210 40% 95%;
+    --primary:            210 40% 95%;
+    --primary-foreground: 220 20% 10%;
+    --secondary:          220 15% 17%;
+    --secondary-foreground: 210 40% 95%;
+    --muted:              220 15% 16%;
+    --muted-foreground:   215 20% 52%;
+    --accent:             220 15% 17%;
+    --accent-foreground:  210 40% 95%;
+    --destructive:        0 63% 31%;
+    --destructive-foreground: 210 40% 95%;
+    --border:             220 15% 20%;
+    --input:              220 15% 20%;
+    --ring:               215 27% 84%;
+  }
+
+  .light {
+    --background:         210 40% 98%;
+    --foreground:         222 84% 5%;
+    --card:               0 0% 100%;
+    --card-foreground:    222 84% 5%;
+    --popover:            0 0% 100%;
+    --popover-foreground: 222 84% 5%;
+    --primary:            222 84% 5%;
+    --primary-foreground: 210 40% 98%;
+    --secondary:          210 40% 96%;
+    --secondary-foreground: 222 84% 5%;
+    --muted:              210 40% 96%;
+    --muted-foreground:   215 16% 47%;
+    --accent:             210 40% 96%;
+    --accent-foreground:  222 84% 5%;
+    --destructive:        0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border:             214 32% 91%;
+    --input:              214 32% 91%;
+    --ring:               222 84% 5%;
+    --glass-bg:     rgba(255,255,255,0.7);
+    --glass-border: rgba(0,0,0,0.08);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body), 'DM Sans', system-ui, sans-serif;
+    background-image: radial-gradient(ellipse at 20% 50%, hsl(220 30% 15% / 0.5) 0%, transparent 60%),
+                      radial-gradient(ellipse at 80% 20%, hsl(240 30% 12% / 0.4) 0%, transparent 50%);
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading), 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* ── Glass ── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+}
+
+/* ── Drag ── */
+.task-dragging {
+  opacity: 0.55;
+  transform: rotate(2deg) scale(1.03);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+
+/* ── Glow dot ── */
+.glow-dot {
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }

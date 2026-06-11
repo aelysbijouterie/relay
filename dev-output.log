@@ -1,0 +1,168 @@
+
+> relays@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.5s
+ ○ Compiling /src/middleware ...
+ ✓ Compiled /src/middleware in 3.9s (465 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (102kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (244kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ ○ Compiling /login ...
+ ✓ Compiled /login in 7.7s (469 modules)
+ GET /login 200 in 8326ms
+ ✓ Compiled in 844ms (241 modules)
+ GET /login 200 in 88ms
+ ○ Compiling /api/auth/login ...
+ ✓ Compiled /api/auth/login in 1655ms (651 modules)
+ POST /api/auth/login 200 in 2700ms
+ POST /api/auth/login 401 in 488ms
+ ✓ Compiled in 725ms (1357 modules)
+ ✓ Compiled in 103ms (465 modules)
+ ✓ Compiled in 211ms (241 modules)
+ ✓ Compiled in 178ms (241 modules)
+ ✓ Compiled in 686ms (892 modules)
+ ✓ Compiled in 232ms (241 modules)
+ ✓ Compiled in 185ms (241 modules)
+ ✓ Compiled in 189ms (241 modules)
+ ✓ Compiled in 194ms (241 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (102kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (244kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ GET /login 200 in 322ms
+ GET /login 200 in 76ms
+ ✓ Compiled /api/auth/demo in 254ms (258 modules)
+ POST /api/auth/demo 200 in 360ms
+ ○ Compiling /kanban ...
+ ✓ Compiled /kanban in 7.1s (2704 modules)
+ ✓ Compiled in 583ms (907 modules)
+ ○ Compiling /timeline ...
+ ✓ Compiled /timeline in 700ms (2714 modules)
+ ○ Compiling /calendrier ...
+ ✓ Compiled /calendrier in 1049ms (2741 modules)
+ ✓ Compiled in 1603ms (2699 modules)
+ ✓ Compiled in 3.7s (2699 modules)
+ ✓ Compiled in 581ms (922 modules)
+ ✓ Compiled in 1092ms (2713 modules)
+ ✓ Compiled in 900ms (2713 modules)
+ ✓ Compiled in 1693ms (2717 modules)
+ ✓ Compiled in 202ms (465 modules)
+ ✓ Compiled in 1163ms (2717 modules)
+ GET /kanban 200 in 254ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 971ms (2706 modules)
+ GET /kanban 404 in 1209ms
+ GET /_next/static/css/app/layout.css?v=1781169955668 404 in 30ms
+ GET /_next/static/chunks/main-app.js?v=1781169955668 404 in 71ms
+ GET /_next/static/chunks/app/layout.js 404 in 67ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 70ms
+ GET /_next/static/chunks/main-app.js?v=1781169955668 404 in 51ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 47ms
+ GET /_next/static/chunks/app/layout.js 404 in 49ms
+ GET /kanban 404 in 76ms
+ GET /_next/static/css/app/layout.css?v=1781169962978 404 in 114ms
+ GET /_next/static/chunks/main-app.js?v=1781169962978 404 in 198ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 193ms
+ GET /_next/static/chunks/app/layout.js 404 in 191ms
+ GET /_next/static/chunks/main-app.js?v=1781169962978 404 in 115ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 110ms
+ GET /_next/static/chunks/app/layout.js 404 in 96ms
+ GET /kanban 404 in 108ms
+ GET /_next/static/css/app/layout.css?v=1781169975580 404 in 20ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 70ms
+ GET /_next/static/chunks/main-app.js?v=1781169975580 404 in 73ms
+ GET /_next/static/chunks/app/layout.js 404 in 71ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 48ms
+ GET /_next/static/chunks/main-app.js?v=1781169975580 404 in 48ms
+ GET /_next/static/chunks/app/layout.js 404 in 47ms
+ GET /Llogin 404 in 64ms
+ GET /_next/static/css/app/layout.css?v=1781169988658 404 in 33ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 48ms
+ GET /_next/static/chunks/app/layout.js 404 in 63ms
+ GET /_next/static/chunks/main-app.js?v=1781169988658 404 in 70ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 43ms
+ GET /_next/static/chunks/main-app.js?v=1781169988658 404 in 41ms
+ GET /_next/static/chunks/app/layout.js 404 in 41ms
+ GET /kanban 404 in 84ms
+ GET /_next/static/css/app/layout.css?v=1781169994638 404 in 77ms
+ GET /_next/static/chunks/main-app.js?v=1781169994638 404 in 88ms
+ GET /_next/static/chunks/app/layout.js 404 in 79ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 78ms
+ GET /_next/static/chunks/app/layout.js 404 in 39ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 42ms
+ GET /_next/static/chunks/main-app.js?v=1781169994638 404 in 45ms
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat 'C:\Users\manon\relays\.next\server\vendor-chunks\@swc.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/@swc' in C:\Users\manon\relays\.next\server for build dependencies doesn't lead to expected result 'C:\Users\manon\relays\.next\server\vendor-chunks\@swc.js', but to 'Error: Can't resolve './vendor-chunks/@swc' in 'C:\Users\manon\relays\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/@swc (expected C:\Users\manon\relays\.next\server\vendor-chunks\@swc.js)
+<w>  at file dependencies C:\Users\manon\relays\.next\server\webpack-runtime.js
+<w>  at file C:\Users\manon\relays\.next\server\webpack-runtime.js
+<w>  at file dependencies C:\Users\manon\relays\.next\server\app\_not-found\page.js
+<w>  at file C:\Users\manon\relays\.next\server\app\_not-found\page.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\server\require.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\server\load-components.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\utils.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\handle-externals.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/next-themes' in C:\Users\manon\relays\.next\server for build dependencies doesn't lead to expected result 'C:\Users\manon\relays\.next\server\vendor-chunks\next-themes.js', but to 'Error: Can't resolve './vendor-chunks/next-themes' in 'C:\Users\manon\relays\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/next-themes (expected C:\Users\manon\relays\.next\server\vendor-chunks\next-themes.js)
+<w>  at file dependencies C:\Users\manon\relays\.next\server\webpack-runtime.js
+<w>  at file C:\Users\manon\relays\.next\server\webpack-runtime.js
+<w>  at file dependencies C:\Users\manon\relays\.next\server\app\_not-found\page.js
+<w>  at file C:\Users\manon\relays\.next\server\app\_not-found\page.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\server\require.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\server\load-components.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\utils.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\handle-externals.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/sonner' in C:\Users\manon\relays\.next\server for build dependencies doesn't lead to expected result 'C:\Users\manon\relays\.next\server\vendor-chunks\sonner.js', but to 'Error: Can't resolve './vendor-chunks/sonner' in 'C:\Users\manon\relays\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/sonner (expected C:\Users\manon\relays\.next\server\vendor-chunks\sonner.js)
+<w>  at file dependencies C:\Users\manon\relays\.next\server\webpack-runtime.js
+<w>  at file C:\Users\manon\relays\.next\server\webpack-runtime.js
+<w>  at file dependencies C:\Users\manon\relays\.next\server\app\_not-found\page.js
+<w>  at file C:\Users\manon\relays\.next\server\app\_not-found\page.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\server\require.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\server\load-components.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\utils.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\handle-externals.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/next' in C:\Users\manon\relays\.next\server for build dependencies doesn't lead to expected result 'C:\Users\manon\relays\.next\server\vendor-chunks\next.js', but to 'Error: Can't resolve './vendor-chunks/next' in 'C:\Users\manon\relays\.next\server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/next (expected C:\Users\manon\relays\.next\server\vendor-chunks\next.js)
+<w>  at file dependencies C:\Users\manon\relays\.next\server\webpack-runtime.js
+<w>  at file C:\Users\manon\relays\.next\server\webpack-runtime.js
+<w>  at file dependencies C:\Users\manon\relays\.next\server\app\_not-found\page.js
+<w>  at file C:\Users\manon\relays\.next\server\app\_not-found\page.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\server\require.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\server\require.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\server\load-components.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\server\load-components.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\utils.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\utils.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\handle-externals.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\handle-externals.js
+<w>  at file dependencies C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at file C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+<w>  at resolve commonjs C:\Users\manon\relays\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
+ ✓ Compiled in 273ms (924 modules)
+ ✓ Compiled in 252ms (924 modules)
+[?25h
