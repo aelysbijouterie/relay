@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 const DEMO_DEPTS = [
-  { slug: 'marketing',    name: 'Marketing',      color: '#FF6B35' },
-  { slug: 'web',          name: 'Web',             color: '#4A90D9' },
-  { slug: 'administratif', name: 'Administratif',   color: '#F5C518' },
-  { slug: 'rh',           name: 'RH',              color: '#9B59B6' },
-  { slug: 'logistique',   name: 'Logistique',      color: '#27AE60' },
-  { slug: 'direction',    name: 'Direction',       color: '#E74C3C' },
+  { slug: 'marketing',     name: 'Marketing',     color: '#FF6B35' },
+  { slug: 'web',           name: 'Web',           color: '#EB5C82' },
+  { slug: 'administratif', name: 'Administratif', color: '#54673C' },
+  { slug: 'rh',            name: 'RH',            color: '#C9E1F8' },
+  { slug: 'logistique',    name: 'Logistique',    color: '#FAFFAD' },
+  { slug: 'direction',     name: 'Direction',     color: '#0A2342' },
 ]
 
 export default function LoginPage() {
