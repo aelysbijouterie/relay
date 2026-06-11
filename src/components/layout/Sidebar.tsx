@@ -19,12 +19,22 @@ interface SidebarProps {
   profile: Profile
   members: Profile[]
   department: Department
+  extraDepartments?: Department[]
 }
 
-export function Sidebar({ profile, members, department }: SidebarProps) {
+export function Sidebar({ profile, members, department, extraDepartments = [] }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
+
+  async function switchDepartment(deptId: string) {
+    await fetch('/api/auth/switch-dept', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deptId }),
+    })
+    router.refresh()
+  }
 
   async function handleLogout() {
     // Efface le cookie démo si présent, puis déconnexion Supabase via Server Action
@@ -58,8 +68,8 @@ export function Sidebar({ profile, members, department }: SidebarProps) {
         </button>
       </div>
 
-      {/* Department chip */}
-      <div className="px-4 pt-4 pb-2">
+      {/* Department chip / switcher */}
+      <div className="px-4 pt-4 pb-2 space-y-1.5">
         <div
           className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium text-white"
           style={{
@@ -70,6 +80,17 @@ export function Sidebar({ profile, members, department }: SidebarProps) {
           <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse" />
           {department.name}
         </div>
+
+        {extraDepartments.map(d => (
+          <button
+            key={d.id}
+            onClick={() => switchDepartment(d.id)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-white/20 text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+          >
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+            {d.name}
+          </button>
+        ))}
       </div>
 
       {/* Navigation */}
