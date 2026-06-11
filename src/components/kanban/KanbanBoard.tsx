@@ -19,7 +19,7 @@ import { TASK_STATUSES } from '@/types'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
 
-export function KanbanBoard({ currentDepartmentId }: { currentDepartmentId?: string }) {
+export function KanbanBoard({ currentDepartmentId, currentUserName }: { currentDepartmentId?: string; currentUserName?: string }) {
   const { tasks, myTasksOnly, moveTask } = useTaskStore()
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -72,7 +72,7 @@ export function KanbanBoard({ currentDepartmentId }: { currentDepartmentId?: str
               task: { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, status: newStatus },
               oldStatus,
               department: { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
-              changedByName: 'Manon M.',
+              changedByName: currentUserName ?? 'Utilisateur',
             }),
           }).catch(() => {})
         }
@@ -115,6 +115,7 @@ export function KanbanBoard({ currentDepartmentId }: { currentDepartmentId?: str
           task={selectedTask}
           open={!!selectedTask}
           onClose={() => setSelectedTask(null)}
+          currentUserName={currentUserName}
         />
       )}
     </>

@@ -22,11 +22,12 @@ interface TaskModalProps {
   task: Task
   open: boolean
   onClose: () => void
+  currentUserName?: string
 }
 
 type Tab = 'details' | 'comments' | 'subtasks' | 'history'
 
-export function TaskModal({ task, open, onClose }: TaskModalProps) {
+export function TaskModal({ task, open, onClose, currentUserName }: TaskModalProps) {
   const { updateTask, moveTask } = useTaskStore()
   const [tab, setTab] = useState<Tab>('details')
   const [comments, setComments] = useState<Comment[]>([
@@ -71,7 +72,7 @@ export function TaskModal({ task, open, onClose }: TaskModalProps) {
           task: { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, status },
           oldStatus,
           department: { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
-          changedByName: 'Manon M.',
+          changedByName: currentUserName ?? 'Utilisateur',
         }),
       }).catch(() => {})
     }
@@ -81,7 +82,7 @@ export function TaskModal({ task, open, onClose }: TaskModalProps) {
     if (!newComment.trim()) return
     const text = newComment.trim()
     setComments(prev => [...prev, {
-      id: `c-${Date.now()}`, author: 'Manon M.',
+      id: `c-${Date.now()}`, author: currentUserName ?? 'Utilisateur',
       text, createdAt: new Date().toISOString(),
     }])
     setNewComment('')
@@ -94,7 +95,7 @@ export function TaskModal({ task, open, onClose }: TaskModalProps) {
           comment: text,
           task: { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, status: task.status },
           department: { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
-          authorName: 'Manon M.',
+          authorName: currentUserName ?? 'Utilisateur',
         }),
       }).catch(() => {})
     }

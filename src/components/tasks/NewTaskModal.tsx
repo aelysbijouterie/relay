@@ -9,6 +9,7 @@ import { useTaskStore } from '@/store/tasks'
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/types'
 import type { Department, Profile, Task } from '@/types'
 import { DEMO_DEPARTMENTS, ALL_DEMO_MEMBERS } from '@/lib/demo-data'
+import { createTask } from '@/lib/actions/tasks'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 
@@ -18,10 +19,12 @@ interface NewTaskModalProps {
   currentDepartmentId: string
   departments: Department[]
   members: Profile[]
+  profile: Profile
+  isDemo?: boolean
 }
 
 export function NewTaskModal({
-  open, onClose, currentDepartmentId, departments, members
+  open, onClose, currentDepartmentId, departments, members, profile, isDemo,
 }: NewTaskModalProps) {
   const { addTask } = useTaskStore()
   const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({})
@@ -73,27 +76,38 @@ export function NewTaskModal({
       arr.findIndex(x => x.id === m.id) === i && (data.assignees ?? []).includes(m.id)
     )
 
-    const newTask: Task = {
-      id:                `task-${Date.now()}`,
-      title:             data.title,
-      description:       data.description ?? null,
-      status:            data.status,
-      priority:          data.priority,
-      department_id:     data.department_id,
-      created_by:        'u-mkt-1',
-      deadline:          data.deadline ?? null,
-      is_cross_team:     data.is_cross_team ?? false,
-      fournisseur_client: data.fournisseur_client ?? null,
-      ref_collection:    data.ref_collection ?? null,
-      parent_task_id:    null,
-      created_at:        new Date().toISOString(),
-      updated_at:        new Date().toISOString(),
-      department:        dept,
-      assignees:         assignedMembers,
-      extra_departments: DEMO_DEPARTMENTS.filter(d => (data.extra_departments ?? []).includes(d.id)),
+    if (isDemo) {
+      // ── Mode démo : Zustand uniquement ──────────────────────────
+      const newTask: Task = {
+        id:                `task-${Date.now()}`,
+        title:             data.title,
+        description:       data.description ?? null,
+        status:            data.status,
+        priority:          data.priority,
+        department_id:     data.department_id,
+        created_by:        profile.id,
+        deadline:          data.deadline ?? null,
+        is_cross_team:     data.is_cross_team ?? false,
+        fournisseur_client: data.fournisseur_client ?? null,
+        ref_collection:    data.ref_collection ?? null,
+        parent_task_id:    null,
+        created_at:        new Date().toISOString(),
+        updated_at:        new Date().toISOString(),
+        department:        dept,
+        assignees:         assignedMembers,
+        extra_departments: DEMO_DEPARTMENTS.filter(d => (data.extra_departments ?? []).includes(d.id)),
+      }
+      addTask(newTask)
+    } else {
+      // ── Mode réel : sauvegarde Supabase ──────────────────────────
+      try {
+        await createTask(data)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Erreur lors de la création')
+        return
+      }
     }
 
-    addTask(newTask)
     toast.success('Tâche créée !')
     reset()
     onClose()
@@ -105,8 +119,8 @@ export function NewTaskModal({
         body: JSON.stringify({
           assignees: assignedMembers.map(m => ({ name: m.name, email: m.email })),
           task: { title: data.title, description: data.description, priority: data.priority, deadline: data.deadline, is_cross_team: data.is_cross_team ?? false },
-          department: { name: dept?.name ?? 'Marketing', color: dept?.color ?? '#FF6B35' },
-          createdByName: 'Manon M.',
+          department: { name: dept?.name ?? '', color: dept?.color ?? '#94A3B8' },
+          createdByName: profile.name,
         }),
       }).catch(() => {})
     }

@@ -84,6 +84,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           profile={profile}
           departments={departments}
           members={members}
+          isDemo={!!demoDeptId}
         />
         <main className="flex-1 overflow-auto p-6">
           {children}

@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { KanbanBoardServer } from '@/components/kanban/KanbanBoardServer'
 import { createServerClient } from '@/lib/supabase/server'
-import { DEMO_TASKS, getTasksForDept } from '@/lib/demo-data'
+import { DEMO_TASKS, DEMO_PROFILES, DEMO_DEPARTMENTS, getTasksForDept } from '@/lib/demo-data'
 import type { Task } from '@/types'
 
 export default async function KanbanPage() {
@@ -9,12 +9,30 @@ export default async function KanbanPage() {
   const demoDeptId = cookieStore.get('relays-demo')?.value
 
   let tasks: Task[] = []
+  let currentDepartmentId = ''
+  let currentUserName: string | undefined
 
   if (demoDeptId) {
     tasks = getTasksForDept(demoDeptId)
+    currentDepartmentId = demoDeptId
+    const slug = DEMO_DEPARTMENTS.find(d => d.id === demoDeptId)?.slug ?? 'marketing'
+    currentUserName = DEMO_PROFILES[slug]?.profile.name
   } else {
     try {
       const supabase = createServerClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data: profileRow } = await supabase
+          .from('profiles')
+          .select('id, name, department_id')
+          .eq('id', user.id)
+          .single()
+
+        currentDepartmentId = profileRow?.department_id ?? ''
+        currentUserName = profileRow?.name ?? user.email?.split('@')[0]
+      }
+
       const { data } = await supabase
         .from('tasks')
         .select(`
@@ -43,5 +61,5 @@ export default async function KanbanPage() {
     }
   }
 
-  return <KanbanBoardServer initialTasks={tasks} currentDepartmentId={demoDeptId ?? ''} />
+  return <KanbanBoardServer initialTasks={tasks} currentDepartmentId={currentDepartmentId} currentUserName={currentUserName} />
 }

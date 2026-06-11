@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Filter, Moon, Sun, Search } from 'lucide-react'
+import { Plus, Filter, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useTaskStore } from '@/store/tasks'
 import { NewTaskModal } from '@/components/tasks/NewTaskModal'
@@ -12,9 +12,10 @@ interface HeaderProps {
   profile: Profile
   departments: Department[]
   members: Profile[]
+  isDemo?: boolean
 }
 
-export function Header({ department, profile, departments, members }: HeaderProps) {
+export function Header({ department, profile, departments, members, isDemo }: HeaderProps) {
   const [showNewTask, setShowNewTask] = useState(false)
   const { myTasksOnly, toggleMyTasks } = useTaskStore()
   const { theme, setTheme } = useTheme()
@@ -39,7 +40,6 @@ export function Header({ department, profile, departments, members }: HeaderProp
 
         {/* Right */}
         <div className="flex items-center gap-2">
-          {/* Mes tâches */}
           <button
             onClick={toggleMyTasks}
             className={cn(
@@ -57,18 +57,13 @@ export function Header({ department, profile, departments, members }: HeaderProp
             <span className="hidden sm:inline">Mes tâches</span>
           </button>
 
-          {/* Dark mode */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className="p-2 rounded-lg border border-white/20 hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
           >
-            {theme === 'dark'
-              ? <Sun className="w-3.5 h-3.5" />
-              : <Moon className="w-3.5 h-3.5" />
-            }
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
 
-          {/* Nouvelle tâche */}
           <button
             onClick={() => setShowNewTask(true)}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm text-white font-medium transition-all duration-200 hover:scale-105 active:scale-95"
@@ -89,6 +84,8 @@ export function Header({ department, profile, departments, members }: HeaderProp
         currentDepartmentId={department.id}
         departments={departments}
         members={members}
+        profile={profile}
+        isDemo={isDemo}
       />
     </>
   )
