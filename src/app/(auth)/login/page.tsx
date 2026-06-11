@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { createBrowserClient } from '@supabase/ssr'
+import { loginAction } from './actions'
 
 const DEMO_DEPTS = [
   { slug: 'marketing',     name: 'Marketing',     color: '#ECEFBD' },
@@ -17,32 +16,17 @@ const DEMO_DEPTS = [
 export default function LoginPage() {
   const [loading, setLoading]       = useState(false)
   const [demoLoading, setDemoLoading] = useState<string | null>(null)
-  const router = useRouter()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const fd = new FormData(e.currentTarget)
     setLoading(true)
-
     try {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email:    fd.get('email') as string,
-        password: fd.get('password') as string,
-      })
-
-      if (error) {
-        toast.error('Identifiants incorrects')
-        return
+      const result = await loginAction(new FormData(e.currentTarget))
+      if (result?.error) {
+        toast.error(result.error)
       }
-
-      window.location.href = '/kanban'
     } catch {
-      toast.error('Erreur réseau')
+      // redirect() lance une exception Next.js — c'est normal
     } finally {
       setLoading(false)
     }
@@ -56,8 +40,7 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug }),
       })
-      router.push('/kanban')
-      router.refresh()
+      window.location.href = '/kanban'
     } catch {
       toast.error('Erreur')
       setDemoLoading(null)
