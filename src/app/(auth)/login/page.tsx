@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { createBrowserClient } from '@supabase/ssr'
 
 const DEMO_DEPTS = [
   { slug: 'marketing',     name: 'Marketing',     color: '#ECEFBD' },
@@ -24,35 +25,24 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 10000)
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
 
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email:    fd.get('email'),
-          password: fd.get('password'),
-        }),
-        signal: controller.signal,
+      const { error } = await supabase.auth.signInWithPassword({
+        email:    fd.get('email') as string,
+        password: fd.get('password') as string,
       })
 
-      clearTimeout(timeout)
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        toast.error(data.error ?? 'Identifiants incorrects')
+      if (error) {
+        toast.error('Identifiants incorrects')
         return
       }
 
       window.location.href = '/kanban'
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        toast.error('Délai dépassé — vérifie ta connexion')
-      } else {
-        toast.error('Erreur réseau')
-      }
+    } catch {
+      toast.error('Erreur réseau')
     } finally {
       setLoading(false)
     }
