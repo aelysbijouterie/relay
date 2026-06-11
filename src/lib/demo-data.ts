@@ -19,7 +19,7 @@ const mkMember = (id: string, name: string, email: string, role: Profile['role']
 
 export const ALL_DEMO_MEMBERS: Profile[] = [
   // Marketing
-  mkMember('u-mkt-1', 'Manon M.',    'manon@aelys.fr',    'manager',       'dept-marketing'),
+  mkMember('u-mkt-1', 'Manon M.',    'manon.mignot@aelys.fr', 'manager',   'dept-marketing'),
   mkMember('u-mkt-2', 'Lucas D.',    'lucas@aelys.fr',    'collaborateur', 'dept-marketing'),
   mkMember('u-mkt-3', 'Chloé R.',    'chloe@aelys.fr',    'collaborateur', 'dept-marketing'),
   // Web
