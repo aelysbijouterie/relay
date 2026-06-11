@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 const DEMO_DEPTS = [
   { slug: 'marketing',    name: 'Marketing',      color: '#FF6B35' },
   { slug: 'web',          name: 'Web',             color: '#4A90D9' },
-  { slug: 'comptabilite', name: 'Comptabilité',    color: '#F5C518' },
+  { slug: 'administratif', name: 'Administratif',   color: '#F5C518' },
   { slug: 'rh',           name: 'RH',              color: '#9B59B6' },
   { slug: 'logistique',   name: 'Logistique',      color: '#27AE60' },
   { slug: 'direction',    name: 'Direction',       color: '#E74C3C' },
