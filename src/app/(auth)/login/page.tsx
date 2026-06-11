@@ -24,6 +24,9 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -31,20 +34,26 @@ export default function LoginPage() {
           email:    fd.get('email'),
           password: fd.get('password'),
         }),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeout)
 
       const data = await res.json()
 
       if (!res.ok) {
         toast.error(data.error ?? 'Identifiants incorrects')
-        setLoading(false)
         return
       }
 
-      router.push('/kanban')
-      router.refresh()
-    } catch {
-      toast.error('Erreur réseau')
+      window.location.href = '/kanban'
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        toast.error('Délai dépassé — vérifie ta connexion')
+      } else {
+        toast.error('Erreur réseau')
+      }
+    } finally {
       setLoading(false)
     }
   }
