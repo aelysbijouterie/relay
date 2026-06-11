@@ -98,7 +98,7 @@ export function NewTaskModal({
     reset()
     onClose()
 
-    if (assignedMembers.length > 0 && process.env.NODE_ENV !== 'development') {
+    if (assignedMembers.length > 0) {
       fetch('/api/notify/assign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
