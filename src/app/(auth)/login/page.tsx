@@ -23,10 +23,12 @@ export default function LoginPage() {
     try {
       const result = await loginAction(new FormData(e.currentTarget))
       if (result?.error) {
-        toast.error(result.error)
+        toast.error('Identifiants incorrects — ' + result.error)
+      } else {
+        window.location.href = '/kanban'
       }
     } catch {
-      // redirect() lance une exception Next.js — c'est normal
+      toast.error('Erreur réseau')
     } finally {
       setLoading(false)
     }
