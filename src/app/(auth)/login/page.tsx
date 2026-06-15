@@ -34,12 +34,9 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const supabase = getSupabase()
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: false },
-      })
+      const { error } = await supabase.auth.signInWithOtp({ email })
       if (error) {
-        setError('Email non reconnu ou erreur d\'envoi')
+        setError(error.message)
       } else {
         setStep('code')
       }
