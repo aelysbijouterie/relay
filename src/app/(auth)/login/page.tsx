@@ -1,53 +1,16 @@
-'use client'
-
-import { useState } from 'react'
-import { toast } from 'sonner'
-import { loginAction } from './actions'
+import { loginAction, demoAction } from './actions'
 
 const DEMO_DEPTS = [
-  { slug: 'marketing',     name: 'Marketing',     color: '#ECEFBD' },
-  { slug: 'web',           name: 'Web',           color: '#EB5C82' },
-  { slug: 'administratif', name: 'Administratif', color: '#54673C' },
-  { slug: 'rh',            name: 'RH',            color: '#C9E1F8' },
-  { slug: 'logistique',    name: 'Logistique',    color: '#FAFFAD' },
-  { slug: 'direction',     name: 'Direction',     color: '#0A2342' },
+  { slug: 'marketing',     name: 'Marketing',     color: '#7A7E2A', text: 'white' },
+  { slug: 'web',           name: 'Web',           color: '#EB5C82', text: 'white' },
+  { slug: 'administratif', name: 'Administratif', color: '#54673C', text: 'white' },
+  { slug: 'rh',            name: 'RH',            color: '#3A7CB8', text: 'white' },
+  { slug: 'logistique',    name: 'Logistique',    color: '#7A7E2A', text: 'white' },
+  { slug: 'direction',     name: 'Direction',     color: '#0A2342', text: 'white' },
 ]
 
-export default function LoginPage() {
-  const [loading, setLoading]       = useState(false)
-  const [demoLoading, setDemoLoading] = useState<string | null>(null)
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setLoading(true)
-    try {
-      const result = await loginAction(new FormData(e.currentTarget))
-      if (result?.error) {
-        toast.error('Identifiants incorrects — ' + result.error)
-      } else {
-        window.location.href = '/kanban'
-      }
-    } catch {
-      toast.error('Erreur réseau')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleDemo(slug: string) {
-    setDemoLoading(slug)
-    try {
-      await fetch('/api/auth/demo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug }),
-      })
-      window.location.href = '/kanban'
-    } catch {
-      toast.error('Erreur')
-      setDemoLoading(null)
-    }
-  }
+export default function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
+  const hasError = !!searchParams.error
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -59,34 +22,26 @@ export default function LoginPage() {
           <p className="text-muted-foreground mt-2 text-sm">Gestion de tâches · Aelys</p>
         </div>
 
-        {/* Carte */}
         <div className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-6">
 
-          {/* Accès démo par service */}
+          {/* Accès démo */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
               Accès démo par service
             </p>
             <div className="grid grid-cols-2 gap-2">
               {DEMO_DEPTS.map(dept => (
-                <button
-                  key={dept.slug}
-                  type="button"
-                  onClick={() => handleDemo(dept.slug)}
-                  disabled={!!demoLoading}
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all disabled:opacity-60 hover:scale-[1.02] active:scale-[0.98]"
-                  style={demoLoading === dept.slug ? {
-                    backgroundColor: dept.color,
-                    borderColor: dept.color,
-                    color: 'white',
-                  } : {
-                    borderColor: `${dept.color}66`,
-                    color: dept.color,
-                  }}
-                >
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dept.color }} />
-                  {demoLoading === dept.slug ? 'Chargement…' : dept.name}
-                </button>
+                <form key={dept.slug} action={demoAction}>
+                  <input type="hidden" name="slug" value={dept.slug} />
+                  <button
+                    type="submit"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    style={{ borderColor: `${dept.color}66`, color: dept.color }}
+                  >
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dept.color }} />
+                    {dept.name}
+                  </button>
+                </form>
               ))}
             </div>
           </div>
@@ -97,43 +52,35 @@ export default function LoginPage() {
             <div className="flex-1 h-px bg-border" />
           </div>
 
+          {/* Erreur */}
+          {hasError && (
+            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+              Identifiants incorrects — vérifie ton email et mot de passe.
+            </div>
+          )}
+
           {/* Formulaire */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form action={loginAction} className="space-y-4">
             <div>
-              <label htmlFor="email" className="text-sm font-medium block mb-1.5">
-                Adresse email
-              </label>
+              <label htmlFor="email" className="text-sm font-medium block mb-1.5">Adresse email</label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
+                id="email" name="email" type="email" required autoComplete="email"
                 className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
                 placeholder="vous@aelys.fr"
               />
             </div>
-
             <div>
-              <label htmlFor="password" className="text-sm font-medium block mb-1.5">
-                Mot de passe
-              </label>
+              <label htmlFor="password" className="text-sm font-medium block mb-1.5">Mot de passe</label>
               <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
+                id="password" name="password" type="password" required autoComplete="current-password"
                 className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
               />
             </div>
-
             <button
               type="submit"
-              disabled={loading || !!demoLoading}
-              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
             >
-              {loading ? 'Connexion…' : 'Se connecter'}
+              Se connecter
             </button>
           </form>
         </div>

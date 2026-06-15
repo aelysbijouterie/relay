@@ -2,11 +2,11 @@ import type { Task, Department, Profile } from '@/types'
 
 // ── Départements ──────────────────────────────────────────────────────────────
 export const DEMO_DEPARTMENTS: Department[] = [
-  { id: 'dept-marketing',  name: 'Marketing',     color: '#ECEFBD', icon: '📣', slug: 'marketing' },
+  { id: 'dept-marketing',  name: 'Marketing',     color: '#7A7E2A', icon: '📣', slug: 'marketing' },
   { id: 'dept-web',        name: 'Web',           color: '#EB5C82', icon: '💻', slug: 'web' },
   { id: 'dept-compta',     name: 'Administratif', color: '#54673C', icon: '📊', slug: 'administratif' },
-  { id: 'dept-rh',         name: 'RH',            color: '#C9E1F8', icon: '👥', slug: 'rh' },
-  { id: 'dept-logistique', name: 'Logistique',    color: '#FAFFAD', icon: '📦', slug: 'logistique' },
+  { id: 'dept-rh',         name: 'RH',            color: '#3A7CB8', icon: '👥', slug: 'rh' },
+  { id: 'dept-logistique', name: 'Logistique',    color: '#7A7E2A', icon: '📦', slug: 'logistique' },
   { id: 'dept-direction',  name: 'Direction',     color: '#0A2342', icon: '🏛️', slug: 'direction' },
 ]
 
