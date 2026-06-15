@@ -3,7 +3,8 @@
 import useSWR from 'swr'
 import type { Task } from '@/types'
 
-const fetcher = (url: string) => fetch(url).then(r => r.json())
+const fetcher = (url: string) =>
+  fetch(url).then(r => r.json()).then(d => (Array.isArray(d) ? d : []))
 
 export function useTasks() {
   const { data, error, mutate, isLoading } = useSWR<Task[]>('/api/tasks', fetcher, {

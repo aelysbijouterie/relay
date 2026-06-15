@@ -27,16 +27,14 @@ export async function GET(request: NextRequest) {
       is_cross_team, fournisseur_client, ref_collection,
       parent_task_id, created_at, updated_at, department_id, created_by,
       department:departments(id, name, color, slug, icon),
-      creator:profiles!tasks_created_by_fkey(id, name, avatar_url),
       assignees:task_assignees(
         user:profiles(id, name, email, avatar_url, role, department_id,
           department:departments(id, name, color, slug))
       ),
       extra_departments:task_departments(department:departments(id, name, color, slug)),
-      subtasks:tasks!parent_task_id(id, title, status, priority),
-      comments:task_comments(
-        id, content, created_at,
-        author:profiles!task_comments_author_id_fkey(id, name, avatar_url)
+      subtasks:tasks!tasks_parent_task_id_fkey(id, title, status, priority),
+      comments:task_comments(id, content, created_at, author_id,
+        author:profiles(id, name, avatar_url)
       )
     `)
     .neq('status', 'Archivé')
@@ -44,14 +42,18 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(500)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('Tasks fetch error:', error.message)
+    return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
+  }
 
   const tasks = (data ?? []).map((t: Record<string, unknown>) => ({
     ...t,
     assignees:         ((t.assignees as { user: unknown }[]) ?? []).map(a => a.user).filter(Boolean),
     extra_departments: ((t.extra_departments as { department: unknown }[]) ?? []).map(a => a.department).filter(Boolean),
-    comments:          ((t.comments as { author: unknown; id: unknown; content: unknown; created_at: unknown }[]) ?? [])
-                         .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))),
+    subtasks:          (t.subtasks as unknown[]) ?? [],
+    comments:          ((t.comments as { created_at: string }[]) ?? [])
+                         .sort((a, b) => a.created_at.localeCompare(b.created_at)),
   }))
 
   return NextResponse.json(tasks, {
