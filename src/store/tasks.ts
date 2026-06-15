@@ -45,10 +45,8 @@ export const useTaskStore = create<TaskStore>()(
     }),
     {
       name: 'relays-tasks',
-      // Ne persister que les tâches créées par l'utilisateur
-      partialize: (state) => ({
-        tasks: state.tasks.filter(t => t.id.startsWith('task-')),
-      }),
+      // Ne pas persister les tâches en localStorage — elles viennent du serveur
+      partialize: () => ({ tasks: [] }),
     }
   )
 )

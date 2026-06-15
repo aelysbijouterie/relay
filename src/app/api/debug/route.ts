@@ -1,29 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-export async function GET(request: NextRequest) {
-  const raw = request.cookies.get('relays-session')?.value
-  const userId = raw ? JSON.parse(raw).user_id : null
-
+export async function GET() {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const [tasksCount, profile, tasksQuery] = await Promise.all([
+  const [tasksCount, tasksQuery, profilesQuery] = await Promise.all([
     supabase.from('tasks').select('id', { count: 'exact', head: true }),
-    userId ? supabase.from('profiles').select('id, name, department_id').eq('id', userId).single() : Promise.resolve({ data: null, error: 'no userId' }),
-    supabase.from('tasks').select('id, title, status, department_id, created_at').limit(5).order('created_at', { ascending: false }),
+    supabase.from('tasks').select('id, title, status, department_id').limit(5).order('created_at', { ascending: false }),
+    supabase.from('profiles').select('id, name').limit(3),
   ])
 
   return NextResponse.json({
-    userId,
+    ok:            true,
     hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     tasksTotal:    tasksCount.count,
-    tasksError:    tasksCount.error?.message,
-    profile:       profile.data,
-    profileError:  typeof profile.error === 'string' ? profile.error : (profile as { error?: { message?: string } }).error?.message,
-    recentTasks:   tasksQuery.data,
-    recentError:   tasksQuery.error?.message,
+    tasksError:    tasksCount.error?.message ?? null,
+    recentTasks:   tasksQuery.data ?? [],
+    recentError:   tasksQuery.error?.message ?? null,
+    profiles:      profilesQuery.data ?? [],
+    profilesError: profilesQuery.error?.message ?? null,
   })
 }

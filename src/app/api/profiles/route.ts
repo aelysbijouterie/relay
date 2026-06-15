@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 
 function createAdmin() {
@@ -10,10 +9,6 @@ function createAdmin() {
 }
 
 export async function GET() {
-  const cookieStore = cookies()
-  const raw = cookieStore.get('relays-session')?.value
-  if (!raw) return NextResponse.json([])
-
   const supabase = createAdmin()
 
   const { data, error } = await supabase
@@ -22,6 +17,9 @@ export async function GET() {
     .eq('is_active', true)
     .order('name')
 
-  if (error) return NextResponse.json([])
+  if (error) {
+    console.error('Profiles error:', error.message)
+    return NextResponse.json([])
+  }
   return NextResponse.json(data ?? [])
 }

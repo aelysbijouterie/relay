@@ -32,14 +32,7 @@ export function KanbanBoard({
   const visibleTasks = tasks.map(t => ({
     ...t,
     status: (optimistic[t.id] ?? t.status) as TaskStatus,
-  })).filter(t => {
-    if (t.status === 'Archivé') return false
-    if (!currentDepartmentId) return true
-    const isOwn   = t.department_id === currentDepartmentId
-    const isCross = t.is_cross_team && (t.extra_departments ?? []).some(d => d.id === currentDepartmentId)
-    const isAssigned = (t.assignees ?? []).some(a => a.department_id === currentDepartmentId)
-    return isOwn || isCross || isAssigned
-  })
+  })).filter(t => t.status !== 'Archivé')
 
   const getColumnTasks = (status: TaskStatus) => visibleTasks.filter(t => t.status === status)
 
@@ -88,6 +81,12 @@ export function KanbanBoard({
 
   return (
     <>
+      {/* Indicateur temporaire — à supprimer une fois confirmé */}
+      {process.env.NODE_ENV !== 'production' && (
+        <div className="text-xs text-gray-400 px-4 py-1">
+          {visibleTasks.length} tâche(s) chargée(s) · {tasks.length} total
+        </div>
+      )}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 h-full">
           {TASK_STATUSES.map(status => (

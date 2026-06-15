@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 function createAdmin() {
@@ -9,17 +8,9 @@ function createAdmin() {
   )
 }
 
-function getUserId(): string | null {
-  const cookieStore = cookies()
-  const raw = cookieStore.get('relays-session')?.value
-  if (!raw) return null
-  try { return JSON.parse(raw).user_id ?? null } catch { return null }
-}
-
-export async function GET() {
-  const userId = getUserId()
-  if (!userId) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
-
+// Route publique — protégée par le middleware (seuls les users connectés atteignent /dashboard)
+// Le userId est passé en query param depuis le composant client
+export async function GET(request: NextRequest) {
   const supabase = createAdmin()
 
   const { data, error } = await supabase
