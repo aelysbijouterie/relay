@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 
 function createAdmin() {
@@ -8,19 +9,19 @@ function createAdmin() {
   )
 }
 
-function getUserId(request: NextRequest): string | null {
-  const raw = request.cookies.get('relays-session')?.value
+function getUserId(): string | null {
+  const cookieStore = cookies()
+  const raw = cookieStore.get('relays-session')?.value
   if (!raw) return null
   try { return JSON.parse(raw).user_id ?? null } catch { return null }
 }
 
-export async function GET(request: NextRequest) {
-  const userId = getUserId(request)
-  if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+export async function GET() {
+  const userId = getUserId()
+  if (!userId) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
 
   const supabase = createAdmin()
 
-  // Requête principale — tâches + jointures simples
   const { data, error } = await supabase
     .from('tasks')
     .select(`
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     .limit(500)
 
   if (error) {
-    console.error('Tasks fetch error:', error.message)
+    console.error('Tasks error:', error.message)
     return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
   }
 
@@ -48,11 +49,7 @@ export async function GET(request: NextRequest) {
     ...t,
     assignees:         ((t.assignees as { user: unknown }[]) ?? []).map(a => a.user).filter(Boolean),
     extra_departments: ((t.extra_departments as { department: unknown }[]) ?? []).map(a => a.department).filter(Boolean),
-    subtasks:          [] as unknown[],
-    comments:          [] as unknown[],
   }))
 
-  return NextResponse.json(tasks, {
-    headers: { 'Cache-Control': 'no-store' },
-  })
+  return NextResponse.json(tasks, { headers: { 'Cache-Control': 'no-store' } })
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 
 function createAdmin() {
@@ -8,14 +9,15 @@ function createAdmin() {
   )
 }
 
-function getUserId(request: NextRequest): string | null {
-  const raw = request.cookies.get('relays-session')?.value
+function getUserId(): string | null {
+  const cookieStore = cookies()
+  const raw = cookieStore.get('relays-session')?.value
   if (!raw) return null
   try { return JSON.parse(raw).user_id ?? null } catch { return null }
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const userId = getUserId(request)
+  const userId = getUserId()
   if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const { content } = await request.json()
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const { data, error } = await supabase
     .from('task_comments')
     .insert({ task_id: params.id, author_id: userId, content: content.trim() })
-    .select('id, content, created_at, author:profiles!task_comments_author_id_fkey(id, name, avatar_url)')
+    .select('id, content, created_at, author:profiles(id, name, avatar_url)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

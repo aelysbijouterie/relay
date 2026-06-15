@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 
 function createAdmin() {
@@ -8,9 +9,10 @@ function createAdmin() {
   )
 }
 
-export async function GET(request: NextRequest) {
-  const raw = request.cookies.get('relays-session')?.value
-  if (!raw) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+export async function GET() {
+  const cookieStore = cookies()
+  const raw = cookieStore.get('relays-session')?.value
+  if (!raw) return NextResponse.json([])
 
   const supabase = createAdmin()
 
@@ -20,7 +22,6 @@ export async function GET(request: NextRequest) {
     .eq('is_active', true)
     .order('name')
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
+  if (error) return NextResponse.json([])
   return NextResponse.json(data ?? [])
 }
