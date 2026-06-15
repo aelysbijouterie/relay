@@ -1,42 +1,30 @@
-import { createServerClient as createSSRClient, type CookieOptions } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-export function createServerClient() {
-  const cookieStore = cookies()
-
-  return createSSRClient(
+function createAdmin() {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // Ignoré dans les Server Components (read-only)
-          }
-        },
-      },
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
 
-export function createAdminClient() {
-  const cookieStore = cookies()
+export function createServerClient() {
+  return createAdmin()
+}
 
-  return createSSRClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll(_cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {},
-      },
-    }
-  )
+export function createAdminClient() {
+  return createAdmin()
+}
+
+export function getCurrentUserId(): string {
+  const cookieStore = cookies()
+  const raw = cookieStore.get('relays-session')?.value
+  if (!raw) throw new Error('Non authentifié')
+  try {
+    const s = JSON.parse(raw)
+    if (!s.user_id) throw new Error('Non authentifié')
+    return s.user_id as string
+  } catch {
+    throw new Error('Non authentifié')
+  }
 }

@@ -1,15 +1,13 @@
 'use server'
 
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, getCurrentUserId } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { taskSchema } from '@/lib/validations/task'
 import type { TaskStatus, Task } from '@/types'
 
 export async function createTask(data: unknown) {
+  const userId = getCurrentUserId()
   const supabase = createServerClient()
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) throw new Error('Non authentifié')
 
   const parsed = taskSchema.safeParse(data)
   if (!parsed.success) throw new Error(parsed.error.errors[0].message)
@@ -18,7 +16,7 @@ export async function createTask(data: unknown) {
 
   const { data: task, error } = await supabase
     .from('tasks')
-    .insert({ ...taskData, created_by: user.id })
+    .insert({ ...taskData, created_by: userId })
     .select()
     .single()
 
@@ -41,10 +39,8 @@ export async function createTask(data: unknown) {
 }
 
 export async function updateTask(taskId: string, data: unknown) {
+  getCurrentUserId()
   const supabase = createServerClient()
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) throw new Error('Non authentifié')
 
   const parsed = taskSchema.partial().safeParse(data)
   if (!parsed.success) throw new Error(parsed.error.errors[0].message)
@@ -81,6 +77,7 @@ export async function updateTask(taskId: string, data: unknown) {
 }
 
 export async function updateTaskStatus(taskId: string, status: TaskStatus) {
+  getCurrentUserId()
   const supabase = createServerClient()
 
   const { error } = await supabase
@@ -93,6 +90,7 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
 }
 
 export async function deleteTask(taskId: string) {
+  getCurrentUserId()
   const supabase = createServerClient()
 
   const { error } = await supabase
@@ -110,10 +108,8 @@ export async function getTasks(filters?: {
   status?: TaskStatus
   departmentId?: string
 }) {
+  const userId = getCurrentUserId()
   const supabase = createServerClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Non authentifié')
 
   let query = supabase
     .from('tasks')
@@ -134,23 +130,14 @@ export async function getTasks(filters?: {
   }
 
   if (filters?.myTasksOnly) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single()
+    const { data: assignedTasks } = await supabase
+      .from('task_assignees')
+      .select('task_id')
+      .eq('user_id', userId)
 
-    if (profile) {
-      query = query.or(
-        `created_by.eq.${user.id},id.in.(${
-          (await supabase
-            .from('task_assignees')
-            .select('task_id')
-            .eq('user_id', user.id)
-          ).data?.map(r => r.task_id).join(',') ?? ''
-        })`
-      )
-    }
+    const taskIds = assignedTasks?.map(r => r.task_id) ?? []
+    const idList = taskIds.length > 0 ? taskIds.join(',') : 'no-match'
+    query = query.or(`created_by.eq.${userId},id.in.(${idList})`)
   }
 
   const { data, error } = await query.limit(200)
@@ -160,14 +147,12 @@ export async function getTasks(filters?: {
 }
 
 export async function saveFavoriteFilter(name: string, filters: Record<string, unknown>) {
+  const userId = getCurrentUserId()
   const supabase = createServerClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Non authentifié')
 
   const { error } = await supabase
     .from('saved_filters')
-    .insert({ user_id: user.id, name, filters })
+    .insert({ user_id: userId, name, filters })
 
   if (error) throw new Error(error.message)
   return { success: true }

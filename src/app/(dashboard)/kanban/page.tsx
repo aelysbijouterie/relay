@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { KanbanBoardServer } from '@/components/kanban/KanbanBoardServer'
-import { createServerClient } from '@/lib/supabase/server'
+import { createServerClient, getCurrentUserId } from '@/lib/supabase/server'
 import { DEMO_TASKS, DEMO_PROFILES, DEMO_DEPARTMENTS, getTasksForDept } from '@/lib/demo-data'
 import type { Task } from '@/types'
 
@@ -19,19 +19,17 @@ export default async function KanbanPage() {
     currentUserName = DEMO_PROFILES[slug]?.profile.name
   } else {
     try {
+      const userId = getCurrentUserId()
       const supabase = createServerClient()
-      const { data: { user } } = await supabase.auth.getUser()
 
-      if (user) {
-        const { data: profileRow } = await supabase
-          .from('profiles')
-          .select('id, name, department_id')
-          .eq('id', user.id)
-          .single()
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('id, name, department_id, extra_department_ids')
+        .eq('id', userId)
+        .single()
 
-        currentDepartmentId = profileRow?.department_id ?? ''
-        currentUserName = profileRow?.name ?? user.email?.split('@')[0]
-      }
+      currentDepartmentId = cookieStore.get('relays-active-dept')?.value ?? profileRow?.department_id ?? ''
+      currentUserName = profileRow?.name ?? ''
 
       const { data } = await supabase
         .from('tasks')
