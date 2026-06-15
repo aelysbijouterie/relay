@@ -2,15 +2,29 @@
 
 import { createServerClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 
 export async function loginAction(formData: FormData) {
-  const email    = formData.get('email') as string
-  const password = formData.get('password') as string
+  const email    = (formData.get('email') as string ?? '').trim()
+  const password = (formData.get('password') as string ?? '').trim()
 
-  const supabase = createServerClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  if (!email || !password) {
+    redirect('/login?error=1')
+  }
 
-  if (error) {
+  try {
+    const supabase = createServerClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      console.error('[login] Supabase error:', error.message)
+      redirect('/login?error=1')
+    }
+  } catch (err: unknown) {
+    // Relancer les redirects Next.js (NEXT_REDIRECT) — ne pas les avaler
+    const e = err as { digest?: string }
+    if (e?.digest?.startsWith('NEXT_REDIRECT')) throw err
+    console.error('[login] Unexpected error:', err)
     redirect('/login?error=1')
   }
 
@@ -27,7 +41,6 @@ export async function demoAction(formData: FormData) {
   const deptId = SLUGS[slug]
   if (!deptId) redirect('/login')
 
-  const { cookies } = await import('next/headers')
   cookies().set('relays-demo', deptId, { path: '/', sameSite: 'lax', httpOnly: true })
   redirect('/kanban')
 }
