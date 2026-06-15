@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { demoAction } from './actions'
 
 const DEMO_DEPTS = [
@@ -13,53 +12,25 @@ const DEMO_DEPTS = [
   { slug: 'direction',     name: 'Direction',     color: '#0A2342' },
 ]
 
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-}
-
 export default function LoginPage() {
-  const [step, setStep] = useState<'email' | 'code'>('email')
-  const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [loading, setLoading]         = useState(false)
   const [demoLoading, setDemoLoading] = useState<string | null>(null)
+  const [error, setError]             = useState('')
 
-  async function handleSendCode(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
     setLoading(true)
+    const fd = new FormData(e.currentTarget)
     try {
-      const supabase = getSupabase()
-      const { error } = await supabase.auth.signInWithOtp({ email })
-      if (error) {
-        setError(error.message)
-      } else {
-        setStep('code')
-      }
-    } catch {
-      setError('Erreur réseau')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleVerifyCode(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      const supabase = getSupabase()
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token: code,
-        type: 'email',
+      const res = await fetch('/api/auth/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: fd.get('email'), password: fd.get('password') }),
       })
-      if (error) {
-        setError('Code incorrect ou expiré')
+      if (!res.ok) {
+        const d = await res.json()
+        setError(d.error ?? 'Identifiants incorrects')
       } else {
         window.location.replace('/kanban')
       }
@@ -91,17 +62,11 @@ export default function LoginPage() {
 
         <div className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-6">
 
-          {/* Accès démo */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Accès démo par service
-            </p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Accès démo par service</p>
             <div className="grid grid-cols-2 gap-2">
               {DEMO_DEPTS.map(dept => (
-                <button
-                  key={dept.slug}
-                  type="button"
-                  onClick={() => handleDemo(dept.slug)}
+                <button key={dept.slug} type="button" onClick={() => handleDemo(dept.slug)}
                   disabled={!!demoLoading}
                   className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all disabled:opacity-60 hover:scale-[1.02] active:scale-[0.98]"
                   style={demoLoading === dept.slug
@@ -117,74 +82,34 @@ export default function LoginPage() {
 
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground">ou connexion sécurisée</span>
+            <span className="text-xs text-muted-foreground">ou connexion avec compte</span>
             <div className="flex-1 h-px bg-border" />
           </div>
 
-          {/* Étape 1 — Email */}
-          {step === 'email' && (
-            <form onSubmit={handleSendCode} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="text-sm font-medium block mb-1.5">
-                  Adresse email
-                </label>
-                <input
-                  id="email" type="email" required
-                  value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="vous@aelys.fr"
-                  className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
-                />
-              </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <button
-                type="submit" disabled={loading}
-                className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {loading ? 'Envoi…' : 'Recevoir mon code'}
-              </button>
-            </form>
-          )}
-
-          {/* Étape 2 — Code */}
-          {step === 'code' && (
-            <form onSubmit={handleVerifyCode} className="space-y-4">
-              <div className="text-center space-y-1">
-                <p className="text-sm font-medium">Code envoyé à</p>
-                <p className="text-sm text-primary font-semibold">{email}</p>
-                <p className="text-xs text-muted-foreground">Vérifie tes spams si tu ne le vois pas</p>
-              </div>
-              <div>
-                <label htmlFor="code" className="text-sm font-medium block mb-1.5">
-                  Code de connexion
-                </label>
-                <input
-                  id="code" type="text" inputMode="numeric" pattern="\d*"
-                  maxLength={6} required
-                  value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="000000"
-                  className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow text-center text-2xl tracking-[0.5em] font-mono"
-                />
-              </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <button
-                type="submit" disabled={loading || code.length < 6}
-                className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {loading ? 'Vérification…' : 'Se connecter'}
-              </button>
-              <button
-                type="button" onClick={() => { setStep('email'); setCode(''); setError('') }}
-                className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Utiliser une autre adresse
-              </button>
-            </form>
-          )}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="text-sm font-medium block mb-1.5">Adresse email</label>
+              <input id="email" name="email" type="email" required autoComplete="email"
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
+                placeholder="vous@aelys.fr"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="text-sm font-medium block mb-1.5">Mot de passe</label>
+              <input id="password" name="password" type="password" required autoComplete="current-password"
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
+              />
+            </div>
+            {error && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/30 rounded-lg px-3 py-2">{error}</p>}
+            <button type="submit" disabled={loading || !!demoLoading}
+              className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {loading ? 'Connexion…' : 'Se connecter'}
+            </button>
+          </form>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Accès réservé aux collaborateurs Aelys
-        </p>
+        <p className="text-center text-xs text-muted-foreground">Accès réservé aux collaborateurs Aelys</p>
       </div>
     </div>
   )

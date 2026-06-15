@@ -3,26 +3,19 @@ import { NextResponse, type NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Toujours accessible
   if (
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/auth') ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
-  ) {
-    return NextResponse.next()
-  }
+  ) return NextResponse.next()
 
-  // Mode démo — laisser passer
-  const isDemo = !!request.cookies.get('relays-demo')?.value
-  if (isDemo) return NextResponse.next()
+  const isDemo    = !!request.cookies.get('relays-demo')?.value
+  const isSession = !!request.cookies.get('relays-session')?.value
+  const isAuth    = isDemo || isSession
+  const isLogin   = pathname.startsWith('/login') || pathname.startsWith('/auth')
 
-  // Session Supabase — vérifie si un cookie auth existe
-  const hasSession = request.cookies.getAll().some(c => c.name.includes('-auth-token'))
-  if (!hasSession) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
+  if (!isAuth && !isLogin) return NextResponse.redirect(new URL('/login', request.url))
+  if (isAuth && isLogin)   return NextResponse.redirect(new URL('/kanban', request.url))
 
   return NextResponse.next()
 }

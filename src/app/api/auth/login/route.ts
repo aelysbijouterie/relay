@@ -1,34 +1,32 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
   const { email, password } = await request.json()
 
-  // On lit les cookies depuis la requête et on les écrit sur la réponse
-  const response = NextResponse.json({ success: true })
-
-  const supabase = createServerClient(
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2])
-          })
-        },
-      },
-    }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 401 })
+  if (error || !data.session) {
+    return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 })
   }
+
+  const response = NextResponse.json({ ok: true })
+  response.cookies.set('relays-session', JSON.stringify({
+    access_token: data.session.access_token,
+    user_id:      data.user.id,
+    email:        data.user.email,
+  }), {
+    httpOnly: true,
+    secure:   true,
+    sameSite: 'lax',
+    path:     '/',
+    maxAge:   60 * 60 * 24 * 7, // 7 jours
+  })
 
   return response
 }

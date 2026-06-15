@@ -15,11 +15,11 @@ export async function login(email: string, password: string) {
 }
 
 export async function logout() {
-  // Déconnexion Supabase si session active
-  try {
-    const supabase = createServerClient()
-    await supabase.auth.signOut()
-  } catch {}
+  const { cookies } = await import('next/headers')
+  const cookieStore = cookies()
+  cookieStore.delete('relays-session')
+  cookieStore.delete('relays-demo')
+  cookieStore.delete('relays-active-dept')
   redirect('/login')
 }
 
