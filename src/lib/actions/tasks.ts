@@ -5,36 +5,40 @@ import { revalidatePath } from 'next/cache'
 import { taskSchema } from '@/lib/validations/task'
 import type { TaskStatus, Task } from '@/types'
 
-export async function createTask(data: unknown) {
-  const userId = getCurrentUserId()
-  const supabase = createServerClient()
+export async function createTask(data: unknown): Promise<{ success: boolean; taskId?: string; error?: string }> {
+  try {
+    const userId = getCurrentUserId()
+    const supabase = createServerClient()
 
-  const parsed = taskSchema.safeParse(data)
-  if (!parsed.success) throw new Error(parsed.error.errors[0].message)
+    const parsed = taskSchema.safeParse(data)
+    if (!parsed.success) return { success: false, error: parsed.error.errors[0].message }
 
-  const { assignees, extra_departments, ...taskData } = parsed.data
+    const { assignees, extra_departments, ...taskData } = parsed.data
 
-  const { data: task, error } = await supabase
-    .from('tasks')
-    .insert({ ...taskData, created_by: userId })
-    .select()
-    .single()
+    const { data: task, error } = await supabase
+      .from('tasks')
+      .insert({ ...taskData, created_by: userId })
+      .select()
+      .single()
 
-  if (error) throw new Error(error.message)
+    if (error) return { success: false, error: error.message }
 
-  if (assignees?.length) {
-    await supabase.from('task_assignees').insert(
-      assignees.map(user_id => ({ task_id: task.id, user_id }))
-    )
+    if (assignees?.length) {
+      await supabase.from('task_assignees').insert(
+        assignees.map(user_id => ({ task_id: task.id, user_id }))
+      )
+    }
+
+    if (parsed.data.is_cross_team && extra_departments?.length) {
+      await supabase.from('task_departments').insert(
+        extra_departments.map(department_id => ({ task_id: task.id, department_id }))
+      )
+    }
+
+    return { success: true, taskId: task.id }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Erreur inconnue' }
   }
-
-  if (parsed.data.is_cross_team && extra_departments?.length) {
-    await supabase.from('task_departments').insert(
-      extra_departments.map(department_id => ({ task_id: task.id, department_id }))
-    )
-  }
-
-  return { success: true, taskId: task.id }
 }
 
 export async function updateTask(taskId: string, data: unknown) {

@@ -102,10 +102,9 @@ export function NewTaskModal({
       addTask(newTask)
     } else {
       // ── Mode réel : sauvegarde Supabase ──────────────────────────
-      try {
-        await createTask(data)
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Erreur lors de la création')
+      const result = await createTask(data)
+      if (!result.success) {
+        toast.error(result.error ?? 'Erreur lors de la création')
         return
       }
       toast.success('Tâche créée !')
