@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdmin()
 
+  // Requête principale — tâches + jointures simples
   const { data, error } = await supabase
     .from('tasks')
     .select(`
@@ -31,11 +32,7 @@ export async function GET(request: NextRequest) {
         user:profiles(id, name, email, avatar_url, role, department_id,
           department:departments(id, name, color, slug))
       ),
-      extra_departments:task_departments(department:departments(id, name, color, slug)),
-      subtasks:tasks!tasks_parent_task_id_fkey(id, title, status, priority),
-      comments:task_comments(id, content, created_at, author_id,
-        author:profiles(id, name, avatar_url)
-      )
+      extra_departments:task_departments(department:departments(id, name, color, slug))
     `)
     .neq('status', 'Archivé')
     .is('parent_task_id', null)
@@ -51,9 +48,8 @@ export async function GET(request: NextRequest) {
     ...t,
     assignees:         ((t.assignees as { user: unknown }[]) ?? []).map(a => a.user).filter(Boolean),
     extra_departments: ((t.extra_departments as { department: unknown }[]) ?? []).map(a => a.department).filter(Boolean),
-    subtasks:          (t.subtasks as unknown[]) ?? [],
-    comments:          ((t.comments as { created_at: string }[]) ?? [])
-                         .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    subtasks:          [] as unknown[],
+    comments:          [] as unknown[],
   }))
 
   return NextResponse.json(tasks, {
