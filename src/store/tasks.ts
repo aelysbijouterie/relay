@@ -21,13 +21,11 @@ export const useTaskStore = create<TaskStore>()(
       tasks: [],
       myTasksOnly: false,
 
-      // Merge : les tâches statiques (démo) remplacent leurs IDs,
-      // les tâches créées par l'utilisateur (id starts with 'task-') sont conservées
-      setTasks: (incoming) => set((s) => {
-        const userCreated = s.tasks.filter(t => t.id.startsWith('task-'))
-        const incomingIds = new Set(incoming.map(t => t.id))
-        const keptUserTasks = userCreated.filter(t => !incomingIds.has(t.id))
-        return { tasks: [...incoming, ...keptUserTasks] }
+      setTasks: (incoming) => set(() => {
+        // Si le serveur retourne des tâches, elles font autorité
+        // Si le serveur retourne vide, on garde le store actuel
+        if (incoming.length === 0) return {}
+        return { tasks: incoming }
       }),
 
       addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),

@@ -1,6 +1,9 @@
-import { TimelineView } from '@/components/timeline/TimelineView'
-import { DEMO_TASKS } from '@/lib/demo-data'
+export const dynamic = 'force-dynamic'
 
-export default function TimelinePage() {
-  return <TimelineView tasks={DEMO_TASKS} />
+import { fetchTasksForCurrentUser } from '@/lib/server/fetchTasks'
+import { TimelineView } from '@/components/timeline/TimelineView'
+
+export default async function TimelinePage() {
+  const { tasks } = await fetchTasksForCurrentUser()
+  return <TimelineView tasks={tasks} />
 }
