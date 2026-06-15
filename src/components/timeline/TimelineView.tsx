@@ -5,13 +5,13 @@ import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isToday 
 import { fr } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { PRIORITY_COLORS, STATUS_COLORS } from '@/types'
-import { useTaskStore } from '@/store/tasks'
+import { useTasks } from '@/hooks/useTasks'
 import type { Task, TaskStatus, TaskPriority } from '@/types'
 
 type GroupBy = 'status' | 'priority'
 
 export function TimelineView() {
-  const tasks = useTaskStore(s => s.tasks)
+  const { tasks } = useTasks()
   const [groupBy, setGroupBy] = useState<GroupBy>('status')
   const [myTasksOnly, setMyTasksOnly] = useState(false)
 

@@ -1,384 +1,279 @@
 'use client'
 
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Plus, Globe, ChevronDown, ChevronUp } from 'lucide-react'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { taskSchema, type TaskFormValues } from '@/lib/validations/task'
-import { useTaskStore } from '@/store/tasks'
-import { TASK_STATUSES, TASK_PRIORITIES } from '@/types'
-import type { Department, Profile, Task } from '@/types'
-import { DEMO_DEPARTMENTS, ALL_DEMO_MEMBERS } from '@/lib/demo-data'
-import { createTask } from '@/lib/actions/tasks'
+import { useState, useEffect } from 'react'
+import { X, Plus, Search, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
+import { createTask } from '@/lib/actions/tasks'
+import { TASK_STATUSES, TASK_PRIORITIES } from '@/types'
+import type { Department, Profile } from '@/types'
 
-interface NewTaskModalProps {
-  open: boolean
-  onClose: () => void
-  currentDepartmentId: string
-  departments: Department[]
-  members: Profile[]
-  profile: Profile
-  isDemo?: boolean
+interface ProfileWithDept extends Profile {
+  department?: Department
 }
 
-export function NewTaskModal({
-  open, onClose, currentDepartmentId, departments, members, profile, isDemo,
-}: NewTaskModalProps) {
-  const { addTask } = useTaskStore()
-  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({})
-  const router = useRouter()
+interface NewTaskModalProps {
+  open:                 boolean
+  onClose:              () => void
+  onCreated:            () => void
+  currentDepartmentId:  string
+  departments:          Department[]
+  profile:              Profile
+}
 
-  const { register, handleSubmit, control, watch, reset, setValue, formState: { errors, isSubmitting } } = useForm<TaskFormValues>({
-    resolver: zodResolver(taskSchema),
-    defaultValues: {
-      status:        'A Faire',
-      priority:      'Moyenne',
-      department_id: currentDepartmentId,
-      is_cross_team: false,
-      assignees:     [],
-      extra_departments: [],
-    },
-  })
+export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, departments, profile }: NewTaskModalProps) {
+  const [allProfiles, setAllProfiles] = useState<ProfileWithDept[]>([])
+  const [loading, setLoading]         = useState(false)
+  const [search, setSearch]           = useState('')
 
-  const isCrossTeam      = watch('is_cross_team')
-  const selectedDepts    = watch('extra_departments') ?? []
-  const selectedAssignees = watch('assignees') ?? []
+  // Champs du formulaire
+  const [title, setTitle]             = useState('')
+  const [description, setDescription] = useState('')
+  const [status, setStatus]           = useState('A Faire')
+  const [priority, setPriority]       = useState('Moyenne')
+  const [deadline, setDeadline]       = useState('')
+  const [deptId, setDeptId]           = useState(currentDepartmentId)
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([])
+  const [fournisseur, setFournisseur] = useState('')
+  const [refCollection, setRefCollection] = useState('')
+  const [showAssignees, setShowAssignees] = useState(false)
 
-  // Membres des équipes extra sélectionnées
-  const extraMembers: Record<string, Profile[]> = {}
-  selectedDepts.forEach(deptId => {
-    extraMembers[deptId] = ALL_DEMO_MEMBERS.filter(m => m.department_id === deptId)
-  })
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/profiles').then(r => r.json()).then(setAllProfiles).catch(() => {})
+  }, [open])
+
+  useEffect(() => {
+    if (!open) {
+      setTitle(''); setDescription(''); setStatus('A Faire'); setPriority('Moyenne')
+      setDeadline(''); setDeptId(currentDepartmentId); setAssigneeIds([])
+      setFournisseur(''); setRefCollection(''); setSearch(''); setShowAssignees(false)
+    }
+  }, [open, currentDepartmentId])
+
+  const filteredProfiles = allProfiles.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.department?.name?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const byDept = filteredProfiles.reduce<Record<string, ProfileWithDept[]>>((acc, p) => {
+    const key = p.department?.name ?? 'Sans département'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(p)
+    return acc
+  }, {})
 
   function toggleAssignee(id: string) {
-    const current = selectedAssignees
-    setValue('assignees', current.includes(id) ? current.filter(x => x !== id) : [...current, id])
+    setAssigneeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
-  function toggleExtraDept(deptId: string) {
-    const current = selectedDepts
-    const next = current.includes(deptId) ? current.filter(x => x !== deptId) : [...current, deptId]
-    setValue('extra_departments', next)
-    // Retirer les assignés de cette équipe si on la déselectionne
-    if (current.includes(deptId)) {
-      const membersToRemove = ALL_DEMO_MEMBERS.filter(m => m.department_id === deptId).map(m => m.id)
-      setValue('assignees', selectedAssignees.filter(id => !membersToRemove.includes(id)))
-    }
-  }
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!title.trim()) { toast.error('Le titre est requis'); return }
 
-  const onSubmit = async (data: TaskFormValues) => {
-    const dept = DEMO_DEPARTMENTS.find(d => d.id === data.department_id)
-      ?? departments.find(d => d.id === data.department_id)
+    setLoading(true)
+    const result = await createTask({
+      title:             title.trim(),
+      description:       description.trim() || undefined,
+      status,
+      priority,
+      department_id:     deptId,
+      deadline:          deadline || null,
+      is_cross_team:     false,
+      assignees:         assigneeIds,
+      extra_departments: [],
+      fournisseur_client: fournisseur.trim() || null,
+      ref_collection:    refCollection.trim() || null,
+    })
+    setLoading(false)
 
-    const allMembers = [...members, ...ALL_DEMO_MEMBERS]
-    const assignedMembers = allMembers.filter((m, i, arr) =>
-      arr.findIndex(x => x.id === m.id) === i && (data.assignees ?? []).includes(m.id)
-    )
-
-    if (isDemo) {
-      // ── Mode démo : Zustand uniquement ──────────────────────────
-      const newTask: Task = {
-        id:                `task-${Date.now()}`,
-        title:             data.title,
-        description:       data.description ?? null,
-        status:            data.status,
-        priority:          data.priority,
-        department_id:     data.department_id,
-        created_by:        profile.id,
-        deadline:          data.deadline ?? null,
-        is_cross_team:     data.is_cross_team ?? false,
-        fournisseur_client: data.fournisseur_client ?? null,
-        ref_collection:    data.ref_collection ?? null,
-        parent_task_id:    null,
-        created_at:        new Date().toISOString(),
-        updated_at:        new Date().toISOString(),
-        department:        dept,
-        assignees:         assignedMembers,
-        extra_departments: DEMO_DEPARTMENTS.filter(d => (data.extra_departments ?? []).includes(d.id)),
-      }
-      addTask(newTask)
-    } else {
-      // ── Mode réel : sauvegarde Supabase + mise à jour Zustand immédiate ──
-      const result = await createTask(data)
-      if (!result.success) {
-        toast.error(result.error ?? 'Erreur lors de la création')
-        return
-      }
-      // Ajout immédiat au store pour affichage sans attendre refresh serveur
-      const newTask: Task = {
-        id:                result.taskId ?? `task-${Date.now()}`,
-        title:             data.title,
-        description:       data.description ?? null,
-        status:            data.status,
-        priority:          data.priority,
-        department_id:     data.department_id,
-        created_by:        profile.id,
-        deadline:          data.deadline ?? null,
-        is_cross_team:     data.is_cross_team ?? false,
-        fournisseur_client: data.fournisseur_client ?? null,
-        ref_collection:    data.ref_collection ?? null,
-        parent_task_id:    null,
-        created_at:        new Date().toISOString(),
-        updated_at:        new Date().toISOString(),
-        department:        dept,
-        assignees:         assignedMembers,
-        extra_departments: departments.filter(d => (data.extra_departments ?? []).includes(d.id)),
-      }
-      addTask(newTask)
-      toast.success('Tâche créée !')
-      reset()
-      onClose()
+    if (!result.success) {
+      toast.error(result.error ?? 'Erreur lors de la création')
       return
     }
 
     toast.success('Tâche créée !')
-    reset()
+    onCreated()
     onClose()
-
-    if (assignedMembers.length > 0) {
-      fetch('/api/notify/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assignees: assignedMembers.map(m => ({ name: m.name, email: m.email })),
-          task: { title: data.title, description: data.description, priority: data.priority, deadline: data.deadline, is_cross_team: data.is_cross_team ?? false },
-          department: { name: dept?.name ?? '', color: dept?.color ?? '#94A3B8' },
-          createdByName: profile.name,
-        }),
-      }).catch(() => {})
-    }
   }
 
   if (!open) return null
 
-  const currentDept = departments.find(d => d.id === currentDepartmentId)
-  const otherDepts  = departments.filter(d => d.id !== currentDepartmentId)
+  const selectedProfiles = allProfiles.filter(p => assigneeIds.includes(p.id))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-card z-10">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <h2 className="font-heading font-bold text-lg">Nouvelle tâche</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
 
           {/* Titre */}
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Titre <span className="text-destructive">*</span></label>
-            <input
-              {...register('title')}
+            <label className="text-sm font-medium block mb-1.5">Titre <span className="text-destructive">*</span></label>
+            <input value={title} onChange={e => setTitle(e.target.value)} required autoFocus
               placeholder="Titre de la tâche"
-              autoFocus
-              className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
+              className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-            {errors.title && <p className="text-xs text-destructive mt-1">{errors.title.message}</p>}
           </div>
 
           {/* Description */}
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Description</label>
-            <textarea
-              {...register('description')}
-              rows={2}
-              placeholder="Détails, contexte…"
-              className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
+            <label className="text-sm font-medium block mb-1.5">Description</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
+              placeholder="Détails, contexte, instructions…"
+              className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
 
           {/* Statut + Priorité */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Statut</label>
-              <Controller name="status" control={control} render={({ field }) => (
-                <select {...field} className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none">
-                  {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              )} />
+              <label className="text-sm font-medium block mb-1.5">Statut</label>
+              <select value={status} onChange={e => setStatus(e.target.value)}
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none">
+                {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Priorité</label>
-              <Controller name="priority" control={control} render={({ field }) => (
-                <select {...field} className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none">
-                  {TASK_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              )} />
+              <label className="text-sm font-medium block mb-1.5">Priorité</label>
+              <select value={priority} onChange={e => setPriority(e.target.value)}
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none">
+                {TASK_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
             </div>
           </div>
 
-          {/* Échéance */}
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Échéance</label>
-            <input type="date" {...register('deadline')}
-              className="border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
-            />
+          {/* Département + Échéance */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium block mb-1.5">Département</label>
+              <select value={deptId} onChange={e => setDeptId(e.target.value)}
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none">
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1.5">Échéance</label>
+              <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
           </div>
 
-          {/* Assignés — membres du département actuel */}
+          {/* Assignés */}
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Assignés — {currentDept?.name}</label>
-            <div className="flex flex-wrap gap-2">
-              {members.map(member => {
-                const active = selectedAssignees.includes(member.id)
-                return (
-                  <button key={member.id} type="button" onClick={() => toggleAssignee(member.id)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-sm"
-                    style={active ? { backgroundColor: currentDept?.color ?? '#FF6B35', borderColor: currentDept?.color, color: 'white' } : {}}
-                  >
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                      style={{ backgroundColor: currentDept?.color ?? '#94A3B8' }}>
-                      {getInitials(member.name)}
+            <button type="button" onClick={() => setShowAssignees(v => !v)}
+              className="w-full flex items-center justify-between px-3 py-2.5 border border-border rounded-xl text-sm hover:bg-muted transition-colors">
+              <span className="font-medium">
+                {assigneeIds.length === 0 ? 'Assigner des collaborateurs' : `${assigneeIds.length} collaborateur(s) assigné(s)`}
+              </span>
+              {showAssignees ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {/* Avatars sélectionnés */}
+            {assigneeIds.length > 0 && !showAssignees && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {selectedProfiles.map(p => (
+                  <div key={p.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs border"
+                    style={{ borderColor: `${p.department?.color ?? '#94A3B8'}66`, color: p.department?.color }}>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                      style={{ backgroundColor: p.department?.color ?? '#94A3B8' }}>
+                      {getInitials(p.name)}
                     </div>
-                    {member.name}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Toggle inter-équipes */}
-          <div
-            className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/30 cursor-pointer select-none"
-            onClick={() => setValue('is_cross_team', !isCrossTeam)}
-          >
-            <Controller name="is_cross_team" control={control} render={({ field }) => (
-              <input type="checkbox" checked={field.value} onChange={field.onChange} id="cross_team" className="rounded w-4 h-4 cursor-pointer" onClick={e => e.stopPropagation()} />
-            )} />
-            <label htmlFor="cross_team" className="flex items-center gap-2 text-sm font-medium cursor-pointer flex-1">
-              <Globe className="w-4 h-4" />
-              Tâche inter-équipes
-            </label>
-          </div>
-
-          {/* Sélection équipes + personnes inter-équipes */}
-          {isCrossTeam && (
-            <div className="space-y-3 border border-border rounded-xl p-4 bg-muted/20">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Équipes concernées + assignation</p>
-
-              {otherDepts.map(dept => {
-                const isSelected = selectedDepts.includes(dept.id)
-                const deptMembers = ALL_DEMO_MEMBERS.filter(m => m.department_id === dept.id)
-                const isExpanded  = expandedDepts[dept.id] ?? isSelected
-
-                return (
-                  <div key={dept.id} className="rounded-xl overflow-hidden border border-border">
-                    {/* En-tête département */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toggleExtraDept(dept.id)
-                        setExpandedDepts(p => ({ ...p, [dept.id]: !isSelected || !p[dept.id] }))
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 transition-colors"
-                      style={isSelected ? { backgroundColor: `${dept.color}22` } : { backgroundColor: 'transparent' }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: dept.color }} />
-                        <span className="text-sm font-medium">{dept.name}</span>
-                        {isSelected && (
-                          <span className="text-xs px-2 py-0.5 rounded-full text-white font-semibold"
-                            style={{ backgroundColor: dept.color }}>
-                            Sélectionnée
-                          </span>
-                        )}
-                      </div>
-                      {isExpanded
-                        ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
-                        : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                      }
-                    </button>
-
-                    {/* Membres de ce département */}
-                    {(isExpanded || isSelected) && deptMembers.length > 0 && (
-                      <div className="px-3 pb-3 pt-1 flex flex-wrap gap-2 border-t border-border/50">
-                        {deptMembers.map(member => {
-                          const isAssigned = selectedAssignees.includes(member.id)
-                          return (
-                            <button key={member.id} type="button"
-                              onClick={() => {
-                                // Sélectionner aussi le département si on assigne un membre
-                                if (!selectedDepts.includes(dept.id)) toggleExtraDept(dept.id)
-                                toggleAssignee(member.id)
-                              }}
-                              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition-all"
-                              style={isAssigned ? { backgroundColor: dept.color, borderColor: dept.color, color: 'white' } : {}}
-                            >
-                              <div className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-white flex-shrink-0"
-                                style={{ backgroundColor: dept.color, fontSize: '0.6rem' }}>
-                                {getInitials(member.name)}
-                              </div>
-                              <span>{member.name}</span>
-                              <span className="opacity-70 capitalize">{member.role}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
+                    {p.name}
+                    <button type="button" onClick={() => toggleAssignee(p.id)} className="opacity-60 hover:opacity-100">×</button>
                   </div>
-                )
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+
+            {showAssignees && (
+              <div className="mt-2 border border-border rounded-xl overflow-hidden">
+                {/* Recherche */}
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30">
+                  <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <input value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Rechercher un collaborateur…"
+                    className="flex-1 text-sm bg-transparent focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Liste par département */}
+                <div className="max-h-52 overflow-y-auto">
+                  {Object.entries(byDept).map(([deptName, profiles]) => (
+                    <div key={deptName}>
+                      <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/20 sticky top-0">
+                        {deptName}
+                      </div>
+                      {profiles.map(p => {
+                        const selected = assigneeIds.includes(p.id)
+                        return (
+                          <button key={p.id} type="button" onClick={() => toggleAssignee(p.id)}
+                            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted/50 transition-colors text-left"
+                          >
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                              style={{ backgroundColor: p.department?.color ?? '#94A3B8' }}>
+                              {getInitials(p.name)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{p.name}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{p.role}</p>
+                            </div>
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${selected ? 'bg-primary border-primary' : 'border-border'}`}>
+                              {selected && <span className="text-white text-xs font-bold">✓</span>}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                  {Object.keys(byDept).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">Aucun résultat</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Champs métier */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Fournisseur / Client</label>
-              <input {...register('fournisseur_client')} placeholder="Optionnel"
-                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
+              <label className="text-sm font-medium block mb-1.5">Fournisseur / Client</label>
+              <input value={fournisseur} onChange={e => setFournisseur(e.target.value)} placeholder="Optionnel"
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Réf. Collection</label>
-              <input {...register('ref_collection')} placeholder="Optionnel"
-                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow"
+              <label className="text-sm font-medium block mb-1.5">Réf. Collection</label>
+              <input value={refCollection} onChange={e => setRefCollection(e.target.value)} placeholder="Optionnel"
+                className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
           </div>
 
-          {/* Résumé assignés */}
-          {selectedAssignees.length > 0 && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 border border-border">
-              <div className="flex -space-x-1.5">
-                {selectedAssignees.slice(0, 5).map(id => {
-                  const m = ALL_DEMO_MEMBERS.find(x => x.id === id) ?? members.find(x => x.id === id)
-                  if (!m) return null
-                  const dept = departments.find(d => d.id === m.department_id)
-                  return (
-                    <div key={id} className="w-6 h-6 rounded-full border-2 border-card flex items-center justify-center text-xs font-bold text-white"
-                      style={{ backgroundColor: dept?.color ?? '#94A3B8' }} title={m.name}>
-                      {getInitials(m.name)}
-                    </div>
-                  )
-                })}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {selectedAssignees.length} personne{selectedAssignees.length > 1 ? 's' : ''} assignée{selectedAssignees.length > 1 ? 's' : ''}
-              </span>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2.5 text-sm rounded-xl border border-border hover:bg-muted transition-colors">
-              Annuler
-            </button>
-            <button type="submit" disabled={isSubmitting}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium">
-              <Plus className="w-4 h-4" />
-              Créer la tâche
-            </button>
-          </div>
         </form>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2.5 text-sm rounded-xl border border-border hover:bg-muted transition-colors">
+            Annuler
+          </button>
+          <button onClick={handleSubmit} disabled={loading || !title.trim()}
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium">
+            <Plus className="w-4 h-4" />
+            {loading ? 'Création…' : 'Créer la tâche'}
+          </button>
+        </div>
       </div>
     </div>
   )

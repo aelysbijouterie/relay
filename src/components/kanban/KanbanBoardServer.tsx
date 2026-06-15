@@ -1,16 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useTaskStore } from '@/store/tasks'
 import { KanbanBoard } from './KanbanBoard'
-import type { Task } from '@/types'
 
-export function KanbanBoardServer({ initialTasks, currentDepartmentId, currentUserName }: { initialTasks: Task[]; currentDepartmentId: string; currentUserName?: string }) {
-  const setTasks = useTaskStore(s => s.setTasks)
-
-  useEffect(() => {
-    setTasks(initialTasks)
-  }, [initialTasks, setTasks])
-
+export function KanbanBoardServer({ currentDepartmentId, currentUserName }: {
+  currentDepartmentId: string
+  currentUserName?:    string
+}) {
   return <KanbanBoard currentDepartmentId={currentDepartmentId} currentUserName={currentUserName} />
 }
