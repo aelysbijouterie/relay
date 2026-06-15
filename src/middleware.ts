@@ -1,60 +1,34 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Chemins toujours publics
   const isPublicPath =
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
-    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/') ||
     pathname === '/favicon.ico'
 
-  // ── Mode Démo ──────────────────────────────────────────────────
-  // Si le cookie relays-demo est présent, on laisse passer partout
+  // Mode démo
   const isDemo = !!request.cookies.get('relays-demo')?.value
-
   if (isDemo) {
-    // Si démo actif ET sur /login → aller direct au kanban
-    if (pathname === '/login') {
-      return NextResponse.redirect(new URL('/kanban', request.url))
-    }
+    if (pathname === '/login') return NextResponse.redirect(new URL('/kanban', request.url))
     return NextResponse.next()
   }
 
-  // ── Auth Supabase normale ───────────────────────────────────────
-  const response = NextResponse.next({ request: { headers: request.headers } })
+  // Vérifie si un cookie de session Supabase existe (sans appel réseau)
+  const cookies = request.cookies.getAll()
+  const hasSession = cookies.some(c => c.name.includes('-auth-token'))
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value)
-            response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2])
-          })
-        },
-      },
-    }
-  )
-
-  const { data: { session } } = await supabase.auth.getSession()
-
-  if (!session && !isPublicPath) {
+  if (!hasSession && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (session && pathname === '/login') {
+  if (hasSession && pathname === '/login') {
     return NextResponse.redirect(new URL('/kanban', request.url))
   }
 
-  return response
+  return NextResponse.next()
 }
 
 export const config = {
