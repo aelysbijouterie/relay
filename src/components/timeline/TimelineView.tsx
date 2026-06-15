@@ -57,6 +57,15 @@ export function TimelineView({ tasks }: TimelineViewProps) {
         </button>
       </div>
 
+      {/* Empty state */}
+      {tasksWithDeadline.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+          <p className="text-4xl mb-3">📅</p>
+          <p className="font-medium">Aucune tâche avec échéance</p>
+          <p className="text-sm mt-1">Ajoutez une date d&apos;échéance à vos tâches pour les voir ici</p>
+        </div>
+      )}
+
       {/* Groups */}
       {Object.entries(grouped).map(([group, groupTasks]) => (
         <div key={group}>
