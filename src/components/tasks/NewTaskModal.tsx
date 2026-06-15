@@ -101,16 +101,36 @@ export function NewTaskModal({
       }
       addTask(newTask)
     } else {
-      // ── Mode réel : sauvegarde Supabase ──────────────────────────
+      // ── Mode réel : sauvegarde Supabase + mise à jour Zustand immédiate ──
       const result = await createTask(data)
       if (!result.success) {
         toast.error(result.error ?? 'Erreur lors de la création')
         return
       }
+      // Ajout immédiat au store pour affichage sans attendre refresh serveur
+      const newTask: Task = {
+        id:                result.taskId ?? `task-${Date.now()}`,
+        title:             data.title,
+        description:       data.description ?? null,
+        status:            data.status,
+        priority:          data.priority,
+        department_id:     data.department_id,
+        created_by:        profile.id,
+        deadline:          data.deadline ?? null,
+        is_cross_team:     data.is_cross_team ?? false,
+        fournisseur_client: data.fournisseur_client ?? null,
+        ref_collection:    data.ref_collection ?? null,
+        parent_task_id:    null,
+        created_at:        new Date().toISOString(),
+        updated_at:        new Date().toISOString(),
+        department:        dept,
+        assignees:         assignedMembers,
+        extra_departments: departments.filter(d => (data.extra_departments ?? []).includes(d.id)),
+      }
+      addTask(newTask)
       toast.success('Tâche créée !')
       reset()
       onClose()
-      router.refresh()
       return
     }
 
