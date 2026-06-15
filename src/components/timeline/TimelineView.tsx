@@ -5,15 +5,13 @@ import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isToday 
 import { fr } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { PRIORITY_COLORS, STATUS_COLORS } from '@/types'
-import type { Task } from '@/types'
-
-interface TimelineViewProps {
-  tasks: Task[]
-}
+import { useTaskStore } from '@/store/tasks'
+import type { Task, TaskStatus, TaskPriority } from '@/types'
 
 type GroupBy = 'status' | 'priority'
 
-export function TimelineView({ tasks }: TimelineViewProps) {
+export function TimelineView() {
+  const tasks = useTaskStore(s => s.tasks)
   const [groupBy, setGroupBy] = useState<GroupBy>('status')
   const [myTasksOnly, setMyTasksOnly] = useState(false)
 
@@ -101,7 +99,7 @@ export function TimelineView({ tasks }: TimelineViewProps) {
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <span
                     className="text-xs px-2 py-0.5 rounded text-white"
-                    style={{ backgroundColor: PRIORITY_COLORS[task.priority] }}
+                    style={{ backgroundColor: PRIORITY_COLORS[task.priority as TaskPriority] }}
                   >
                     {task.priority}
                   </span>

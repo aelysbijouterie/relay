@@ -9,15 +9,13 @@ import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskModal } from '@/components/tasks/TaskModal'
+import { useTaskStore } from '@/store/tasks'
 import type { Task } from '@/types'
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
-interface CalendarViewProps {
-  tasks: Task[]
-}
-
-export function CalendarView({ tasks }: CalendarViewProps) {
+export function CalendarView() {
+  const tasks = useTaskStore(s => s.tasks)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
