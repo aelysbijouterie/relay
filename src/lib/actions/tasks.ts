@@ -34,7 +34,6 @@ export async function createTask(data: unknown) {
     )
   }
 
-  revalidatePath('/kanban')
   return { success: true, taskId: task.id }
 }
 
@@ -72,7 +71,6 @@ export async function updateTask(taskId: string, data: unknown) {
     }
   }
 
-  revalidatePath('/kanban')
   return { success: true }
 }
 

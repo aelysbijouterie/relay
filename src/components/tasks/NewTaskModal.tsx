@@ -4,6 +4,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Plus, Globe, ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { taskSchema, type TaskFormValues } from '@/lib/validations/task'
 import { useTaskStore } from '@/store/tasks'
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/types'
@@ -28,6 +29,7 @@ export function NewTaskModal({
 }: NewTaskModalProps) {
   const { addTask } = useTaskStore()
   const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({})
+  const router = useRouter()
 
   const { register, handleSubmit, control, watch, reset, setValue, formState: { errors, isSubmitting } } = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
@@ -106,6 +108,11 @@ export function NewTaskModal({
         toast.error(err instanceof Error ? err.message : 'Erreur lors de la création')
         return
       }
+      toast.success('Tâche créée !')
+      reset()
+      onClose()
+      router.refresh()
+      return
     }
 
     toast.success('Tâche créée !')
