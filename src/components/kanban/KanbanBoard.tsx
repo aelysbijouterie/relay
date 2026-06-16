@@ -6,6 +6,7 @@ import {
   useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
+import { User } from 'lucide-react'
 import { KanbanColumn } from './KanbanColumn'
 import { TaskCard } from '@/components/tasks/TaskCard'
 import { TaskModal } from '@/components/tasks/TaskModal'
@@ -15,6 +16,7 @@ import { updateTaskStatus } from '@/lib/actions/tasks'
 import { TASK_STATUSES } from '@/types'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 export function KanbanBoard({
   currentDepartmentId,
@@ -23,23 +25,25 @@ export function KanbanBoard({
   currentDepartmentId?: string
   currentUserName?: string
 }) {
-  const { tasks, refresh }   = useTasks()
-  const currentUserId        = useTaskStore(s => s.currentUserId)
+  const { tasks, refresh }    = useTasks()
+  const currentUserId         = useTaskStore(s => s.currentUserId)
+  const [myTasksOnly, setMyTasksOnly] = useState(false)
   const [activeTask, setActiveTask]     = useState<Task | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [optimistic, setOptimistic]     = useState<Record<string, TaskStatus>>({})
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
+  // Filtre : par défaut toutes les tâches non archivées
+  // Toggle "Mes tâches" : uniquement les tâches où l'utilisateur est assigné ou créateur
   const visibleTasks = tasks
     .map(t => ({ ...t, status: (optimistic[t.id] ?? t.status) as TaskStatus }))
     .filter(t => {
       if (t.status === 'Archivé') return false
-      if (!currentDepartmentId && !currentUserId) return true
-      const isOwnDept  = t.department_id === currentDepartmentId
-      const isCross    = t.is_cross_team && (t.extra_departments ?? []).some(d => d.id === currentDepartmentId)
-      const isAssigned = currentUserId ? (t.assignees ?? []).some(a => a.id === currentUserId) : false
-      return isOwnDept || isCross || isAssigned
+      if (!myTasksOnly) return true
+      if (!currentUserId) return true // pas encore hydraté
+      return (t.assignees ?? []).some(a => a.id === currentUserId)
+        || t.created_by === currentUserId
     })
 
   const getColumnTasks = (status: TaskStatus) => visibleTasks.filter(t => t.status === status)
@@ -62,12 +66,10 @@ export function KanbanBoard({
 
     if (!newStatus || newStatus === task.status) return
 
-    // Optimiste immédiat
     setOptimistic(prev => ({ ...prev, [task.id]: newStatus }))
 
     try {
       await updateTaskStatus(task.id, newStatus)
-      // Rafraîchit SWR — le fallback SWRConfig sera remplacé par les données fraîches
       await refresh()
       if (task.assignees?.length) {
         fetch('/api/notify/status', {
@@ -83,7 +85,6 @@ export function KanbanBoard({
         }).catch(() => {})
       }
     } catch {
-      setOptimistic(prev => { const n = { ...prev }; delete n[task.id]; return n })
       toast.error('Erreur lors du déplacement')
     } finally {
       setOptimistic(prev => { const n = { ...prev }; delete n[task.id]; return n })
@@ -92,6 +93,25 @@ export function KanbanBoard({
 
   return (
     <>
+      {/* Barre de filtres */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs text-muted-foreground">
+          {visibleTasks.length} tâche{visibleTasks.length !== 1 ? 's' : ''}
+        </span>
+        <button
+          onClick={() => setMyTasksOnly(v => !v)}
+          className={cn(
+            'inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all',
+            myTasksOnly
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
+          )}
+        >
+          <User className="w-3 h-3" />
+          Mes tâches
+        </button>
+      </div>
+
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 h-full">
           {TASK_STATUSES.map(status => (
