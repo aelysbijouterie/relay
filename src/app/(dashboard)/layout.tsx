@@ -136,7 +136,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <TasksLoader tasks={tasks} />
+      <TasksLoader tasks={tasks} userId={profile!.id} deptId={department!.id} />
       <Sidebar profile={profile!} members={members!} department={department!} extraDepartments={extraDepartments} />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header department={department!} profile={profile!} departments={departments!} members={members!} isDemo={!!demoDeptId} />

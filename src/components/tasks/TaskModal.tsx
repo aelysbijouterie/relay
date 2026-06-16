@@ -1,121 +1,262 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import {
   X, Globe, Clock, MessageSquare, History,
   CheckSquare, Square, Paperclip, Tag, Building2,
-  Send, Plus, Trash2
+  Send, Plus, Trash2, Loader2, Download,
 } from 'lucide-react'
 import { cn, formatDeadline, isOverdue, getInitials } from '@/lib/utils'
 import { useTaskStore } from '@/store/tasks'
+import { useTasks } from '@/hooks/useTasks'
+import { updateTaskStatus } from '@/lib/actions/tasks'
 import { PRIORITY_COLORS, STATUS_COLORS, TASK_STATUSES } from '@/types'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
 
-interface Comment  { id: string; author: string; text: string; createdAt: string }
-interface SubTask  { id: string; title: string; done: boolean }
-interface HistoryEntry { id: string; author: string; action: string; createdAt: string }
+// ─── Types ──────────────────────────────────────────────────────────────────
+interface DBComment {
+  id: string
+  content: string
+  created_at: string
+  author: { id: string; name: string; avatar_url: string | null; department?: { color: string } | null }
+}
+interface DBSubtask {
+  id: string
+  title: string
+  is_done: boolean
+  created_at: string
+}
+interface DBAttachment {
+  id: string
+  file_name: string
+  file_url: string
+  file_size: number | null
+  file_type: string | null
+  created_at: string
+}
 
 interface TaskModalProps {
-  task: Task
-  open: boolean
-  onClose: () => void
+  task:            Task
+  open:            boolean
+  onClose:         () => void
   currentUserName?: string
 }
 
-type Tab = 'details' | 'comments' | 'subtasks' | 'history'
+type Tab = 'details' | 'subtasks' | 'comments' | 'attachments'
 
+// ─── Composant ──────────────────────────────────────────────────────────────
 export function TaskModal({ task, open, onClose, currentUserName }: TaskModalProps) {
-  const { updateTask, moveTask } = useTaskStore()
-  const [tab, setTab] = useState<Tab>('details')
-  const [comments, setComments] = useState<Comment[]>([
-    { id: 'c1', author: 'Manon M.', text: 'Shooting confirmé avec Studio Lumière pour le 18 juin.', createdAt: '2026-06-09T10:30:00Z' },
-    { id: 'c2', author: 'Lucas D.', text: "Je prépare les moodboards d'ici vendredi.", createdAt: '2026-06-09T14:15:00Z' },
-  ])
-  const [newComment, setNewComment] = useState('')
-  const [subtasks, setSubtasks] = useState<SubTask[]>([
-    { id: 's1', title: 'Valider le brief créatif', done: true },
-    { id: 's2', title: 'Envoyer les références visuelles', done: true },
-    { id: 's3', title: 'Confirmer la date avec le studio', done: false },
-    { id: 's4', title: 'Préparer les produits à shooter', done: false },
-  ])
-  const [newSubtask, setNewSubtask] = useState('')
-  const [history] = useState<HistoryEntry[]>([
-    { id: 'h1', author: 'Manon M.', action: 'a créé cette tâche', createdAt: '2026-06-07T09:00:00Z' },
-    { id: 'h2', author: 'Lucas D.', action: 'a été assigné', createdAt: '2026-06-07T09:05:00Z' },
-    { id: 'h3', author: 'Manon M.', action: 'a changé le statut : A Faire → En cours', createdAt: '2026-06-08T11:20:00Z' },
-  ])
+  const { moveTask, updateTask: updateStoreTask } = useTaskStore()
+  const { refresh } = useTasks()
+  const currentUserId = useTaskStore(s => s.currentUserId)
+
+  const [tab, setTab]           = useState<Tab>('details')
+  const [saving, setSaving]     = useState(false)
+
+  // Comments
+  const [comments, setComments]       = useState<DBComment[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [newComment, setNewComment]   = useState('')
+  const [postingComment, setPostingComment] = useState(false)
+
+  // Subtasks
+  const [subtasks, setSubtasks]       = useState<DBSubtask[]>([])
+  const [subtasksLoading, setSubtasksLoading] = useState(false)
+  const [newSubtask, setNewSubtask]   = useState('')
+  const [addingSubtask, setAddingSubtask] = useState(false)
+
+  // Attachments
+  const [attachments, setAttachments] = useState<DBAttachment[]>([])
+  const [attachLoading, setAttachLoading] = useState(false)
+  const [uploading, setUploading]     = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const taskId = task.id
+
+  // Charger données au premier affichage de chaque onglet
+  useEffect(() => {
+    if (!open) return
+    if (tab === 'comments' && comments.length === 0) {
+      setCommentsLoading(true)
+      fetch(`/api/tasks/${taskId}/comments`)
+        .then(r => r.json()).then(d => setComments(Array.isArray(d) ? d : []))
+        .finally(() => setCommentsLoading(false))
+    }
+    if (tab === 'subtasks' && subtasks.length === 0) {
+      setSubtasksLoading(true)
+      fetch(`/api/tasks/${taskId}/subtasks`)
+        .then(r => r.json()).then(d => setSubtasks(Array.isArray(d) ? d : []))
+        .finally(() => setSubtasksLoading(false))
+    }
+    if (tab === 'attachments' && attachments.length === 0) {
+      setAttachLoading(true)
+      fetch(`/api/tasks/${taskId}/attachments`)
+        .then(r => r.json()).then(d => setAttachments(Array.isArray(d) ? d : []))
+        .finally(() => setAttachLoading(false))
+    }
+  }, [open, tab, taskId]) // eslint-disable-line
+
+  // Reset au changement de tâche
+  useEffect(() => {
+    setTab('details')
+    setComments([])
+    setSubtasks([])
+    setAttachments([])
+    setNewComment('')
+    setNewSubtask('')
+  }, [taskId])
 
   if (!open) return null
 
   const deptColor = task.department?.color ?? '#94A3B8'
-  const overdue = isOverdue(task.deadline)
-  const doneSub = subtasks.filter(s => s.done).length
+  const overdue   = isOverdue(task.deadline)
+  const doneSub   = subtasks.filter(s => s.is_done).length
 
-  function handleStatusChange(status: TaskStatus) {
+  // ── Status change ────────────────────────────────────────────────────────
+  async function handleStatusChange(status: TaskStatus) {
+    if (status === task.status || saving) return
     const oldStatus = task.status
-    moveTask(task.id, status)
-    updateTask(task.id, { status })
-    if (status === 'Bloqué') {
-      toast.error('⚠️ Tâche marquée Bloquée — le manager sera notifié')
-    } else {
-      toast.success(`Statut mis à jour : ${status}`)
-    }
-    if (task.assignees?.length && status !== oldStatus) {
-      fetch('/api/notify/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assignees: task.assignees.map(a => ({ name: a.name, email: a.email })),
-          task: { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, status },
-          oldStatus,
-          department: { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
-          changedByName: currentUserName ?? 'Utilisateur',
-        }),
-      }).catch(() => {})
+    setSaving(true)
+
+    // Optimiste local
+    moveTask(taskId, status)
+    updateStoreTask(taskId, { status })
+
+    try {
+      await updateTaskStatus(taskId, status)
+      await refresh()
+      if (status === 'Bloqué') toast.error('Tâche bloquée — le manager sera notifié')
+      else toast.success(`Statut : ${status}`)
+
+      // Notification assignés
+      if (task.assignees?.length) {
+        fetch('/api/notify/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assignees:     task.assignees.map(a => ({ name: a.name, email: a.email })),
+            task:          { title: task.title, priority: task.priority, deadline: task.deadline, status },
+            oldStatus,
+            department:    { name: task.department?.name ?? '', color: deptColor },
+            changedByName: currentUserName ?? 'Utilisateur',
+          }),
+        }).catch(() => {})
+      }
+    } catch {
+      toast.error('Impossible de mettre à jour le statut')
+      moveTask(taskId, oldStatus)
+      updateStoreTask(taskId, { status: oldStatus })
+    } finally {
+      setSaving(false)
     }
   }
 
-  function submitComment() {
-    if (!newComment.trim()) return
+  // ── Comments ─────────────────────────────────────────────────────────────
+  async function submitComment() {
     const text = newComment.trim()
-    setComments(prev => [...prev, {
-      id: `c-${Date.now()}`, author: currentUserName ?? 'Utilisateur',
-      text, createdAt: new Date().toISOString(),
-    }])
-    setNewComment('')
-    if (task.assignees?.length) {
-      fetch('/api/notify/comment', {
+    if (!text || postingComment) return
+    setPostingComment(true)
+    try {
+      const res  = await fetch(`/api/tasks/${taskId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assignees: task.assignees.map(a => ({ name: a.name, email: a.email })),
-          comment: text,
-          task: { title: task.title, description: task.description, priority: task.priority, deadline: task.deadline, status: task.status },
-          department: { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
-          authorName: currentUserName ?? 'Utilisateur',
-        }),
-      }).catch(() => {})
+        body: JSON.stringify({ content: text }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setComments(prev => [...prev, data])
+      setNewComment('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur commentaire')
+    } finally {
+      setPostingComment(false)
     }
   }
 
-  function toggleSubtask(id: string) {
-    setSubtasks(prev => prev.map(s => s.id === id ? { ...s, done: !s.done } : s))
+  // ── Subtasks ─────────────────────────────────────────────────────────────
+  async function addSubtask() {
+    const title = newSubtask.trim()
+    if (!title || addingSubtask) return
+    setAddingSubtask(true)
+    try {
+      const res  = await fetch(`/api/tasks/${taskId}/subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSubtasks(prev => [...prev, data])
+      setNewSubtask('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur sous-tâche')
+    } finally {
+      setAddingSubtask(false)
+    }
   }
 
-  function addSubtask() {
-    if (!newSubtask.trim()) return
-    setSubtasks(prev => [...prev, { id: `s-${Date.now()}`, title: newSubtask.trim(), done: false }])
-    setNewSubtask('')
+  async function toggleSubtask(sub: DBSubtask) {
+    const next = !sub.is_done
+    setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, is_done: next } : s))
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks/${sub.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_done: next }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, is_done: sub.is_done } : s))
+      toast.error('Impossible de mettre à jour')
+    }
   }
 
+  async function deleteSubtask(id: string) {
+    setSubtasks(prev => prev.filter(s => s.id !== id))
+    try {
+      await fetch(`/api/tasks/${taskId}/subtasks/${id}`, { method: 'DELETE' })
+    } catch {
+      toast.error('Suppression échouée')
+    }
+  }
+
+  // ── Attachments ───────────────────────────────────────────────────────────
+  async function uploadFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || uploading) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res  = await fetch(`/api/tasks/${taskId}/attachments`, { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setAttachments(prev => [...prev, data])
+      toast.success('Fichier joint !')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur upload')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function formatSize(bytes: number | null) {
+    if (!bytes) return ''
+    if (bytes < 1024) return `${bytes} o`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
+  }
+
+  // ── Tabs ─────────────────────────────────────────────────────────────────
   const TABS: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'details',  label: 'Détails',      icon: <Tag className="w-3.5 h-3.5" /> },
-    { id: 'subtasks', label: 'Sous-tâches',  icon: <CheckSquare className="w-3.5 h-3.5" />, count: subtasks.length },
-    { id: 'comments', label: 'Commentaires', icon: <MessageSquare className="w-3.5 h-3.5" />, count: comments.length },
-    { id: 'history',  label: 'Historique',   icon: <History className="w-3.5 h-3.5" /> },
+    { id: 'details',     label: 'Détails',      icon: <Tag className="w-3.5 h-3.5" /> },
+    { id: 'subtasks',    label: 'Sous-tâches',  icon: <CheckSquare className="w-3.5 h-3.5" />, count: subtasks.length || undefined },
+    { id: 'comments',   label: 'Commentaires', icon: <MessageSquare className="w-3.5 h-3.5" />, count: comments.length || undefined },
+    { id: 'attachments', label: 'Fichiers',     icon: <Paperclip className="w-3.5 h-3.5" />, count: attachments.length || undefined },
   ]
 
   return (
@@ -152,10 +293,11 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
 
         {/* Status bar */}
         <div className="flex items-center gap-1.5 px-5 py-3 border-b border-white/10 overflow-x-auto">
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground mr-1 shrink-0" />}
           {TASK_STATUSES.map(s => (
-            <button key={s} onClick={() => handleStatusChange(s)}
+            <button key={s} onClick={() => handleStatusChange(s)} disabled={saving}
               className={cn(
-                'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap transition-all duration-200 font-medium',
+                'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap transition-all duration-200 font-medium disabled:opacity-50',
                 task.status === s ? 'text-white shadow-md' : 'glass text-muted-foreground hover:text-foreground'
               )}
               style={task.status === s ? { background: STATUS_COLORS[s], boxShadow: `0 4px 12px ${STATUS_COLORS[s]}55` } : {}}>
@@ -187,7 +329,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
 
-          {/* DETAILS */}
+          {/* ─── DÉTAILS ───────────────────────────────────────────────── */}
           {tab === 'details' && (
             <div className="space-y-5">
               {task.description && (
@@ -249,121 +391,164 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                   </div>
                 </div>
               )}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pièces jointes</p>
-                <label className="flex items-center gap-2 glass-card p-3 cursor-pointer hover:bg-white/10 transition-colors rounded-xl border-dashed">
-                  <Paperclip className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Ajouter un fichier…</span>
-                  <input type="file" className="hidden" multiple onChange={() => toast.info('Upload disponible en version connectée')} />
-                </label>
-              </div>
             </div>
           )}
 
-          {/* SOUS-TÂCHES */}
+          {/* ─── SOUS-TÂCHES ────────────────────────────────────────────── */}
           {tab === 'subtasks' && (
             <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Progression</p>
-                  <span className="text-xs font-semibold" style={{ color: deptColor }}>{doneSub}/{subtasks.length}</span>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${subtasks.length ? (doneSub / subtasks.length) * 100 : 0}%`, background: `linear-gradient(90deg, ${deptColor}, ${deptColor}99)` }} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                {subtasks.map(sub => (
-                  <div key={sub.id} className="flex items-center gap-3 glass-card p-3 group">
-                    <button onClick={() => toggleSubtask(sub.id)} className="flex-shrink-0">
-                      {sub.done
-                        ? <CheckSquare className="w-4 h-4" style={{ color: deptColor }} />
-                        : <Square className="w-4 h-4 text-muted-foreground" />}
-                    </button>
-                    <span className={cn('text-sm flex-1', sub.done && 'line-through text-muted-foreground')}>{sub.title}</span>
-                    <button onClick={() => setSubtasks(p => p.filter(s => s.id !== sub.id))}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive">
-                      <Trash2 className="w-3 h-3" />
+              {subtasksLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : (
+                <>
+                  {subtasks.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Progression</p>
+                        <span className="text-xs font-semibold" style={{ color: deptColor }}>{doneSub}/{subtasks.length}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${(doneSub / subtasks.length) * 100}%`, background: `linear-gradient(90deg, ${deptColor}, ${deptColor}99)` }} />
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    {subtasks.map(sub => (
+                      <div key={sub.id} className="flex items-center gap-3 glass-card p-3 group">
+                        <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
+                          {sub.is_done
+                            ? <CheckSquare className="w-4 h-4" style={{ color: deptColor }} />
+                            : <Square className="w-4 h-4 text-muted-foreground" />}
+                        </button>
+                        <span className={cn('text-sm flex-1', sub.is_done && 'line-through text-muted-foreground')}>{sub.title}</span>
+                        <button onClick={() => deleteSubtask(sub.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {subtasks.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">Aucune sous-tâche</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <input value={newSubtask} onChange={e => setNewSubtask(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addSubtask()}
+                      placeholder="Ajouter une sous-tâche… (Entrée)"
+                      className="flex-1 glass-card px-3 py-2 text-sm bg-transparent focus:outline-none rounded-xl" />
+                    <button onClick={addSubtask} disabled={!newSubtask.trim() || addingSubtask}
+                      className="p-2 rounded-xl text-white transition-all disabled:opacity-40"
+                      style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}bb)` }}>
+                      {addingSubtask ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     </button>
                   </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input value={newSubtask} onChange={e => setNewSubtask(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addSubtask()}
-                  placeholder="Ajouter une sous-tâche… (Entrée)"
-                  className="flex-1 glass-card px-3 py-2 text-sm bg-transparent focus:outline-none rounded-xl" />
-                <button onClick={addSubtask} disabled={!newSubtask.trim()}
-                  className="p-2 rounded-xl text-white transition-all disabled:opacity-40"
-                  style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}bb)` }}>
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
+                </>
+              )}
             </div>
           )}
 
-          {/* COMMENTAIRES */}
+          {/* ─── COMMENTAIRES ───────────────────────────────────────────── */}
           {tab === 'comments' && (
             <div className="space-y-4">
-              <div className="space-y-3">
-                {comments.map(c => (
-                  <div key={c.id} className="flex gap-3">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5"
+              {commentsLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {comments.map(c => {
+                      const color = c.author?.department?.color ?? deptColor
+                      return (
+                        <div key={c.id} className="flex gap-3">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 mt-0.5"
+                            style={{ background: `linear-gradient(135deg, ${color}, ${color}77)` }}>
+                            {c.author?.avatar_url
+                              ? <img src={c.author.avatar_url} alt={c.author.name} className="w-full h-full rounded-full object-cover" />
+                              : getInitials(c.author?.name ?? '?')
+                            }
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-baseline gap-2 mb-1">
+                              <span className="text-xs font-semibold">{c.author?.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {format(parseISO(c.created_at), 'd MMM à HH:mm', { locale: fr })}
+                              </span>
+                            </div>
+                            <div className="glass-card px-3 py-2.5 text-sm leading-relaxed">{c.content}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {comments.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">Aucun commentaire</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 pt-2 border-t border-white/10">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
                       style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}77)` }}>
-                      {getInitials(c.author)}
+                      {getInitials(currentUserName ?? '?')}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-xs font-semibold">{c.author}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {format(parseISO(c.createdAt), 'd MMM à HH:mm', { locale: fr })}
-                        </span>
-                      </div>
-                      <div className="glass-card px-3 py-2.5 text-sm leading-relaxed">{c.text}</div>
+                    <div className="flex-1 flex gap-2">
+                      <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment() } }}
+                        placeholder="Écrire un commentaire… (Entrée pour envoyer)"
+                        rows={2}
+                        className="flex-1 glass-card px-3 py-2 text-sm bg-transparent focus:outline-none resize-none rounded-xl" />
+                      <button onClick={submitComment} disabled={!newComment.trim() || postingComment}
+                        className="p-2 rounded-xl text-white self-end transition-all disabled:opacity-40"
+                        style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}bb)` }}>
+                        {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
-                ))}
-              </div>
-              <div className="flex gap-2 pt-2 border-t border-white/10">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                  style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}77)` }}>MM</div>
-                <div className="flex-1 flex gap-2">
-                  <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment() } }}
-                    placeholder="Écrire un commentaire… (Entrée pour envoyer)"
-                    rows={2}
-                    className="flex-1 glass-card px-3 py-2 text-sm bg-transparent focus:outline-none resize-none rounded-xl" />
-                  <button onClick={submitComment} disabled={!newComment.trim()}
-                    className="p-2 rounded-xl text-white self-end transition-all disabled:opacity-40"
-                    style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}bb)` }}>
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           )}
 
-          {/* HISTORIQUE */}
-          {tab === 'history' && (
-            <div className="space-y-2">
-              {history.map((h, i) => (
-                <div key={h.id} className="flex gap-3 items-start">
-                  <div className="flex flex-col items-center">
-                    <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: deptColor }} />
-                    {i < history.length - 1 && <div className="w-px flex-1 bg-border mt-1" style={{ minHeight: 24 }} />}
+          {/* ─── PIÈCES JOINTES ─────────────────────────────────────────── */}
+          {tab === 'attachments' && (
+            <div className="space-y-4">
+              {attachLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {attachments.map(att => (
+                      <div key={att.id} className="flex items-center gap-3 glass-card p-3">
+                        <Paperclip className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{att.file_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatSize(att.file_size)}
+                            {att.file_size ? ' · ' : ''}
+                            {format(parseISO(att.created_at), 'd MMM yyyy', { locale: fr })}
+                          </p>
+                        </div>
+                        <a href={att.file_url} target="_blank" rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    ))}
+                    {attachments.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">Aucun fichier joint</p>
+                    )}
                   </div>
-                  <div className="pb-4">
-                    <p className="text-sm">
-                      <span className="font-semibold">{h.author}</span>
-                      <span className="text-muted-foreground"> {h.action}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {format(parseISO(h.createdAt), 'd MMM yyyy à HH:mm', { locale: fr })}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                  <label className={cn(
+                    'flex items-center gap-2 glass-card p-3 cursor-pointer hover:bg-white/10 transition-colors rounded-xl border-dashed',
+                    uploading && 'opacity-50 cursor-not-allowed'
+                  )}>
+                    {uploading
+                      ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      : <Paperclip className="w-4 h-4 text-muted-foreground" />}
+                    <span className="text-sm text-muted-foreground">
+                      {uploading ? 'Upload en cours…' : 'Ajouter un fichier…'}
+                    </span>
+                    <input ref={fileInputRef} type="file" className="hidden" disabled={uploading} onChange={uploadFile} />
+                  </label>
+                </>
+              )}
             </div>
           )}
         </div>

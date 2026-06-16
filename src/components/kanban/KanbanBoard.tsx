@@ -10,6 +10,7 @@ import { KanbanColumn } from './KanbanColumn'
 import { TaskCard } from '@/components/tasks/TaskCard'
 import { TaskModal } from '@/components/tasks/TaskModal'
 import { useTasks } from '@/hooks/useTasks'
+import { useTaskStore } from '@/store/tasks'
 import { updateTaskStatus } from '@/lib/actions/tasks'
 import { TASK_STATUSES } from '@/types'
 import type { Task, TaskStatus } from '@/types'
@@ -23,6 +24,7 @@ export function KanbanBoard({
   currentUserName?: string
 }) {
   const { tasks, refresh } = useTasks()
+  const currentUserId = useTaskStore(s => s.currentUserId)
   const [activeTask, setActiveTask]   = useState<Task | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [optimistic, setOptimistic]   = useState<Record<string, TaskStatus>>({})
@@ -32,7 +34,15 @@ export function KanbanBoard({
   const visibleTasks = tasks.map(t => ({
     ...t,
     status: (optimistic[t.id] ?? t.status) as TaskStatus,
-  })).filter(t => t.status !== 'Archivé')
+  })).filter(t => {
+    if (t.status === 'Archivé') return false
+    // Filtre : département + tâches où l'utilisateur est assigné
+    if (!currentDepartmentId && !currentUserId) return true
+    const isOwnDept  = t.department_id === currentDepartmentId
+    const isCross    = t.is_cross_team && (t.extra_departments ?? []).some(d => d.id === currentDepartmentId)
+    const isAssigned = currentUserId ? (t.assignees ?? []).some(a => a.id === currentUserId) : false
+    return isOwnDept || isCross || isAssigned
+  })
 
   const getColumnTasks = (status: TaskStatus) => visibleTasks.filter(t => t.status === status)
 
@@ -81,12 +91,6 @@ export function KanbanBoard({
 
   return (
     <>
-      {/* Indicateur temporaire — à supprimer une fois confirmé */}
-      {process.env.NODE_ENV !== 'production' && (
-        <div className="text-xs text-gray-400 px-4 py-1">
-          {visibleTasks.length} tâche(s) chargée(s) · {tasks.length} total
-        </div>
-      )}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 h-full">
           {TASK_STATUSES.map(status => (

@@ -35,6 +35,9 @@ export async function createTask(data: unknown): Promise<{ success: boolean; tas
       )
     }
 
+    revalidatePath('/kanban')
+    revalidatePath('/chronologie')
+    revalidatePath('/calendrier')
     return { success: true, taskId: task.id }
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Erreur inconnue' }
