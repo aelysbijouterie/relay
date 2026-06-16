@@ -5,52 +5,40 @@ import { persist } from 'zustand/middleware'
 import type { Task, TaskStatus } from '@/types'
 
 interface TaskStore {
-  tasks: Task[]
-  currentUserId:      string | null
-  currentDeptId:      string | null
-  setTasks:           (tasks: Task[]) => void
-  setCurrentUser:     (userId: string, deptId: string) => void
-  addTask:            (task: Task) => void
-  updateTask:         (taskId: string, updates: Partial<Task>) => void
-  removeTask:         (taskId: string) => void
-  moveTask:           (taskId: string, newStatus: TaskStatus) => void
+  // Infos utilisateur courant (pour le filtre Kanban et les actions)
+  currentUserId: string | null
+  currentDeptId: string | null
+  setCurrentUser: (userId: string, deptId: string) => void
+
+  // Cache optimiste local uniquement — la vérité vient de SWR/Supabase
+  optimisticUpdates: Record<string, Partial<Task>>
+  setOptimisticStatus: (taskId: string, status: TaskStatus) => void
+  clearOptimistic:     (taskId: string) => void
 }
 
 export const useTaskStore = create<TaskStore>()(
   persist(
     (set) => ({
-      tasks:           [],
-      currentUserId:   null,
-      currentDeptId:   null,
-
-      setTasks: (incoming) => set(() =>
-        incoming.length === 0 ? {} : { tasks: incoming }
-      ),
+      currentUserId:     null,
+      currentDeptId:     null,
+      optimisticUpdates: {},
 
       setCurrentUser: (userId, deptId) =>
         set({ currentUserId: userId, currentDeptId: deptId }),
 
-      addTask: (task) => set((s) => ({ tasks: [task, ...s.tasks] })),
+      setOptimisticStatus: (taskId, status) =>
+        set(s => ({ optimisticUpdates: { ...s.optimisticUpdates, [taskId]: { status } } })),
 
-      updateTask: (taskId, updates) =>
-        set((s) => ({
-          tasks: s.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
-        })),
-
-      removeTask: (taskId) =>
-        set((s) => ({ tasks: s.tasks.filter(t => t.id !== taskId) })),
-
-      moveTask: (taskId, newStatus) =>
-        set((s) => ({
-          tasks: s.tasks.map(t =>
-            t.id === taskId ? { ...t, status: newStatus } : t
-          ),
-        })),
+      clearOptimistic: (taskId) =>
+        set(s => {
+          const next = { ...s.optimisticUpdates }
+          delete next[taskId]
+          return { optimisticUpdates: next }
+        }),
     }),
     {
-      name: 'relays-tasks',
-      // Seules les infos utilisateur sont persistées — les tâches viennent du serveur
-      partialize: (s) => ({ tasks: [], currentUserId: s.currentUserId, currentDeptId: s.currentDeptId }),
+      name:        'relays-user',
+      partialize:  (s) => ({ currentUserId: s.currentUserId, currentDeptId: s.currentDeptId }),
     }
   )
 )

@@ -23,26 +23,24 @@ export function KanbanBoard({
   currentDepartmentId?: string
   currentUserName?: string
 }) {
-  const { tasks, refresh } = useTasks()
-  const currentUserId = useTaskStore(s => s.currentUserId)
-  const [activeTask, setActiveTask]   = useState<Task | null>(null)
+  const { tasks, refresh }   = useTasks()
+  const currentUserId        = useTaskStore(s => s.currentUserId)
+  const [activeTask, setActiveTask]     = useState<Task | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [optimistic, setOptimistic]   = useState<Record<string, TaskStatus>>({})
+  const [optimistic, setOptimistic]     = useState<Record<string, TaskStatus>>({})
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  const visibleTasks = tasks.map(t => ({
-    ...t,
-    status: (optimistic[t.id] ?? t.status) as TaskStatus,
-  })).filter(t => {
-    if (t.status === 'Archivé') return false
-    // Filtre : département + tâches où l'utilisateur est assigné
-    if (!currentDepartmentId && !currentUserId) return true
-    const isOwnDept  = t.department_id === currentDepartmentId
-    const isCross    = t.is_cross_team && (t.extra_departments ?? []).some(d => d.id === currentDepartmentId)
-    const isAssigned = currentUserId ? (t.assignees ?? []).some(a => a.id === currentUserId) : false
-    return isOwnDept || isCross || isAssigned
-  })
+  const visibleTasks = tasks
+    .map(t => ({ ...t, status: (optimistic[t.id] ?? t.status) as TaskStatus }))
+    .filter(t => {
+      if (t.status === 'Archivé') return false
+      if (!currentDepartmentId && !currentUserId) return true
+      const isOwnDept  = t.department_id === currentDepartmentId
+      const isCross    = t.is_cross_team && (t.extra_departments ?? []).some(d => d.id === currentDepartmentId)
+      const isAssigned = currentUserId ? (t.assignees ?? []).some(a => a.id === currentUserId) : false
+      return isOwnDept || isCross || isAssigned
+    })
 
   const getColumnTasks = (status: TaskStatus) => visibleTasks.filter(t => t.status === status)
 
@@ -64,11 +62,12 @@ export function KanbanBoard({
 
     if (!newStatus || newStatus === task.status) return
 
-    // Mise à jour optimiste immédiate
+    // Optimiste immédiat
     setOptimistic(prev => ({ ...prev, [task.id]: newStatus }))
 
     try {
       await updateTaskStatus(task.id, newStatus)
+      // Rafraîchit SWR — le fallback SWRConfig sera remplacé par les données fraîches
       await refresh()
       if (task.assignees?.length) {
         fetch('/api/notify/status', {
@@ -86,6 +85,8 @@ export function KanbanBoard({
     } catch {
       setOptimistic(prev => { const n = { ...prev }; delete n[task.id]; return n })
       toast.error('Erreur lors du déplacement')
+    } finally {
+      setOptimistic(prev => { const n = { ...prev }; delete n[task.id]; return n })
     }
   }, [tasks, refresh, currentUserName])
 

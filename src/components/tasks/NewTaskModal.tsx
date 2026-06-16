@@ -5,9 +5,8 @@ import { X, Plus, Search, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { createTask } from '@/lib/actions/tasks'
-import { useTaskStore } from '@/store/tasks'
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/types'
-import type { Department, Profile, TaskStatus, TaskPriority } from '@/types'
+import type { Department, Profile } from '@/types'
 
 interface ProfileWithDept extends Profile {
   department?: Department
@@ -23,7 +22,6 @@ interface NewTaskModalProps {
 }
 
 export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, departments, profile }: NewTaskModalProps) {
-  const addTask = useTaskStore(s => s.addTask)
   const [allProfiles, setAllProfiles] = useState<ProfileWithDept[]>([])
   const [loading, setLoading]         = useState(false)
   const [search, setSearch]           = useState('')
@@ -93,32 +91,6 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
       toast.error(result.error ?? 'Erreur lors de la création')
       return
     }
-
-    // Ajout optimiste immédiat dans Zustand pour affichage sans attendre SWR
-    const dept = departments.find(d => d.id === deptId)
-    addTask({
-      id:                result.taskId!,
-      title:             title.trim(),
-      description:       description.trim() || null,
-      status:            status as TaskStatus,
-      priority:          priority as TaskPriority,
-      department_id:     deptId,
-      department:        dept ? { id: dept.id, name: dept.name, color: dept.color, slug: dept.slug, icon: dept.icon ?? null } : undefined,
-      deadline:          deadline || null,
-      is_cross_team:     false,
-      assignees:         allProfiles.filter(p => assigneeIds.includes(p.id)).map(p => ({
-        id: p.id, name: p.name, email: p.email ?? '', role: p.role,
-        avatar_url: p.avatar_url ?? null, department_id: p.department_id,
-        is_active: true, created_at: '',
-      })),
-      extra_departments: [],
-      fournisseur_client: fournisseur.trim() || null,
-      ref_collection:    refCollection.trim() || null,
-      parent_task_id:    null,
-      created_by:        profile.id,
-      created_at:        new Date().toISOString(),
-      updated_at:        new Date().toISOString(),
-    })
 
     toast.success('Tâche créée !')
     onCreated()

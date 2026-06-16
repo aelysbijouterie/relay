@@ -9,8 +9,8 @@ import {
   Send, Plus, Trash2, Loader2, Download,
 } from 'lucide-react'
 import { cn, formatDeadline, isOverdue, getInitials } from '@/lib/utils'
-import { useTaskStore } from '@/store/tasks'
 import { useTasks } from '@/hooks/useTasks'
+import { useTaskStore } from '@/store/tasks'
 import { updateTaskStatus } from '@/lib/actions/tasks'
 import { PRIORITY_COLORS, STATUS_COLORS, TASK_STATUSES } from '@/types'
 import type { Task, TaskStatus } from '@/types'
@@ -49,7 +49,6 @@ type Tab = 'details' | 'subtasks' | 'comments' | 'attachments'
 
 // ─── Composant ──────────────────────────────────────────────────────────────
 export function TaskModal({ task, open, onClose, currentUserName }: TaskModalProps) {
-  const { moveTask, updateTask: updateStoreTask } = useTaskStore()
   const { refresh } = useTasks()
   const currentUserId = useTaskStore(s => s.currentUserId)
 
@@ -121,13 +120,9 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
     const oldStatus = task.status
     setSaving(true)
 
-    // Optimiste local
-    moveTask(taskId, status)
-    updateStoreTask(taskId, { status })
-
     try {
       await updateTaskStatus(taskId, status)
-      await refresh()
+      await refresh() // met à jour SWR → tout composant useTasks() se rafraîchit
       if (status === 'Bloqué') toast.error('Tâche bloquée — le manager sera notifié')
       else toast.success(`Statut : ${status}`)
 
@@ -147,8 +142,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
       }
     } catch {
       toast.error('Impossible de mettre à jour le statut')
-      moveTask(taskId, oldStatus)
-      updateStoreTask(taskId, { status: oldStatus })
+      await refresh() // restaure le statut depuis le serveur
     } finally {
       setSaving(false)
     }
