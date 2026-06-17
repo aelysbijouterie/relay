@@ -6,7 +6,7 @@ import { fr } from 'date-fns/locale'
 import {
   X, Globe, Clock, MessageSquare, History,
   CheckSquare, Square, Paperclip, Tag, Building2,
-  Send, Plus, Trash2, Loader2, Download,
+  Send, Plus, Trash2, Loader2, Download, Pencil, Archive, Copy,
 } from 'lucide-react'
 import { cn, formatDeadline, isOverdue, getInitials } from '@/lib/utils'
 import { useTasks } from '@/hooks/useTasks'
@@ -15,6 +15,8 @@ import { updateTaskStatus } from '@/lib/actions/tasks'
 import { PRIORITY_COLORS, STATUS_COLORS, TASK_STATUSES } from '@/types'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
+
+const PALETTE = ['#6366f1', '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#EC4899', '#9B59B6', '#14B8A6']
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface DBComment {
@@ -27,6 +29,7 @@ interface DBSubtask {
   id: string
   title: string
   is_done: boolean
+  group_name?: string
   created_at: string
 }
 interface DBAttachment {
@@ -45,7 +48,17 @@ interface TaskModalProps {
   currentUserName?: string
 }
 
-type Tab = 'details' | 'subtasks' | 'comments' | 'attachments'
+type Tab = 'details' | 'subtasks' | 'comments' | 'attachments' | 'history'
+
+interface DBActivity {
+  id: string
+  type: string
+  field: string | null
+  old_value: string | null
+  new_value: string | null
+  created_at: string
+  actor: { id: string; name: string; avatar_url: string | null } | null
+}
 
 // ─── Composant ──────────────────────────────────────────────────────────────
 export function TaskModal({ task, open, onClose, currentUserName }: TaskModalProps) {
@@ -55,11 +68,31 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   const [tab, setTab]           = useState<Tab>('details')
   const [saving, setSaving]     = useState(false)
 
+  // Historique
+  const [activity, setActivity] = useState<DBActivity[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
+
+  // Édition des détails
+  const [editing, setEditing]   = useState(false)
+  const [editTitle, setEditTitle]       = useState(task.title)
+  const [editDesc, setEditDesc]         = useState(task.description ?? '')
+  const [editPriority, setEditPriority] = useState(task.priority)
+  const [editDeadline, setEditDeadline] = useState(task.deadline ?? '')
+  const [deleting, setDeleting] = useState(false)
+
   // Comments
   const [comments, setComments]       = useState<DBComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [newComment, setNewComment]   = useState('')
   const [postingComment, setPostingComment] = useState(false)
+  const [mentionables, setMentionables] = useState<{ id: string; name: string; email: string }[]>([])
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null) // texte après @ en cours de frappe
+
+  // Tags
+  const [taskTags, setTaskTags]       = useState<{ id: string; name: string; color: string }[]>(task.tags ?? [])
+  const [allTags, setAllTags]         = useState<{ id: string; name: string; color: string }[]>([])
+  const [showTagPicker, setShowTagPicker] = useState(false)
+  const [newTagName, setNewTagName]   = useState('')
 
   // Subtasks
   const [subtasks, setSubtasks]       = useState<DBSubtask[]>([])
@@ -96,7 +129,24 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
         .then(r => r.json()).then(d => setAttachments(Array.isArray(d) ? d : []))
         .finally(() => setAttachLoading(false))
     }
+    if (tab === 'history') {
+      setActivityLoading(true)
+      fetch(`/api/tasks/${taskId}/activity`)
+        .then(r => r.json()).then(d => setActivity(Array.isArray(d) ? d : []))
+        .finally(() => setActivityLoading(false))
+    }
   }, [open, tab, taskId]) // eslint-disable-line
+
+  // Au montage : profils (pour @mentions) et liste des tags
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/profiles').then(r => r.json())
+      .then(d => setMentionables(Array.isArray(d) ? d.map((p: { id: string; name: string; email: string }) => ({ id: p.id, name: p.name, email: p.email })) : []))
+      .catch(() => {})
+    fetch('/api/tags').then(r => r.json())
+      .then(d => setAllTags(Array.isArray(d) ? d : []))
+      .catch(() => {})
+  }, [open])
 
   // Reset au changement de tâche
   useEffect(() => {
@@ -149,6 +199,27 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   }
 
   // ── Comments ─────────────────────────────────────────────────────────────
+  function onCommentChange(value: string) {
+    setNewComment(value)
+    // Détecte si l'utilisateur est en train de taper une mention (@ suivi de
+    // lettres, en fin de texte) → ouvre le menu filtré.
+    const m = value.match(/@([\p{L}\s]*)$/u)
+    setMentionQuery(m ? m[1].toLowerCase() : null)
+  }
+
+  function insertMention(name: string) {
+    // Remplace le "@xxx" en cours par "@Nom Complet "
+    const next = newComment.replace(/@([\p{L}\s]*)$/u, `@${name} `)
+    setNewComment(next)
+    setMentionQuery(null)
+  }
+
+  const mentionSuggestions =
+    mentionQuery === null ? [] :
+    mentionables
+      .filter(p => p.name.toLowerCase().includes(mentionQuery.trim()))
+      .slice(0, 6)
+
   async function submitComment() {
     const text = newComment.trim()
     if (!text || postingComment) return
@@ -162,11 +233,153 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setComments(prev => [...prev, data])
+
+      // Détection des @mentions sur le NOM COMPLET (et non le prénom), pour
+      // lever toute ambiguïté entre homonymes (ex : deux "Audrey"). On notifie
+      // uniquement la personne dont le nom complet exact apparaît après un @.
+      const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const mentioned = mentionables.filter(p =>
+        new RegExp(`@${escapeRegex(p.name)}\\b`, 'i').test(text)
+      )
+      if (mentioned.length) {
+        fetch('/api/notify/comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assignees: mentioned.map(m => ({ name: m.name, email: m.email })),
+            comment: text,
+            task: { id: taskId, title: task.title },
+            department: task.department?.name ?? '',
+            authorName: currentUserName ?? 'Un collègue',
+          }),
+        }).catch(() => {})
+        toast.success(`${mentioned.length} personne(s) mentionnée(s) notifiée(s)`)
+      }
+
       setNewComment('')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erreur commentaire')
     } finally {
       setPostingComment(false)
+    }
+  }
+
+  // ── Édition / archivage / suppression ─────────────────────────────────────
+  // Droits d'affichage : créateur ou assigné. Avec la visibilité personnelle,
+  // ce sont les seuls à voir la carte dans leur Kanban de toute façon. La
+  // vraie barrière reste côté serveur (canMutateTask), qui autorise aussi
+  // managers et admins.
+  const canEdit =
+    task.created_by === currentUserId ||
+    (task.assignees ?? []).some(a => a.id === currentUserId)
+
+  async function saveEdits() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title:    editTitle.trim(),
+          description: editDesc.trim() || null,
+          priority: editPriority,
+          deadline: editDeadline || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await refresh()
+      setEditing(false)
+      toast.success('Carte modifiée')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveTags(next: { id: string; name: string; color: string }[]) {
+    setTaskTags(next)
+    try {
+      await fetch(`/api/tasks/${taskId}/tags`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tagIds: next.map(t => t.id) }),
+      })
+      await refresh()
+    } catch {
+      toast.error('Erreur lors de l\'enregistrement des étiquettes')
+    }
+  }
+
+  function toggleTag(tag: { id: string; name: string; color: string }) {
+    const has = taskTags.some(t => t.id === tag.id)
+    saveTags(has ? taskTags.filter(t => t.id !== tag.id) : [...taskTags, tag])
+  }
+
+  async function createTag() {
+    const name = newTagName.trim()
+    if (!name) return
+    try {
+      const res = await fetch('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color: PALETTE[allTags.length % PALETTE.length] }),
+      })
+      const tag = await res.json()
+      if (!res.ok) throw new Error(tag.error)
+      setAllTags(prev => prev.some(t => t.id === tag.id) ? prev : [...prev, tag])
+      saveTags([...taskTags, tag])
+      setNewTagName('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur')
+    }
+  }
+
+  async function duplicateTask() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/duplicate`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await refresh()
+      toast.success('Carte dupliquée')
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function archiveTask() {
+    setSaving(true)
+    try {
+      await updateTaskStatus(taskId, 'Archivé' as TaskStatus)
+      await refresh()
+      toast.success('Carte archivée')
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteTaskNow() {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      await refresh()
+      toast.success('Carte supprimée')
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSaving(false)
+      setDeleting(false)
     }
   }
 
@@ -251,6 +464,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
     { id: 'subtasks',    label: 'Sous-tâches',  icon: <CheckSquare className="w-3.5 h-3.5" />, count: subtasks.length || undefined },
     { id: 'comments',   label: 'Commentaires', icon: <MessageSquare className="w-3.5 h-3.5" />, count: comments.length || undefined },
     { id: 'attachments', label: 'Fichiers',     icon: <Paperclip className="w-3.5 h-3.5" />, count: attachments.length || undefined },
+    { id: 'history',     label: 'Historique',   icon: <History className="w-3.5 h-3.5" /> },
   ]
 
   return (
@@ -280,9 +494,31 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
             </div>
             <h2 className="font-heading font-semibold text-xl leading-tight">{task.title}</h2>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button onClick={duplicateTask} disabled={saving}
+              title="Dupliquer" className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
+              <Copy className="w-4 h-4" />
+            </button>
+            {canEdit && task.status !== 'Archivé' && (
+              <>
+                <button onClick={() => { setEditing(true); setTab('details') }} disabled={saving}
+                  title="Modifier" className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={archiveTask} disabled={saving}
+                  title="Archiver" className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
+                  <Archive className="w-4 h-4" />
+                </button>
+                <button onClick={() => setDeleting(true)} disabled={saving}
+                  title="Supprimer" className="p-2 rounded-xl hover:bg-red-500/10 transition-colors text-muted-foreground hover:text-red-500 disabled:opacity-50">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Status bar */}
@@ -326,7 +562,87 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
           {/* ─── DÉTAILS ───────────────────────────────────────────────── */}
           {tab === 'details' && (
             <div className="space-y-5">
-              {task.description && (
+              {/* Étiquettes */}
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Étiquettes</p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {taskTags.map(tag => (
+                    <span key={tag.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ backgroundColor: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}55` }}>
+                      {tag.name}
+                      <button onClick={() => toggleTag(tag)} className="hover:opacity-70" title="Retirer">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <button onClick={() => setShowTagPicker(v => !v)}
+                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                    <Plus className="w-3 h-3" /> Étiquette
+                  </button>
+                </div>
+                {showTagPicker && (
+                  <div className="mt-2 glass-card p-3 space-y-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      {allTags.map(tag => {
+                        const active = taskTags.some(t => t.id === tag.id)
+                        return (
+                          <button key={tag.id} onClick={() => toggleTag(tag)}
+                            className={cn('text-xs px-2 py-0.5 rounded-full font-medium transition-all', active ? 'ring-2' : 'opacity-70 hover:opacity-100')}
+                            style={{ backgroundColor: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}55` }}>
+                            {tag.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <input value={newTagName} onChange={e => setNewTagName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); createTag() } }}
+                        placeholder="Créer une étiquette…"
+                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/15 text-xs focus:outline-none focus:ring-2 focus:ring-white/30" />
+                      <button onClick={createTag} className="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:bg-muted transition-colors">Créer</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {editing && (
+                <div className="glass-card p-4 space-y-3 border" style={{ borderColor: `${deptColor}55` }}>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Titre</label>
+                    <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
+                      className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</label>
+                    <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3}
+                      className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30 resize-none" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Priorité</label>
+                      <select value={editPriority} onChange={e => setEditPriority(e.target.value as typeof editPriority)}
+                        className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30">
+                        {(['Urgent', 'Élevée', 'Moyenne', 'Faible'] as const).map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Échéance</label>
+                      <input type="date" value={editDeadline?.slice(0, 10) ?? ''} onChange={e => setEditDeadline(e.target.value)}
+                        className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end pt-1">
+                    <button onClick={() => { setEditing(false); setEditTitle(task.title); setEditDesc(task.description ?? ''); setEditPriority(task.priority); setEditDeadline(task.deadline ?? '') }}
+                      className="px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted transition-colors">Annuler</button>
+                    <button onClick={saveEdits} disabled={saving || !editTitle.trim()}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-50 flex items-center gap-1.5"
+                      style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}99)` }}>
+                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Enregistrer
+                    </button>
+                  </div>
+                </div>
+              )}
+              {task.description && !editing && (
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</p>
                   <p className="text-sm leading-relaxed text-foreground/80">{task.description}</p>
@@ -482,10 +798,27 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                       style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}77)` }}>
                       {getInitials(currentUserName ?? '?')}
                     </div>
-                    <div className="flex-1 flex gap-2">
-                      <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment() } }}
-                        placeholder="Écrire un commentaire… (Entrée pour envoyer)"
+                    <div className="flex-1 flex gap-2 relative">
+                      {mentionSuggestions.length > 0 && (
+                        <div className="absolute bottom-full mb-1 left-0 right-12 glass-card rounded-xl overflow-hidden z-10 shadow-lg">
+                          {mentionSuggestions.map(p => (
+                            <button key={p.id} type="button" onClick={() => insertMention(p.name)}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/10 transition-colors">
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[0.6rem] font-bold text-white flex-shrink-0"
+                                style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}77)` }}>
+                                {getInitials(p.name)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{p.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{p.email}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <textarea value={newComment} onChange={e => onCommentChange(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && mentionSuggestions.length === 0) { e.preventDefault(); submitComment() } }}
+                        placeholder="Écrire un commentaire… (tapez @ pour mentionner)"
                         rows={2}
                         className="flex-1 glass-card px-3 py-2 text-sm bg-transparent focus:outline-none resize-none rounded-xl" />
                       <button onClick={submitComment} disabled={!newComment.trim() || postingComment}
@@ -545,8 +878,71 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
               )}
             </div>
           )}
+
+          {tab === 'history' && (
+            <div className="space-y-3">
+              {activityLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : activity.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">Aucune activité enregistrée pour l&apos;instant</p>
+              ) : (
+                <ol className="relative border-l border-border ml-2 space-y-4">
+                  {activity.map(a => (
+                    <li key={a.id} className="ml-4">
+                      <span className="absolute -left-1.5 w-3 h-3 rounded-full" style={{ backgroundColor: deptColor }} />
+                      <p className="text-sm">
+                        <span className="font-medium">{a.actor?.name ?? 'Quelqu\'un'}</span>{' '}
+                        {activityLabel(a)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(a.created_at), "d MMM yyyy 'à' HH:mm", { locale: fr })}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Confirmation de suppression */}
+      {deleting && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60" onClick={() => setDeleting(false)}>
+          <div className="glass-card p-5 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold">Supprimer cette carte ?</h3>
+            <p className="text-sm text-muted-foreground">Cette action est définitive. La carte et tout son contenu (sous-tâches, commentaires, fichiers, historique) seront supprimés.</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setDeleting(false)} className="px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted transition-colors">Annuler</button>
+              <button onClick={deleteTaskNow} disabled={saving}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+// Libellé lisible d'une ligne d'historique selon son type.
+function activityLabel(a: DBActivity): string {
+  const FIELD_LABELS: Record<string, string> = {
+    title: 'le titre', description: 'la description', priority: 'la priorité',
+    deadline: "l'échéance", status: 'le statut',
+    fournisseur_client: 'le fournisseur/client', ref_collection: 'la référence',
+  }
+  switch (a.type) {
+    case 'created':    return 'a créé la carte'
+    case 'status':     return `a changé le statut : ${a.old_value || '—'} → ${a.new_value || '—'}`
+    case 'archived':   return 'a archivé la carte'
+    case 'comment':    return 'a ajouté un commentaire'
+    case 'subtask':    return `a modifié les sous-tâches (${a.new_value ?? ''})`
+    case 'attachment': return 'a joint un fichier'
+    case 'assignees':  return `a modifié les assignations (${a.new_value ?? ''})`
+    case 'field':      return `a modifié ${FIELD_LABELS[a.field ?? ''] ?? a.field}${a.new_value ? ` : ${a.new_value}` : ''}`
+    default:           return 'a modifié la carte'
+  }
 }

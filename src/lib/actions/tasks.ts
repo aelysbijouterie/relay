@@ -1,6 +1,7 @@
 'use server'
 
 import { createServerClient, getCurrentUserId } from '@/lib/supabase/server'
+import { logActivity } from '@/lib/tasks/activity'
 import { revalidatePath } from 'next/cache'
 import { taskSchema } from '@/lib/validations/task'
 import type { TaskStatus, Task } from '@/types'
@@ -82,8 +83,14 @@ export async function updateTask(taskId: string, data: unknown) {
 }
 
 export async function updateTaskStatus(taskId: string, status: TaskStatus) {
-  getCurrentUserId()
+  const userId = getCurrentUserId()
   const supabase = createServerClient()
+
+  const { data: before } = await supabase
+    .from('tasks')
+    .select('status')
+    .eq('id', taskId)
+    .single()
 
   const { error } = await supabase
     .from('tasks')
@@ -91,6 +98,15 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
     .eq('id', taskId)
 
   if (error) throw new Error(error.message)
+
+  if (before && before.status !== status) {
+    await logActivity({
+      taskId, actorId: userId,
+      type: status === 'Archivé' ? 'archived' : 'status',
+      field: 'status', oldValue: before.status, newValue: status,
+    })
+  }
+
   revalidatePath('/kanban')
 }
 

@@ -3,16 +3,17 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Columns, Calendar, BarChart2, Clock, LogOut, Menu, X } from 'lucide-react'
+import { Columns, Calendar, BarChart2, Clock, User, LogOut, Menu, X } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
 import type { Profile, Department } from '@/types'
 
 const NAV_ITEMS = [
   { href: '/kanban',     label: 'Kanban',       icon: Columns },
-  { href: '/timeline',   label: 'Chronologie',  icon: Clock },
   { href: '/calendrier', label: 'Calendrier',   icon: Calendar },
+  { href: '/timeline',   label: 'Chronologie',  icon: Clock },
   { href: '/stats',      label: 'Statistiques', icon: BarChart2 },
+  { href: '/compte',     label: 'Mon compte',   icon: User },
 ]
 
 interface SidebarProps {
@@ -70,6 +71,13 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
 
       {/* Department chip / switcher */}
       <div className="px-4 pt-4 pb-2 space-y-1.5">
+        {extraDepartments.length > 0 && (
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+            Mes services
+          </p>
+        )}
+
+        {/* Service actif */}
         <div
           className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium text-white"
           style={{
@@ -81,11 +89,13 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
           {department.name}
         </div>
 
+        {/* Autres services — un clic pour basculer */}
         {extraDepartments.map(d => (
           <button
             key={d.id}
             onClick={() => switchDepartment(d.id)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-white/20 text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+            title={`Basculer vers ${d.name}`}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-white/20 text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors w-full"
           >
             <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
             {d.name}
@@ -150,21 +160,27 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
       {/* User */}
       <div className="p-4 border-t border-white/10">
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 ring-2"
-            style={{
-              background: `linear-gradient(135deg, ${department.color}, ${department.color}88)`,
-            }}
+          <Link
+            href="/compte"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 min-w-0 flex-1 rounded-lg p-1 -m-1 hover:bg-white/10 transition-colors"
           >
-            {profile.avatar_url
-              ? <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover rounded-full" />
-              : getInitials(profile.name)
-            }
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate">{profile.name}</p>
-            <p className="text-xs text-muted-foreground capitalize">{profile.role}</p>
-          </div>
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 ring-2"
+              style={{
+                background: `linear-gradient(135deg, ${department.color}, ${department.color}88)`,
+              }}
+            >
+              {profile.avatar_url
+                ? <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover rounded-full" />
+                : getInitials(profile.name)
+              }
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate">{profile.name}</p>
+              <p className="text-xs text-muted-foreground capitalize">{profile.role}</p>
+            </div>
+          </Link>
           <button
             type="button"
             onClick={handleLogout}
