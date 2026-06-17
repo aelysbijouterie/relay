@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     .from('tasks')
     .select(`
       id, title, deadline, priority, status,
-      department:departments(name, color),
+      department:departments!department_id(name, color),
       assignees:task_assignees(user:profiles(id, name, email))
     `)
     .in('status', ['A Faire', 'En cours', 'Bloqué', 'A revoir'])

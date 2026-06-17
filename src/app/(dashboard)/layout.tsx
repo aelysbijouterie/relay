@@ -2,25 +2,13 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
 import { TasksProvider } from '@/components/providers/TasksProvider'
+import { isTaskVisibleTo } from '@/lib/tasks/visibility'
 import { DEMO_DEPARTMENTS, DEMO_PROFILES, getTasksForDept } from '@/lib/demo-data'
 import type { Profile, Department, Task } from '@/types'
-
-function createAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      global: {
-        fetch: (url: RequestInfo | URL, options?: RequestInit) =>
-          fetch(url, { ...options, cache: 'no-store' }),
-      },
-    }
-  )
-}
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = cookies()
@@ -55,14 +43,28 @@ export default async function DashboardLayout({ children }: { children: React.Re
       redirect('/login')
     }
 
-    const supabase = createAdmin()
+    const supabase = createAdminClient()
 
-    const [profileResult, deptResult, tasksResult] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, name, email, role, department_id, avatar_url, is_active, extra_department_ids')
-        .eq('id', userId!)
-        .single(),
+    // Profil principal. extra_department_ids est volontairement exclu d'ici :
+    // c'est une colonne optionnelle (accès multi-département, à venir pour
+    // Audrey) qui n'existe pas forcément encore en base, et qui ne doit
+    // jamais faire échouer la lecture du profil principal.
+    const profileResult = await supabase
+      .from('profiles')
+      .select('id, name, email, role, department_id, avatar_url, is_active')
+      .eq('id', userId!)
+      .single()
+
+    // Lecture isolée et tolérante de la colonne optionnelle.
+    const { data: extraRow } = await supabase
+      .from('profiles')
+      .select('extra_department_ids')
+      .eq('id', userId!)
+      .single()
+
+    const extraDeptIds: string[] = extraRow?.extra_department_ids ?? []
+
+    const [deptResult, tasksResult] = await Promise.all([
       supabase
         .from('departments')
         .select('id, name, slug, color, icon'),
@@ -72,7 +74,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           id, title, description, status, priority, deadline,
           is_cross_team, fournisseur_client, ref_collection,
           parent_task_id, created_at, updated_at, department_id, created_by,
-          department:departments(id, name, color, slug),
+          department:departments!department_id(id, name, color, slug),
           assignees:task_assignees(user:profiles(id, name, avatar_url, role, department_id)),
           extra_departments:task_departments(department:departments(id, name, color, slug))
         `)
@@ -96,7 +98,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const profileRow    = profileResult.data
     const activeDept    = cookieStore.get('relays-active-dept')?.value
     const primaryDeptId = profileRow?.department_id ?? departments[0]?.id
-    const extraDeptIds: string[] = profileRow?.extra_department_ids ?? []
     const deptId = activeDept && [primaryDeptId, ...extraDeptIds].includes(activeDept)
       ? activeDept : primaryDeptId
 
@@ -114,6 +115,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       created_at:    '',
       department,
     }
+
+    // Visibilité personnelle : chacun ne voit que les tâches qu'il a créées
+    // ou auxquelles il est assigné, quel que soit le département ou le rôle.
+    // Le tableau de bord est un espace personnel. Comme toutes les lectures
+    // passent par le client admin (qui bypass RLS), ce filtre applicatif est
+    // la seule chose qui garantit cette règle.
+    tasks = tasks.filter(t => isTaskVisibleTo(t, { userId: userId! }))
 
     const { data: memberRows } = await supabase
       .from('profiles')

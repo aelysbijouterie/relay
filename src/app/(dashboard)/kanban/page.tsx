@@ -1,12 +1,10 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
 import { KanbanBoardServer } from '@/components/kanban/KanbanBoardServer'
 import { DEMO_DEPARTMENTS, DEMO_PROFILES } from '@/lib/demo-data'
 
-function createAdmin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+export const dynamic = 'force-dynamic'
 
 export default async function KanbanPage() {
   const cookieStore = cookies()
@@ -28,7 +26,7 @@ export default async function KanbanPage() {
   let userId: string
   try { userId = JSON.parse(raw).user_id } catch { redirect('/login') }
 
-  const supabase    = createAdmin()
+  const supabase    = createAdminClient()
   const { data }    = await supabase
     .from('profiles').select('name, department_id').eq('id', userId!).single()
 

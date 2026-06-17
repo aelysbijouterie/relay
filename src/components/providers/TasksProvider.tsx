@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { SWRConfig } from 'swr'
 import { useTaskStore } from '@/store/tasks'
+import { useRealtimeTasks } from '@/hooks/useRealtimeTasks'
 import type { Task } from '@/types'
 
 interface Props {
@@ -24,6 +25,10 @@ export function TasksProvider({ children, initialTasks, userId, deptId }: Props)
   useEffect(() => {
     setCurrentUser(userId, deptId)
   }, [userId, deptId, setCurrentUser])
+
+  // Un seul abonnement Realtime pour toute la session dashboard (Kanban,
+  // Calendrier, Chronologie, Stats partagent la même clé SWR '/api/tasks').
+  useRealtimeTasks()
 
   return (
     <SWRConfig value={{ fallback: { '/api/tasks': initialTasks } }}>

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     .from('tasks')
     .select(`
       id, title, description, status, priority, deadline, is_cross_team,
-      department:departments(name, color),
+      department:departments!department_id(name, color),
       assignees:task_assignees(user:profiles(id, name, email))
     `)
     .not('status', 'in', '("Terminé","Archivé")')
