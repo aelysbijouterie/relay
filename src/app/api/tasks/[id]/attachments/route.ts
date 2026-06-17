@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
 
 const BUCKET = 'task-attachments'
 
-function createAdmin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+export const dynamic = 'force-dynamic'
+
 function getUserId(): string | null {
   try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createAdmin()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_attachments')
     .select('id, file_name, file_url, file_size, file_type, created_at, created_by')
@@ -31,7 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const file = formData.get('file') as File | null
   if (!file) return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 })
 
-  const supabase = createAdmin()
+  const supabase = createAdminClient()
 
   // S'assurer que le bucket existe
   await supabase.storage.createBucket(BUCKET, { public: false }).catch(() => {})
@@ -71,7 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   const { attachmentId, path } = await request.json()
-  const supabase = createAdmin()
+  const supabase = createAdminClient()
 
   if (path) {
     await supabase.storage.from(BUCKET).remove([path]).catch(() => {})

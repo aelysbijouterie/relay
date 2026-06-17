@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
 
-function createAdmin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+export const dynamic = 'force-dynamic'
+
 function getUserId(): string | null {
   try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createAdmin()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_subtasks')
     .select('id, title, is_done, created_at')
@@ -28,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const { title } = await request.json()
   if (!title?.trim()) return NextResponse.json({ error: 'Titre requis' }, { status: 400 })
 
-  const supabase = createAdmin()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_subtasks')
     .insert({ task_id: params.id, title: title.trim(), created_by: userId })

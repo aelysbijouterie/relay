@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { buildSessionCookie } from '@/lib/supabase/session'
 
 export async function POST(request: NextRequest) {
   const { email, password } = await request.json()
@@ -15,12 +16,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 })
   }
 
-  const response = NextResponse.json({ ok: true })
-  response.cookies.set('relays-session', JSON.stringify({
-    access_token: data.session.access_token,
-    user_id:      data.user.id,
+  const session = buildSessionCookie({
+    accessToken:  data.session.access_token,
+    refreshToken: data.session.refresh_token,
+    expiresAt:    data.session.expires_at,
+    expiresIn:    data.session.expires_in,
+    userId:       data.user.id,
     email:        data.user.email,
-  }), {
+  })
+
+  const response = NextResponse.json({ ok: true })
+  response.cookies.set('relays-session', JSON.stringify(session), {
     httpOnly: true,
     secure:   true,
     sameSite: 'lax',

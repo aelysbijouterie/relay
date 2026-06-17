@@ -1,0 +1,187 @@
+diff --git a/src/app/api/auth/realtime-token/route.ts b/src/app/api/auth/realtime-token/route.ts
+new file mode 100644
+index 0000000..65645a5
+--- /dev/null
++++ b/src/app/api/auth/realtime-token/route.ts
+@@ -0,0 +1,27 @@
++import { NextResponse } from 'next/server'
++import { cookies } from 'next/headers'
++
++export const dynamic = 'force-dynamic'
++
++interface SessionCookie {
++  access_token?: string
++}
++
++// Expose uniquement l'access_token Supabase de la session en cours, pour que
++// le client Realtime du navigateur puisse s'authentifier (supabase.realtime.setAuth).
++// Le cookie `relays-session` reste httpOnly : ce endpoint est le seul moyen pour
++// le JS client d'obtenir ce jeton, et uniquement celui de son propre navigateur
++// (le cookie httpOnly est transmis automatiquement par le navigateur, jamais lu
++// depuis document.cookie).
++export async function GET() {
++  const raw = cookies().get('relays-session')?.value
++  if (!raw) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
++
++  try {
++    const session = JSON.parse(raw) as SessionCookie
++    if (!session.access_token) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
++    return NextResponse.json({ access_token: session.access_token })
++  } catch {
++    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
++  }
++}
+diff --git a/src/components/providers/TasksProvider.tsx b/src/components/providers/TasksProvider.tsx
+index 0a2f450..e2ee8c9 100644
+--- a/src/components/providers/TasksProvider.tsx
++++ b/src/components/providers/TasksProvider.tsx
+@@ -3,6 +3,7 @@
+ import { useEffect } from 'react'
+ import { SWRConfig } from 'swr'
+ import { useTaskStore } from '@/store/tasks'
++import { useRealtimeTasks } from '@/hooks/useRealtimeTasks'
+ import type { Task } from '@/types'
+ 
+ interface Props {
+@@ -25,6 +26,10 @@ export function TasksProvider({ children, initialTasks, userId, deptId }: Props)
+     setCurrentUser(userId, deptId)
+   }, [userId, deptId, setCurrentUser])
+ 
++  // Un seul abonnement Realtime pour toute la session dashboard (Kanban,
++  // Calendrier, Chronologie, Stats partagent la même clé SWR '/api/tasks').
++  useRealtimeTasks()
++
+   return (
+     <SWRConfig value={{ fallback: { '/api/tasks': initialTasks } }}>
+       {children}
+diff --git a/src/hooks/useRealtimeTasks.ts b/src/hooks/useRealtimeTasks.ts
+index a5d8369..8d191e5 100644
+--- a/src/hooks/useRealtimeTasks.ts
++++ b/src/hooks/useRealtimeTasks.ts
+@@ -5,23 +5,68 @@ import { mutate } from 'swr'
+ import { createClient } from '@/lib/supabase/client'
+ 
+ /**
+- * Abonnement Supabase Realtime.
+- * Toute modification en base déclenche un re-fetch SWR de /api/tasks.
++ * Abonnement Supabase Realtime sur les tâches.
++ *
++ * Le Kanban affiche désormais toutes les tâches visibles (filtre "Mes tâches"
++ * géré côté client), donc on écoute sans filtre de département : les policies
++ * RLS scopent déjà ce que chaque utilisateur a le droit de recevoir.
++ *
++ * Deux prérequis indispensables, sans quoi cet abonnement ne reçoit jamais
++ * rien (silencieusement, sans erreur) :
++ * 1. tasks / task_assignees / task_departments doivent être dans la
++ *    publication `supabase_realtime` (migration 004_realtime.sql).
++ * 2. Le client doit être authentifié via `realtime.setAuth()` avec un vrai
++ *    access_token utilisateur — sinon `auth.uid()` est NULL côté policies
++ *    RLS et tout est filtré. C'est ce que fait ce hook via
++ *    /api/auth/realtime-token (le cookie de session reste httpOnly).
++ *
++ * Limite connue : l'access_token Supabase expire (1h par défaut côté
++ * Supabase). Cette app ne stocke pas de refresh_token, donc le temps réel
++ * s'arrête silencieusement après expiration sur un onglet resté ouvert très
++ * longtemps — le polling SWR (30 s) prend alors le relais. Pour lever cette
++ * limite : soit augmenter la durée de vie du JWT dans Supabase (Auth >
++ * Settings), soit stocker le refresh_token et rafraîchir périodiquement.
+  */
+-export function useRealtimeTasks(departmentId: string) {
+-  const supabase = createClient()
+-
++export function useRealtimeTasks() {
+   useEffect(() => {
+-    const refresh = () => mutate('/api/tasks')
+-
+-    const channel = supabase
+-      .channel(`tasks-dept-${departmentId}`)
+-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks',          filter: `department_id=eq.${departmentId}` }, refresh)
+-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks',          filter: `department_id=eq.${departmentId}` }, refresh)
+-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks',          filter: `department_id=eq.${departmentId}` }, refresh)
+-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'task_departments', filter: `department_id=eq.${departmentId}` }, refresh)
+-      .subscribe()
+-
+-    return () => { supabase.removeChannel(channel) }
+-  }, [departmentId, supabase])
++    const supabase = createClient()
++    const refresh = () => { void mutate('/api/tasks') }
++
++    let channel: ReturnType<typeof supabase.channel> | null = null
++    let cancelled = false
++
++    async function setup() {
++      try {
++        const res = await fetch('/api/auth/realtime-token', { cache: 'no-store' })
++        if (!res.ok || cancelled) return
++
++        const { access_token } = (await res.json()) as { access_token?: string }
++        if (!access_token || cancelled) return
++
++        await supabase.realtime.setAuth(access_token)
++        if (cancelled) return
++
++        channel = supabase
++          .channel('relays-tasks')
++          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tasks' }, refresh)
++          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, refresh)
++          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tasks' }, refresh)
++          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'task_assignees' }, refresh)
++          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'task_assignees' }, refresh)
++          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'task_departments' }, refresh)
++          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'task_departments' }, refresh)
++          .subscribe()
++      } catch {
++        // Pas de temps réel disponible (réseau, session démo, etc.) —
++        // le polling SWR de useTasks() prend le relais sans interruption.
++      }
++    }
++
++    void setup()
++
++    return () => {
++      cancelled = true
++      if (channel) supabase.removeChannel(channel)
++    }
++  }, [])
+ }
+diff --git a/supabase/migrations/004_realtime.sql b/supabase/migrations/004_realtime.sql
+new file mode 100644
+index 0000000..ac42f92
+--- /dev/null
++++ b/supabase/migrations/004_realtime.sql
+@@ -0,0 +1,35 @@
++-- ============================================================
++-- REALTIME : activation de la réplication Postgres
++-- ============================================================
++-- ENABLE ROW LEVEL SECURITY + CREATE POLICY ne suffisent pas pour que
++-- Supabase Realtime (postgres_changes) émette des événements : les tables
++-- doivent en plus être ajoutées à la publication `supabase_realtime`.
++-- Sans cette étape, aucun événement ne part jamais, même avec une
++-- connexion authentifiée et des policies RLS correctes — silencieusement.
++--
++-- Écrit de façon idempotente : ne plante pas si une table a déjà été
++-- ajoutée manuellement via le dashboard Supabase (Database > Replication).
++
++DO $$
++BEGIN
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_publication_tables
++    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'tasks'
++  ) THEN
++    ALTER PUBLICATION supabase_realtime ADD TABLE tasks;
++  END IF;
++
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_publication_tables
++    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'task_assignees'
++  ) THEN
++    ALTER PUBLICATION supabase_realtime ADD TABLE task_assignees;
++  END IF;
++
++  IF NOT EXISTS (
++    SELECT 1 FROM pg_publication_tables
++    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'task_departments'
++  ) THEN
++    ALTER PUBLICATION supabase_realtime ADD TABLE task_departments;
++  END IF;
++END $$;

@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
 
-function createAdmin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+export const dynamic = 'force-dynamic'
+
 function getUserId(): string | null {
   try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createAdmin()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_comments')
     .select('id, content, created_at, author:profiles(id, name, avatar_url, department:departments(color))')
@@ -28,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const { content } = await request.json()
   if (!content?.trim()) return NextResponse.json({ error: 'Contenu vide' }, { status: 400 })
 
-  const supabase = createAdmin()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_comments')
     .insert({ task_id: params.id, author_id: userId, content: content.trim() })
