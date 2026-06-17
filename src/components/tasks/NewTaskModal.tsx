@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Plus, Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Plus, Search, ChevronDown, ChevronUp, CheckSquare, Paperclip, Trash2, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { createTask } from '@/lib/actions/tasks'
@@ -10,6 +10,13 @@ import type { Department, Profile } from '@/types'
 
 interface ProfileWithDept extends Profile {
   department?: Department
+}
+
+// Élément de checklist en attente (avant création de la carte)
+interface DraftChecklistItem {
+  id: string        // id temporaire local
+  title: string
+  group: string
 }
 
 interface NewTaskModalProps {
@@ -38,9 +45,30 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
   const [refCollection, setRefCollection] = useState('')
   const [showAssignees, setShowAssignees] = useState(false)
 
+  // Listes à cocher (groupées) à créer en même temps que la carte
+  const [checklist, setChecklist]     = useState<DraftChecklistItem[]>([])
+  const [newItemTitle, setNewItemTitle] = useState('')
+  const [newItemGroup, setNewItemGroup] = useState('Général')
+
+  // Fichiers à joindre dès la création
+  const [files, setFiles]             = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Modèles de cartes
+  interface Template {
+    id: string; name: string
+    default_title: string | null; default_description: string | null
+    default_priority: string | null; default_deadline_days: number | null
+    default_subtasks: { title: string; group?: string }[] | null
+    department_id: string | null
+  }
+  const [templates, setTemplates]     = useState<Template[]>([])
+  const [savingTemplate, setSavingTemplate] = useState(false)
+
   useEffect(() => {
     if (!open) return
     fetch('/api/profiles').then(r => r.json()).then(setAllProfiles).catch(() => {})
+    fetch('/api/templates').then(r => r.json()).then(d => setTemplates(Array.isArray(d) ? d : [])).catch(() => {})
   }, [open])
 
   useEffect(() => {
@@ -48,6 +76,7 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
       setTitle(''); setDescription(''); setStatus('A Faire'); setPriority('Moyenne')
       setDeadline(''); setDeptId(currentDepartmentId); setAssigneeIds([])
       setFournisseur(''); setRefCollection(''); setSearch(''); setShowAssignees(false)
+      setChecklist([]); setNewItemTitle(''); setNewItemGroup('Général'); setFiles([])
     }
   }, [open, currentDepartmentId])
 
@@ -85,16 +114,108 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
       fournisseur_client: fournisseur.trim() || null,
       ref_collection:    refCollection.trim() || null,
     })
-    setLoading(false)
 
     if (!result.success) {
+      setLoading(false)
       toast.error(result.error ?? 'Erreur lors de la création')
       return
     }
 
+    const newTaskId = result.taskId
+    // Enregistrer les sous-tâches (listes à cocher) et les fichiers, si présents.
+    if (newTaskId) {
+      try {
+        for (const item of checklist) {
+          await fetch(`/api/tasks/${newTaskId}/subtasks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: item.title, group_name: item.group }),
+          })
+        }
+        for (const file of files) {
+          const fd = new FormData()
+          fd.append('file', file)
+          await fetch(`/api/tasks/${newTaskId}/attachments`, { method: 'POST', body: fd })
+        }
+      } catch {
+        // La carte est créée ; si un élément annexe échoue, on prévient sans bloquer.
+        toast.error('Carte créée, mais un élément (liste/fichier) n\'a pas pu être ajouté')
+      }
+    }
+
+    setLoading(false)
     toast.success('Tâche créée !')
     onCreated()
     onClose()
+  }
+
+  function addChecklistItem() {
+    const t = newItemTitle.trim()
+    if (!t) return
+    setChecklist(prev => [...prev, { id: crypto.randomUUID(), title: t, group: newItemGroup.trim() || 'Général' }])
+    setNewItemTitle('')
+  }
+
+  function removeChecklistItem(id: string) {
+    setChecklist(prev => prev.filter(i => i.id !== id))
+  }
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? [])
+    setFiles(prev => [...prev, ...picked])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function removeFile(idx: number) {
+    setFiles(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function applyTemplate(templateId: string) {
+    if (!templateId) return
+    const tpl = templates.find(t => t.id === templateId)
+    if (!tpl) return
+    if (tpl.default_title) setTitle(tpl.default_title)
+    if (tpl.default_description) setDescription(tpl.default_description)
+    if (tpl.default_priority) setPriority(tpl.default_priority)
+    if (tpl.department_id) setDeptId(tpl.department_id)
+    if (typeof tpl.default_deadline_days === 'number') {
+      const d = new Date(); d.setDate(d.getDate() + tpl.default_deadline_days)
+      setDeadline(d.toISOString().slice(0, 10))
+    }
+    if (Array.isArray(tpl.default_subtasks) && tpl.default_subtasks.length) {
+      setChecklist(tpl.default_subtasks.map(s => ({
+        id: crypto.randomUUID(), title: s.title, group: s.group ?? 'Général',
+      })))
+    }
+    toast.success(`Modèle « ${tpl.name} » appliqué`)
+  }
+
+  async function saveAsTemplate() {
+    const name = window.prompt('Nom du modèle :', title.trim() || 'Nouveau modèle')
+    if (!name?.trim()) return
+    setSavingTemplate(true)
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          default_title: title.trim() || null,
+          default_description: description.trim() || null,
+          default_priority: priority,
+          department_id: deptId,
+          default_subtasks: checklist.map(c => ({ title: c.title, group: c.group })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setTemplates(prev => [...prev, { ...data, default_title: title, default_description: description, default_priority: priority, default_deadline_days: null, default_subtasks: checklist.map(c => ({ title: c.title, group: c.group })), department_id: deptId }])
+      toast.success('Modèle enregistré')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSavingTemplate(false)
+    }
   }
 
   if (!open) return null
@@ -114,6 +235,23 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+
+          {/* Appliquer un modèle */}
+          {templates.length > 0 && (
+            <div className="rounded-xl border border-dashed border-border p-2.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+                <FileText className="w-3.5 h-3.5" /> Partir d&apos;un modèle
+              </label>
+              <select
+                onChange={e => applyTemplate(e.target.value)}
+                defaultValue=""
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="">— Aucun (carte vierge) —</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Titre */}
           <div>
@@ -260,19 +398,107 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
             </div>
           </div>
 
+          {/* Listes à cocher (groupées) */}
+          <div>
+            <label className="text-sm font-medium flex items-center gap-1.5 mb-1.5">
+              <CheckSquare className="w-4 h-4" /> Listes à cocher
+            </label>
+            {checklist.length > 0 && (
+              <div className="space-y-3 mb-2">
+                {Object.entries(
+                  checklist.reduce<Record<string, DraftChecklistItem[]>>((acc, item) => {
+                    (acc[item.group] ??= []).push(item); return acc
+                  }, {})
+                ).map(([group, items]) => (
+                  <div key={group} className="rounded-xl border border-border p-2.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">{group}</p>
+                    <div className="space-y-1">
+                      {items.map(item => (
+                        <div key={item.id} className="flex items-center gap-2 text-sm">
+                          <span className="w-3.5 h-3.5 rounded border border-border shrink-0" />
+                          <span className="flex-1 truncate">{item.title}</span>
+                          <button type="button" onClick={() => removeChecklistItem(item.id)}
+                            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-red-500 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={newItemGroup}
+                onChange={e => setNewItemGroup(e.target.value)}
+                placeholder="Liste"
+                className="w-28 border border-border rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <input
+                value={newItemTitle}
+                onChange={e => setNewItemTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addChecklistItem() } }}
+                placeholder="Ajouter un élément à cocher…"
+                className="flex-1 border border-border rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <button type="button" onClick={addChecklistItem}
+                className="px-3 py-2 rounded-xl border border-border hover:bg-muted transition-colors shrink-0">
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Change le nom de la liste pour créer plusieurs groupes (ex : Préparation, Validation).</p>
+          </div>
+
+          {/* Fichiers joints */}
+          <div>
+            <label className="text-sm font-medium flex items-center gap-1.5 mb-1.5">
+              <Paperclip className="w-4 h-4" /> Fichiers
+            </label>
+            {files.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {files.map((f, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-sm rounded-lg border border-border px-2.5 py-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <span className="flex-1 truncate">{f.name}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {f.size < 1024 * 1024 ? `${(f.size / 1024).toFixed(0)} Ko` : `${(f.size / (1024 * 1024)).toFixed(1)} Mo`}
+                    </span>
+                    <button type="button" onClick={() => removeFile(idx)}
+                      className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-red-500 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <label className="flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2.5 cursor-pointer hover:bg-muted transition-colors text-sm text-muted-foreground">
+              <Paperclip className="w-4 h-4" />
+              Ajouter des fichiers…
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onPickFiles} />
+            </label>
+          </div>
+
         </form>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2.5 text-sm rounded-xl border border-border hover:bg-muted transition-colors">
-            Annuler
+        <div className="flex justify-between items-center gap-2 px-6 py-4 border-t border-border shrink-0">
+          <button type="button" onClick={saveAsTemplate} disabled={savingTemplate || !title.trim()}
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 text-sm rounded-xl border border-border hover:bg-muted transition-colors disabled:opacity-50">
+            <FileText className="w-4 h-4" />
+            Enregistrer comme modèle
           </button>
-          <button onClick={handleSubmit} disabled={loading || !title.trim()}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium">
-            <Plus className="w-4 h-4" />
-            {loading ? 'Création…' : 'Créer la tâche'}
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2.5 text-sm rounded-xl border border-border hover:bg-muted transition-colors">
+              Annuler
+            </button>
+            <button onClick={handleSubmit} disabled={loading || !title.trim()}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium">
+              <Plus className="w-4 h-4" />
+              {loading ? 'Création…' : 'Créer la tâche'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

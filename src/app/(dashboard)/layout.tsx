@@ -76,7 +76,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           parent_task_id, created_at, updated_at, department_id, created_by,
           department:departments!department_id(id, name, color, slug),
           assignees:task_assignees(user:profiles(id, name, avatar_url, role, department_id)),
-          extra_departments:task_departments(department:departments(id, name, color, slug))
+          extra_departments:task_departments(department:departments(id, name, color, slug)),
+          tags:task_tags(tag:tags(id, name, color))
         `)
         .neq('status', 'Archivé')
         .order('deadline', { ascending: true, nullsFirst: false })
@@ -92,6 +93,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         ...t,
         assignees:         ((t.assignees as { user: unknown }[]) ?? []).map(a => a.user),
         extra_departments: ((t.extra_departments as { department: unknown }[]) ?? []).map(a => a.department),
+        tags:              ((t.tags as { tag: unknown }[]) ?? []).map(a => a.tag).filter(Boolean),
       })) as unknown as Task[]
     }
 
@@ -101,8 +103,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const deptId = activeDept && [primaryDeptId, ...extraDeptIds].includes(activeDept)
       ? activeDept : primaryDeptId
 
-    department       = departments.find(d => d.id === deptId) ?? departments[0]
-    extraDepartments = departments.filter(d => extraDeptIds.includes(d.id) && d.id !== deptId)
+    department = departments.find(d => d.id === deptId) ?? departments[0]
+
+    // Tous les services de l'utilisateur = principal + supplémentaires.
+    // Les "autres services" cliquables dans la sidebar = tous sauf l'actif.
+    // (Avant, on n'incluait que les extras, donc le département principal
+    //  disparaissait dès qu'on le quittait et n'était plus cliquable.)
+    const allDeptIds = [primaryDeptId, ...extraDeptIds].filter(Boolean) as string[]
+    extraDepartments = departments.filter(d => allDeptIds.includes(d.id) && d.id !== deptId)
 
     profile = {
       id:            profileRow?.id ?? userId!,

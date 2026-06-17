@@ -38,7 +38,8 @@ export async function GET() {
         user:profiles(id, name, email, avatar_url, role, department_id,
           department:departments(id, name, color, slug))
       ),
-      extra_departments:task_departments(department:departments(id, name, color, slug))
+      extra_departments:task_departments(department:departments(id, name, color, slug)),
+      tags:task_tags(tag:tags(id, name, color))
     `)
     .neq('status', 'Archivé')
     .is('parent_task_id', null)
@@ -54,6 +55,7 @@ export async function GET() {
     ...t,
     assignees:         ((t.assignees as { user: unknown }[]) ?? []).map(a => a.user).filter(Boolean),
     extra_departments: ((t.extra_departments as { department: unknown }[]) ?? []).map(a => a.department).filter(Boolean),
+    tags:              ((t.tags as { tag: unknown }[]) ?? []).map(a => a.tag).filter(Boolean),
   })) as unknown as Task[]
 
   // Visibilité personnelle : chacun ne voit que ses tâches créées + assignées.

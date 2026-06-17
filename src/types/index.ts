@@ -12,6 +12,13 @@ export interface Department {
   slug: string
 }
 
+export interface NotificationPreferences {
+  notify_email_assigned: boolean
+  notify_email_status: boolean
+  notify_email_deadlines: boolean
+  notify_email_weekly: boolean
+}
+
 export interface Profile {
   id: string
   name: string
@@ -22,6 +29,16 @@ export interface Profile {
   is_active: boolean
   created_at: string
   department?: Department
+  notify_email_assigned?: boolean
+  notify_email_status?: boolean
+  notify_email_deadlines?: boolean
+  notify_email_weekly?: boolean
+}
+
+export interface Tag {
+  id: string
+  name: string
+  color: string
 }
 
 export interface Task {
@@ -44,6 +61,7 @@ export interface Task {
   assignees?: Profile[]
   extra_departments?: Department[]
   subtasks?: Task[]
+  tags?: Tag[]
 }
 
 export interface Attachment {

@@ -27,13 +27,13 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
     transition,
   }
 
-  const overdue = isOverdue(task.deadline)
+  const overdue = isOverdue(task.deadline) && task.status !== 'Terminé' && task.status !== 'Archivé'
   const deptColor = task.department?.color ?? '#94A3B8'
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={overdue ? { ...style, boxShadow: '0 0 0 1.5px #EF4444, 0 4px 14px rgba(239,68,68,0.25)' } : style}
       {...attributes}
       {...listeners}
       onClick={() => onClick(task)}
@@ -45,6 +45,12 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         isDragging ? 'task-dragging' : 'glass-card'
       )}
     >
+      {/* Pastille "en retard" en coin */}
+      {overdue && (
+        <span className="absolute -top-1.5 -right-1.5 z-10 inline-flex items-center gap-1 text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white shadow-md">
+          <AlertCircle className="w-2.5 h-2.5" /> En retard
+        </span>
+      )}
       {/* Left accent bar */}
       <div
         className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
@@ -78,6 +84,19 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         <p className="text-sm font-medium leading-snug line-clamp-2 text-foreground">
           {task.title}
         </p>
+
+        {/* Tags */}
+        {task.tags && task.tags.length > 0 && (
+          <div className="flex gap-1 flex-wrap mt-1.5">
+            {task.tags.map(tag => (
+              <span key={tag.id}
+                className="text-[0.65rem] px-1.5 py-0.5 rounded-full font-medium"
+                style={{ backgroundColor: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}55` }}>
+                {tag.name}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Cross-team dept chips */}
         {task.is_cross_team && task.extra_departments && task.extra_departments.length > 0 && (
