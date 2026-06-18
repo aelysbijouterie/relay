@@ -28,3 +28,12 @@ export function getInitials(name: string): string {
     .toUpperCase()
     .slice(0, 2)
 }
+// Libellé affiché d'un rôle (manager → Responsable pour l'affichage).
+export function roleLabel(role?: string): string {
+  switch (role) {
+    case 'admin':         return 'Admin'
+    case 'manager':       return 'Responsable'
+    case 'collaborateur': return 'Collaborateur'
+    default:              return role ?? ''
+  }
+}

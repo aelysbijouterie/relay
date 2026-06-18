@@ -92,9 +92,13 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
     .eq('id', taskId)
     .single()
 
+  // completed_at sert de point de départ au délai d'archivage auto.
+  // On le pose quand la tâche passe en "Terminé", on le vide si elle en sort.
+  const completedAt = status === 'Terminé' ? new Date().toISOString() : null
+
   const { error } = await supabase
     .from('tasks')
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({ status, updated_at: new Date().toISOString(), completed_at: completedAt })
     .eq('id', taskId)
 
   if (error) throw new Error(error.message)

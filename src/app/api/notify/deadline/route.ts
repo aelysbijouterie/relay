@@ -4,24 +4,18 @@
  *
  * Sécuriser avec CRON_SECRET : Authorization: Bearer <CRON_SECRET>
  */
-import { Resend } from 'resend'
+import { sendEmail } from '@/lib/email'
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { addDays, format, startOfDay, endOfDay, isWithinInterval } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function GET(request: NextRequest) {
   // Vérification du secret cron
   const auth = request.headers.get('authorization')
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json({ error: 'RESEND_API_KEY manquante' }, { status: 500 })
   }
 
   const cookieStore = cookies()
@@ -50,7 +44,6 @@ export async function GET(request: NextRequest) {
   if (!tasks?.length) return NextResponse.json({ sent: 0, message: 'Aucune deadline à venir' })
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const from = process.env.RESEND_FROM_EMAIL ?? 'RELAYS <notifications@aelys.fr>'
   let sent = 0
 
   for (const task of tasks) {
@@ -67,9 +60,8 @@ export async function GET(request: NextRequest) {
 
     await Promise.allSettled(
       assignees.map((user: { email: string; name: string }) =>
-        resend.emails.send({
-          from,
-          to: [user.email],
+        sendEmail({
+          to: user.email,
           subject: `${urgency} Rappel deadline ${label} : ${task.title}`,
           html: `
             <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 16px;">

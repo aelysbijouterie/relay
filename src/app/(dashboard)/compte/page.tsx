@@ -19,12 +19,28 @@ export default async function ComptePage() {
     .select(
       'id, name, email, avatar_url, role, department_id, ' +
       'notify_email_assigned, notify_email_status, notify_email_deadlines, notify_email_weekly, ' +
-      'department:departments!department_id(id, name, color, slug)'
+      'department:departments!department_id(id, name, color, slug, auto_archive_days)'
     )
     .eq('id', userId!)
     .single()
 
   if (!data) redirect('/login')
 
-  return <AccountView profile={data as unknown as Profile} />
+  const row = data as unknown as {
+    role: string
+    department: { id?: string; name?: string; auto_archive_days?: number } | null
+  }
+  const dept = row.department
+  const isManager = row.role === 'manager' || row.role === 'admin'
+
+  return (
+    <AccountView
+      profile={data as unknown as Profile}
+      teamSettings={isManager && dept?.id ? {
+        departmentId: dept.id,
+        departmentName: dept.name ?? '',
+        autoArchiveDays: dept.auto_archive_days ?? 7,
+      } : null}
+    />
+  )
 }

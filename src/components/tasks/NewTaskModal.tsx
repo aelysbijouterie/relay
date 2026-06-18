@@ -141,6 +141,22 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
         // La carte est créée ; si un élément annexe échoue, on prévient sans bloquer.
         toast.error('Carte créée, mais un élément (liste/fichier) n\'a pas pu être ajouté')
       }
+
+      // Notifier les personnes assignées (la route exclut l'auteur et
+      // respecte les préférences de chacun).
+      const assignedProfiles = allProfiles.filter(p => assigneeIds.includes(p.id))
+      if (assignedProfiles.length) {
+        fetch('/api/notify/assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assignees: assignedProfiles.map(p => ({ name: p.name, email: p.email })),
+            task: { id: newTaskId, title: title.trim(), priority, deadline: deadline || null, is_cross_team: false },
+            department: { name: departments.find(d => d.id === deptId)?.name ?? '', color: departments.find(d => d.id === deptId)?.color ?? '#94A3B8' },
+            createdByName: profile.name?.split(' ')[0] ?? 'Un collègue',
+          }),
+        }).catch(() => {})
+      }
     }
 
     setLoading(false)

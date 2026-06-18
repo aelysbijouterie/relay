@@ -1,18 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Columns, Calendar, BarChart2, Clock, User, LogOut, Menu, X } from 'lucide-react'
-import { cn, getInitials } from '@/lib/utils'
+import useSWR from 'swr'
+import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X } from 'lucide-react'
+import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
+import { Logo } from '@/components/brand/Logo'
 import type { Profile, Department } from '@/types'
 
 const NAV_ITEMS = [
   { href: '/kanban',     label: 'Kanban',       icon: Columns },
+  { href: '/activite',   label: 'Activité',     icon: Activity },
   { href: '/calendrier', label: 'Calendrier',   icon: Calendar },
   { href: '/timeline',   label: 'Chronologie',  icon: Clock },
   { href: '/stats',      label: 'Statistiques', icon: BarChart2 },
+  { href: '/archives',   label: 'Archives',     icon: Archive },
   { href: '/compte',     label: 'Mon compte',   icon: User },
 ]
 
@@ -26,6 +30,22 @@ interface SidebarProps {
 export function Sidebar({ profile, members, department, extraDepartments = [] }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+
+  // Compteur de non-lus du fil d'activité (rafraîchi toutes les 60 s).
+  const { data: activityData, mutate: refreshActivity } = useSWR<{ unread: number }>(
+    '/api/activity',
+    (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json()),
+    { refreshInterval: 30000, revalidateOnFocus: true }
+  )
+  const unreadCount = activityData?.unread ?? 0
+
+  // Quand le fil est marqué comme lu (event émis par la page Activité), on
+  // rafraîchit la pastille pour qu'elle retombe à zéro immédiatement.
+  useEffect(() => {
+    const handler = () => refreshActivity()
+    window.addEventListener('activity-seen', handler)
+    return () => window.removeEventListener('activity-seen', handler)
+  }, [refreshActivity])
   const [open, setOpen] = useState(false)
 
   async function switchDepartment(deptId: string) {
@@ -53,16 +73,8 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
       {/* Logo */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
         <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg"
-            style={{
-              background: `linear-gradient(135deg, ${department.color}, ${department.color}99)`,
-              boxShadow: `0 4px 14px ${department.color}55`,
-            }}
-          >
-            R
-          </div>
-          <span className="font-heading font-bold text-lg tracking-tight">RELAYS</span>
+          <Logo size={26} />
+          <span className="font-heading font-bold text-lg tracking-tight">relays</span>
         </div>
         <button className="lg:hidden p-1 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setOpen(false)}>
           <X className="w-4 h-4" />
@@ -125,6 +137,11 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
               {label}
+              {href === '/activite' && unreadCount > 0 && (
+                <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[0.65rem] font-bold">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
           )
         })}
@@ -150,7 +167,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-medium truncate">{member.name}</p>
-                <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
+                <p className="text-xs text-muted-foreground">{roleLabel(member.role)}</p>
               </div>
             </div>
           ))}
@@ -178,7 +195,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">{profile.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{profile.role}</p>
+              <p className="text-xs text-muted-foreground">{roleLabel(profile.role)}</p>
             </div>
           </Link>
           <button

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor,
   useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
-import { User } from 'lucide-react'
+import { User, Search } from 'lucide-react'
 import { KanbanColumn } from './KanbanColumn'
 import { TaskCard } from '@/components/tasks/TaskCard'
 import { TaskModal } from '@/components/tasks/TaskModal'
@@ -28,9 +28,24 @@ export function KanbanBoard({
   const { tasks, refresh }    = useTasks()
   const currentUserId         = useTaskStore(s => s.currentUserId)
   const [myTasksOnly, setMyTasksOnly] = useState(false)
+  const [search, setSearch]             = useState('')
   const [activeTask, setActiveTask]     = useState<Task | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [optimistic, setOptimistic]     = useState<Record<string, TaskStatus>>({})
+
+  // Ouverture directe d'une carte via ?task=<id> (depuis le fil d'activité).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const taskId = params.get('task')
+    if (taskId && tasks.length) {
+      const t = tasks.find(tk => tk.id === taskId)
+      if (t) {
+        setSelectedTask(t)
+        // Nettoie l'URL pour ne pas rouvrir au prochain rendu
+        window.history.replaceState(null, '', '/kanban')
+      }
+    }
+  }, [tasks])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -40,6 +55,16 @@ export function KanbanBoard({
     .map(t => ({ ...t, status: (optimistic[t.id] ?? t.status) as TaskStatus }))
     .filter(t => {
       if (t.status === 'Archivé') return false
+      // Recherche : titre, description, fournisseur/client, réf, tags
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const haystack = [
+          t.title, t.description, t.fournisseur_client, t.ref_collection,
+          ...(t.tags ?? []).map(tag => tag.name),
+          ...(t.assignees ?? []).map(a => a.name),
+        ].filter(Boolean).join(' ').toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
       if (!myTasksOnly) return true
       if (!currentUserId) return true // pas encore hydraté
       return (t.assignees ?? []).some(a => a.id === currentUserId)
@@ -76,10 +101,8 @@ export function KanbanBoard({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            assignees:     task.assignees.map((a: { name: string; email?: string }) => ({ name: a.name, email: a.email })),
-            task:          { title: task.title, priority: task.priority, deadline: task.deadline, status: newStatus },
+            taskId:        task.id,
             oldStatus:     task.status,
-            department:    { name: task.department?.name ?? '', color: task.department?.color ?? '#94A3B8' },
             changedByName: currentUserName ?? 'Utilisateur',
           }),
         }).catch(() => {})
@@ -94,7 +117,16 @@ export function KanbanBoard({
   return (
     <>
       {/* Barre de filtres */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher une carte…"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
         <span className="text-xs text-muted-foreground">
           {visibleTasks.length} tâche{visibleTasks.length !== 1 ? 's' : ''}
         </span>

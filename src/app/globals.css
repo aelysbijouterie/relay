@@ -9,13 +9,15 @@
     --font-heading: 'Playfair Display';
     --font-body: 'DM Sans';
 
-    /* Départements */
-    --dept-marketing:    #FF6B35;
-    --dept-web:          #4A90D9;
-    --dept-comptabilite: #F5C518;
-    --dept-rh:           #9B59B6;
-    --dept-logistique:   #27AE60;
-    --dept-direction:    #E74C3C;
+    /* Départements — couleurs de l'identité graphique RELAYS */
+    --dept-web:                 #D1608F;
+    --dept-comptabilite:        #76814C;
+    --dept-rh:                  #4891BE;
+    --dept-marketing:           #D7686B;
+    --dept-logistique:          #458F86;
+    --dept-administratif:       #7E73AF;
+    --dept-direction-regionale: #AB7C35;
+    --dept-direction:           #585399;
 
     /* Statuts */
     --status-todo:       #94A3B8;

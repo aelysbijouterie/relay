@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail } from '@/lib/email'
+import { notifyByPreference } from '@/lib/notify'
 import { emailDeadlineReminder } from '@/emails/templates'
 import { addDays, startOfDay, endOfDay } from 'date-fns'
 
@@ -46,13 +46,17 @@ export async function GET(request: NextRequest) {
 
     for (const user of assignees) {
       const tpl = emailDeadlineReminder({
-        assigneeName: user.name,
+        assigneeName: user.name.split(' ')[0],
         task: { ...task, deadline: task.deadline },
         department: dept as { name: string; color: string },
         daysLeft: daysLeft as 1 | 3,
       })
-      await sendEmail({ to: user.email, subject: tpl.subject, html: tpl.html })
-      sent++
+      sent += await notifyByPreference({
+        emails: [user.email],
+        pref: 'notify_email_deadlines',
+        subject: tpl.subject,
+        html: tpl.html,
+      })
     }
   }
 

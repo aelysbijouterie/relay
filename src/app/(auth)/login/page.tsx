@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Logo } from '@/components/brand/Logo'
 import { demoAction } from './actions'
 
 const DEMO_DEPTS = [
@@ -56,7 +57,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6">
 
         <div className="text-center">
-          <h1 className="font-heading text-5xl font-bold tracking-tight">RELAYS</h1>
+          <div className="flex justify-center mb-4">
+            <Logo size={52} />
+          </div>
+          <h1 className="font-heading text-5xl font-bold tracking-tight">relays</h1>
           <p className="text-muted-foreground mt-2 text-sm">Gestion de tâches · Aelys</p>
         </div>
 
