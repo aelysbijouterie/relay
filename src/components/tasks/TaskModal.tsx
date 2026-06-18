@@ -176,20 +176,16 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
       if (status === 'Bloqué') toast.error('Tâche bloquée — le manager sera notifié')
       else toast.success(`Statut : ${status}`)
 
-      // Notification assignés
-      if (task.assignees?.length) {
-        fetch('/api/notify/status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            assignees:     task.assignees.map(a => ({ name: a.name, email: a.email })),
-            task:          { title: task.title, priority: task.priority, deadline: task.deadline, status },
-            oldStatus,
-            department:    { name: task.department?.name ?? '', color: deptColor },
-            changedByName: currentUserName ?? 'Utilisateur',
-          }),
-        }).catch(() => {})
-      }
+      // Notification : assignés + créateur, sauf l'auteur, selon préférences (géré côté serveur)
+      fetch('/api/notify/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId,
+          oldStatus,
+          changedByName: currentUserName ?? 'Utilisateur',
+        }),
+      }).catch(() => {})
     } catch {
       toast.error('Impossible de mettre à jour le statut')
       await refresh() // restaure le statut depuis le serveur
