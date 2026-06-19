@@ -2,12 +2,19 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Check, Loader2, Mail } from 'lucide-react'
-import { getInitials } from '@/lib/utils'
+import { Camera, Check, Loader2, Mail, Archive } from 'lucide-react'
+import { getInitials, roleLabel } from '@/lib/utils'
 import type { Profile } from '@/types'
+
+interface TeamSettings {
+  departmentId: string
+  departmentName: string
+  autoArchiveDays: number
+}
 
 interface Props {
   profile: Profile
+  teamSettings?: TeamSettings | null
 }
 
 type Saving = 'idle' | 'saving' | 'saved'
@@ -25,11 +32,14 @@ type NotifKey =
   | 'notify_email_deadlines'
   | 'notify_email_weekly'
 
-export function AccountView({ profile }: Props) {
+export function AccountView({ profile, teamSettings }: Props) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const deptColor = profile.department?.color ?? '#6366f1'
+
+  const [archiveDays, setArchiveDays] = useState(teamSettings?.autoArchiveDays ?? 7)
+  const [archiveSaving, setArchiveSaving] = useState<Saving>('idle')
 
   const [name, setName] = useState(profile.name)
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url)
@@ -152,7 +162,7 @@ export function AccountView({ profile }: Props) {
               className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium text-white mt-2 capitalize"
               style={{ background: `linear-gradient(135deg, ${deptColor}dd, ${deptColor}99)` }}
             >
-              {profile.role}{profile.department ? ` · ${profile.department.name}` : ''}
+              {roleLabel(profile.role)}{profile.department ? ` · ${profile.department.name}` : ''}
             </span>
           </div>
         </div>
@@ -226,6 +236,52 @@ export function AccountView({ profile }: Props) {
           ))}
         </div>
       </section>
+
+      {/* Réglages d'équipe — managers uniquement */}
+      {teamSettings && (
+        <section className="glass-card p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Archive className="w-4 h-4 text-muted-foreground" />
+            <h2 className="font-medium">Archivage automatique — {teamSettings.departmentName}</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Les tâches terminées de votre équipe s&apos;archivent automatiquement après ce délai. Mettez 0 pour désactiver.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="number" min={0} max={365}
+              value={archiveDays}
+              onChange={e => setArchiveDays(Number(e.target.value))}
+              className="w-24 px-3 py-2 rounded-xl bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30"
+            />
+            <span className="text-sm text-muted-foreground">jours</span>
+            <button
+              onClick={async () => {
+                setArchiveSaving('saving')
+                try {
+                  const res = await fetch(`/api/departments/${teamSettings.departmentId}/settings`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ auto_archive_days: archiveDays }),
+                  })
+                  if (!res.ok) throw new Error((await res.json()).error)
+                  setArchiveSaving('saved')
+                  setTimeout(() => setArchiveSaving('idle'), 2000)
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Erreur')
+                  setArchiveSaving('idle')
+                }
+              }}
+              disabled={archiveSaving === 'saving'}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-white shadow-md transition-opacity disabled:opacity-50"
+              style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}99)` }}
+            >
+              {archiveSaving === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" />
+                : archiveSaving === 'saved' ? <Check className="w-4 h-4" /> : 'Enregistrer'}
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
