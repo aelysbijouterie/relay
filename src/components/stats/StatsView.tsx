@@ -85,7 +85,7 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
           {/* KPIs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {kpis.map(kpi => (
-              <div key={kpi.label} className="glass-card p-4 space-y-2">
+              <div key={kpi.label} className="bg-card border border-border p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground font-medium">{kpi.label}</p>
                   <div className="p-1.5 rounded-lg" style={{ backgroundColor: `${kpi.color}22`, color: kpi.color }}>{kpi.icon}</div>
@@ -98,7 +98,7 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Charge par personne — surtout pertinent en vue équipe */}
-            <div className="glass-card p-5">
+            <div className="bg-card border border-border p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Users className="w-4 h-4" style={{ color: deptColor }} />
                 <h3 className="font-semibold text-sm">
@@ -138,7 +138,7 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
             </div>
 
             {/* Par statut */}
-            <div className="glass-card p-5">
+            <div className="bg-card border border-border p-5">
               <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="w-4 h-4" style={{ color: deptColor }} />
                 <h3 className="font-semibold text-sm">Répartition par statut</h3>
@@ -163,7 +163,7 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
             </div>
 
             {/* Taux retard */}
-            <div className="glass-card p-5">
+            <div className="bg-card border border-border p-5">
               <div className="flex items-center gap-2 mb-4">
                 <AlertTriangle className="w-4 h-4 text-orange-500" />
                 <h3 className="font-semibold text-sm">Taux de retard</h3>
@@ -197,14 +197,14 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
             </div>
 
             {/* Par priorité */}
-            <div className="glass-card p-5">
+            <div className="bg-card border border-border p-5">
               <div className="flex items-center gap-2 mb-4">
                 <AlertTriangle className="w-4 h-4" style={{ color: deptColor }} />
                 <h3 className="font-semibold text-sm">Tâches par priorité</h3>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {stats.byPriority.map(p => (
-                  <div key={p.priority} className="glass-card p-3 text-center">
+                  <div key={p.priority} className="bg-card border border-border p-3 text-center">
                     <p className="text-2xl font-bold font-heading" style={{ color: p.color }}>{p.count}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{p.priority}</p>
                   </div>

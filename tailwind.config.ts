@@ -19,6 +19,21 @@ const config: Config = {
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
+        // Accent dynamique de l'espace courant
+        accent2: {
+          DEFAULT: 'var(--accent)',
+          deep: 'var(--accent-deep)',
+          soft: 'var(--accent-soft)',
+        },
+        // Statuts (fixes)
+        status: {
+          todo: 'var(--status-todo)',
+          inprogress: 'var(--status-inprogress)',
+          blocked: 'var(--status-blocked)',
+          review: 'var(--status-review)',
+          done: 'var(--status-done)',
+          archived: 'var(--status-archived)',
+        },
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
@@ -32,7 +47,7 @@ const config: Config = {
           foreground: 'hsl(var(--muted-foreground))',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
+          DEFAULT: 'hsl(var(--accent-bg))',
           foreground: 'hsl(var(--accent-foreground))',
         },
         destructive: {

@@ -61,5 +61,26 @@ export async function GET() {
   // Visibilité personnelle : chacun ne voit que ses tâches créées + assignées.
   const visibleTasks = tasks.filter(t => isTaskVisibleTo(t, { userId }))
 
+  // Progression des sous-tâches (table task_subtasks) pour les barres de Kanban.
+  const ids = visibleTasks.map(t => t.id)
+  if (ids.length > 0) {
+    const { data: subs } = await supabase
+      .from('task_subtasks')
+      .select('task_id, is_done')
+      .in('task_id', ids)
+    if (subs && subs.length > 0) {
+      const byTask = new Map<string, { status: string }[]>()
+      for (const s of subs as { task_id: string; is_done: boolean }[]) {
+        const arr = byTask.get(s.task_id) ?? []
+        arr.push({ status: s.is_done ? 'Terminé' : 'A Faire' })
+        byTask.set(s.task_id, arr)
+      }
+      for (const t of visibleTasks) {
+        const list = byTask.get(t.id)
+        if (list && list.length > 0) (t as unknown as { subtasks: unknown }).subtasks = list
+      }
+    }
+  }
+
   return NextResponse.json(visibleTasks, { headers: { 'Cache-Control': 'no-store' } })
 }

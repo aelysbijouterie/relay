@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
+import { AccentProvider } from '@/components/layout/AccentProvider'
 import { TasksProvider } from '@/components/providers/TasksProvider'
 import { isTaskVisibleTo } from '@/lib/tasks/visibility'
 import { DEMO_DEPARTMENTS, DEMO_PROFILES, getTasksForDept } from '@/lib/demo-data'
@@ -95,6 +96,29 @@ export default async function DashboardLayout({ children }: { children: React.Re
         extra_departments: ((t.extra_departments as { department: unknown }[]) ?? []).map(a => a.department),
         tags:              ((t.tags as { tag: unknown }[]) ?? []).map(a => a.tag).filter(Boolean),
       })) as unknown as Task[]
+
+      // Progression des sous-tâches : on lit la table task_subtasks (vraies
+      // sous-tâches cochables) pour toutes les tâches affichées, puis on attache
+      // un résumé {subtasks} à chaque tâche pour les barres de progression.
+      const taskIds = tasks.map(t => t.id)
+      if (taskIds.length > 0) {
+        const { data: subs } = await supabase
+          .from('task_subtasks')
+          .select('task_id, is_done')
+          .in('task_id', taskIds)
+        if (subs && subs.length > 0) {
+          const byTask = new Map<string, { status: string }[]>()
+          for (const s of subs as { task_id: string; is_done: boolean }[]) {
+            const arr = byTask.get(s.task_id) ?? []
+            arr.push({ status: s.is_done ? 'Terminé' : 'A Faire' })
+            byTask.set(s.task_id, arr)
+          }
+          tasks = tasks.map(t => {
+            const list = byTask.get(t.id)
+            return list && list.length > 0 ? ({ ...t, subtasks: list } as unknown as Task) : t
+          })
+        }
+      }
     }
 
     const profileRow    = profileResult.data
@@ -152,13 +176,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <TasksProvider initialTasks={tasks} userId={profile!.id} deptId={department!.id}>
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar profile={profile!} members={members!} department={department!} extraDepartments={extraDepartments} />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header department={department!} profile={profile!} departments={departments!} members={members!} isDemo={!!demoDeptId} />
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+      <AccentProvider color={department!.color}>
+        <div className="flex h-screen overflow-hidden bg-background">
+          <Sidebar profile={profile!} members={members!} department={department!} extraDepartments={extraDepartments} />
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <Header department={department!} profile={profile!} departments={departments!} members={members!} isDemo={!!demoDeptId} />
+            <main className="flex-1 overflow-auto p-6">{children}</main>
+          </div>
         </div>
-      </div>
+      </AccentProvider>
     </TasksProvider>
   )
 }

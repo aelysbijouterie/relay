@@ -2,12 +2,12 @@ import type { Task, Department, Profile } from '@/types'
 
 // ── Départements ──────────────────────────────────────────────────────────────
 export const DEMO_DEPARTMENTS: Department[] = [
-  { id: 'dept-marketing',  name: 'Marketing',     color: '#7A7E2A', icon: '📣', slug: 'marketing' },
-  { id: 'dept-web',        name: 'Web',           color: '#EB5C82', icon: '💻', slug: 'web' },
-  { id: 'dept-compta',     name: 'Administratif', color: '#54673C', icon: '📊', slug: 'administratif' },
-  { id: 'dept-rh',         name: 'RH',            color: '#3A7CB8', icon: '👥', slug: 'rh' },
-  { id: 'dept-logistique', name: 'Logistique',    color: '#7A7E2A', icon: '📦', slug: 'logistique' },
-  { id: 'dept-direction',  name: 'Direction',     color: '#0A2342', icon: '🏛️', slug: 'direction' },
+  { id: 'dept-marketing',  name: 'Marketing',     color: '#E0596A', icon: '📣', slug: 'marketing' },
+  { id: 'dept-web',        name: 'Web',           color: '#D456A0', icon: '💻', slug: 'web' },
+  { id: 'dept-compta',     name: 'Administratif', color: '#8B72C4', icon: '📊', slug: 'administratif' },
+  { id: 'dept-rh',         name: 'RH',            color: '#3E8FCC', icon: '👥', slug: 'rh' },
+  { id: 'dept-logistique', name: 'Logistique',    color: '#2A9D8F', icon: '📦', slug: 'logistique' },
+  { id: 'dept-direction',  name: 'Direction',     color: '#5B6B8C', icon: '🏛️', slug: 'direction' },
 ]
 
 const [mkt, web, admin, rh, log, dir] = DEMO_DEPARTMENTS

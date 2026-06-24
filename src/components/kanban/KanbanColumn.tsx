@@ -22,12 +22,12 @@ export function KanbanColumn({ status, tasks, onTaskClick }: KanbanColumnProps) 
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
           <span
-            className="w-2 h-2 rounded-full glow-dot"
-            style={{ color: STATUS_COLORS[status], backgroundColor: STATUS_COLORS[status] }}
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: STATUS_COLORS[status] }}
           />
           <h3 className="text-sm font-semibold tracking-tight">{status}</h3>
         </div>
-        <span className="text-xs text-muted-foreground glass px-2 py-0.5 rounded-full font-medium">
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-semibold">
           {tasks.length}
         </span>
       </div>
@@ -37,13 +37,13 @@ export function KanbanColumn({ status, tasks, onTaskClick }: KanbanColumnProps) 
         ref={setNodeRef}
         className={cn(
           'flex flex-col gap-2.5 p-2.5 rounded-2xl min-h-[500px] transition-all duration-200',
-          'glass-card',
+          'bg-muted/40',
           isOver && 'ring-2 ring-inset'
         )}
         style={isOver ? {
           outline: `2px solid ${STATUS_COLORS[status]}`,
           outlineOffset: '-2px',
-          background: `color-mix(in srgb, ${STATUS_COLORS[status]} 6%, var(--glass-bg))`,
+          background: `color-mix(in srgb, ${STATUS_COLORS[status]} 7%, transparent)`,
         } : {}}
       >
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>

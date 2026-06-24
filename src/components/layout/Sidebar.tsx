@@ -31,7 +31,6 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
   const pathname = usePathname()
   const router = useRouter()
 
-  // Compteur de non-lus du fil d'activité (rafraîchi toutes les 60 s).
   const { data: activityData, mutate: refreshActivity } = useSWR<{ unread: number }>(
     '/api/activity',
     (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json()),
@@ -39,8 +38,6 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
   )
   const unreadCount = activityData?.unread ?? 0
 
-  // Quand le fil est marqué comme lu (event émis par la page Activité), on
-  // rafraîchit la pastille pour qu'elle retombe à zéro immédiatement.
   useEffect(() => {
     const handler = () => refreshActivity()
     window.addEventListener('activity-seen', handler)
@@ -58,7 +55,6 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
   }
 
   async function handleLogout() {
-    // Efface le cookie démo si présent, puis déconnexion Supabase via Server Action
     await fetch('/api/auth/demo', { method: 'DELETE' })
     await logout()
     router.push('/login')
@@ -67,16 +63,16 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
 
   const content = (
     <div
-      className="flex flex-col h-full glass border-r-0"
+      className="flex flex-col h-full bg-card border-r border-border"
       style={{ width: 'var(--sidebar-width)' }}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <div className="flex items-center gap-2.5">
           <Logo size={26} />
-          <span className="font-heading font-bold text-lg tracking-tight">relays</span>
+          <span className="font-bold text-lg tracking-tight">relays</span>
         </div>
-        <button className="lg:hidden p-1 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setOpen(false)}>
+        <button className="lg:hidden p-1 rounded-lg hover:bg-muted transition-colors" onClick={() => setOpen(false)}>
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -91,10 +87,10 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
 
         {/* Service actif */}
         <div
-          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium text-white"
+          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-semibold text-white"
           style={{
-            background: `linear-gradient(135deg, ${department.color}dd, ${department.color}99)`,
-            boxShadow: `0 2px 8px ${department.color}44`,
+            backgroundImage: `linear-gradient(135deg, ${department.color}, ${department.color}cc)`,
+            boxShadow: `0 2px 8px ${department.color}33`,
           }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse" />
@@ -107,7 +103,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
             key={d.id}
             onClick={() => switchDepartment(d.id)}
             title={`Basculer vers ${d.name}`}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-white/20 text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors w-full"
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors w-full"
           >
             <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
             {d.name}
@@ -127,12 +123,12 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
               className={cn(
                 'group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200',
                 active
-                  ? 'text-white font-medium shadow-md'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-white/10'
+                  ? 'text-white font-semibold shadow-md'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
               style={active ? {
-                background: `linear-gradient(135deg, ${department.color}ee, ${department.color}99)`,
-                boxShadow: `0 4px 14px ${department.color}44`,
+                backgroundImage: `linear-gradient(135deg, ${department.color}, ${department.color}cc)`,
+                boxShadow: `0 4px 14px ${department.color}33`,
               } : {}}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
@@ -148,7 +144,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
       </nav>
 
       {/* Team members */}
-      <div className="px-4 py-3 border-t border-white/10">
+      <div className="px-4 py-3 border-t border-border">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Équipe</p>
         <div className="space-y-2 max-h-40 overflow-y-auto">
           {members.length === 0 && (
@@ -157,8 +153,8 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
           {members.map(member => (
             <div key={member.id} className="flex items-center gap-2.5">
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 ring-2 ring-white/20"
-                style={{ background: `linear-gradient(135deg, ${department.color}cc, ${department.color}88)` }}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 ring-2 ring-black/5"
+                style={{ backgroundImage: `linear-gradient(135deg, ${department.color}, ${department.color}aa)` }}
               >
                 {member.avatar_url
                   ? <img src={member.avatar_url} alt={member.name} className="w-full h-full object-cover rounded-full" />
@@ -175,18 +171,16 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
       </div>
 
       {/* User */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-border">
         <div className="flex items-center gap-2.5">
           <Link
             href="/compte"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 min-w-0 flex-1 rounded-lg p-1 -m-1 hover:bg-white/10 transition-colors"
+            className="flex items-center gap-2.5 min-w-0 flex-1 rounded-lg p-1 -m-1 hover:bg-muted transition-colors"
           >
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 ring-2"
-              style={{
-                background: `linear-gradient(135deg, ${department.color}, ${department.color}88)`,
-              }}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0"
+              style={{ backgroundImage: `linear-gradient(135deg, ${department.color}, ${department.color}aa)` }}
             >
               {profile.avatar_url
                 ? <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover rounded-full" />
@@ -201,7 +195,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
           <button
             type="button"
             onClick={handleLogout}
-            className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title="Déconnexion"
           >
             <LogOut className="w-3.5 h-3.5" />
@@ -214,7 +208,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
   return (
     <>
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 glass rounded-xl shadow-lg"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-card border border-border rounded-xl shadow-lg"
         onClick={() => setOpen(true)}
       >
         <Menu className="w-4 h-4" />
