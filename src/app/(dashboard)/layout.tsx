@@ -81,6 +81,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           tags:task_tags(tag:tags(id, name, color))
         `)
         .neq('status', 'Archivé')
+        .is('deleted_at', null)
         .order('deadline', { ascending: true, nullsFirst: false })
         .limit(500),
     ])

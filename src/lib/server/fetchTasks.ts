@@ -66,6 +66,7 @@ export async function fetchTasksForCurrentUser(): Promise<{
         extra_departments:task_departments(department:departments(id, name, color, slug))
       `)
       .neq('status', 'Archivé')
+      .is('deleted_at', null)
       .order('deadline', { ascending: true, nullsFirst: false })
       .limit(500),
   ])

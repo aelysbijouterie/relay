@@ -13,9 +13,13 @@ export function middleware(request: NextRequest) {
   const isSession = !!request.cookies.get('relays-session')?.value
   const isAuth    = isDemo || isSession
   const isLogin   = pathname.startsWith('/login') || pathname.startsWith('/auth')
+                    || pathname.startsWith('/mot-de-passe-oublie')
+                    || pathname.startsWith('/reinitialiser-mot-de-passe')
 
   if (!isAuth && !isLogin) return NextResponse.redirect(new URL('/login', request.url))
-  if (isAuth && isLogin)   return NextResponse.redirect(new URL('/kanban', request.url))
+  // Pages publiques de réinitialisation : accessibles même connecté (lien e-mail).
+  const isReset = pathname.startsWith('/mot-de-passe-oublie') || pathname.startsWith('/reinitialiser-mot-de-passe')
+  if (isAuth && isLogin && !isReset) return NextResponse.redirect(new URL('/kanban', request.url))
 
   return NextResponse.next()
 }

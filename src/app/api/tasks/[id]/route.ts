@@ -79,8 +79,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   return NextResponse.json({ success: true }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
-// DELETE : suppression définitive, avec contrôle de droits.
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+// DELETE : mise à la corbeille (récupérable), avec contrôle de droits.
+// La suppression définitive se fait depuis la corbeille (?permanent=1).
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   const userId = getUserId()
   if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
@@ -89,7 +90,18 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
   }
 
   const supabase = createAdminClient()
-  const { error } = await supabase.from('tasks').delete().eq('id', params.id)
+  const permanent = new URL(request.url).searchParams.get('permanent') === '1'
+
+  if (permanent) {
+    const { error } = await supabase.from('tasks').delete().eq('id', params.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true, permanent: true })
+  }
+
+  const { error } = await supabase
+    .from('tasks')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: userId })
+    .eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })

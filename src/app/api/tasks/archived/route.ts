@@ -28,6 +28,7 @@ export async function GET() {
       tags:task_tags(tag:tags(id, name, color))
     `)
     .eq('status', 'Archivé')
+    .is('deleted_at', null)
     .order('updated_at', { ascending: false })
     .limit(500)
 

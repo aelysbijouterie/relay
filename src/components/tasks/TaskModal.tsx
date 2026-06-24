@@ -79,6 +79,8 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   const [editDesc, setEditDesc]         = useState(task.description ?? '')
   const [editPriority, setEditPriority] = useState(task.priority)
   const [editDeadline, setEditDeadline] = useState(task.deadline ?? '')
+  const [editFournisseur, setEditFournisseur]     = useState(task.fournisseur_client ?? '')
+  const [editRefCollection, setEditRefCollection] = useState(task.ref_collection ?? '')
   const [deleting, setDeleting] = useState(false)
 
   // Comments
@@ -294,6 +296,8 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
           description: editDesc.trim() || null,
           priority: editPriority,
           deadline: editDeadline || null,
+          fournisseur_client: editFournisseur.trim() || null,
+          ref_collection:     editRefCollection.trim() || null,
         }),
       })
       const data = await res.json()
@@ -642,8 +646,20 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                         className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fournisseur / Client</label>
+                      <input value={editFournisseur} onChange={e => setEditFournisseur(e.target.value)} placeholder="Optionnel"
+                        className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Réf. Collection</label>
+                      <input value={editRefCollection} onChange={e => setEditRefCollection(e.target.value)} placeholder="Optionnel"
+                        className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
+                    </div>
+                  </div>
                   <div className="flex gap-2 justify-end pt-1">
-                    <button onClick={() => { setEditing(false); setEditTitle(task.title); setEditDesc(task.description ?? ''); setEditPriority(task.priority); setEditDeadline(task.deadline ?? '') }}
+                    <button onClick={() => { setEditing(false); setEditTitle(task.title); setEditDesc(task.description ?? ''); setEditPriority(task.priority); setEditDeadline(task.deadline ?? ''); setEditFournisseur(task.fournisseur_client ?? ''); setEditRefCollection(task.ref_collection ?? '') }}
                       className="px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted transition-colors">Annuler</button>
                     <button onClick={saveEdits} disabled={saving || !editTitle.trim()}
                       className="px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-50 flex items-center gap-1.5"
