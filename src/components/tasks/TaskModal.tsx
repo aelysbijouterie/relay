@@ -6,7 +6,7 @@ import { fr } from 'date-fns/locale'
 import {
   X, Globe, Clock, MessageSquare, History,
   CheckSquare, Square, Paperclip, Tag, Building2,
-  Send, Plus, Trash2, Loader2, Download, Pencil, Archive, Copy,
+  Send, Plus, Trash2, Loader2, Download, Pencil, Archive, Copy, UserPlus,
 } from 'lucide-react'
 import { cn, formatDeadline, isOverdue, getInitials } from '@/lib/utils'
 import { useTasks } from '@/hooks/useTasks'
@@ -31,6 +31,7 @@ interface DBSubtask {
   is_done: boolean
   group_name?: string
   created_at: string
+  assignees?: { id: string; name: string; avatar_url?: string | null }[]
 }
 interface DBAttachment {
   id: string
@@ -100,6 +101,13 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   const [newSubtask, setNewSubtask]   = useState('')
   const [addingSubtask, setAddingSubtask] = useState(false)
 
+  // Assignés (carte) — éditables
+  const [assignees, setAssignees]   = useState<{ id: string; name: string; avatar_url?: string | null }[]>(task.assignees ?? [])
+  const [allMembers, setAllMembers] = useState<{ id: string; name: string; email: string; avatar_url?: string | null }[]>([])
+  const [showAssignPicker, setShowAssignPicker] = useState(false)
+  const [savingAssignees, setSavingAssignees] = useState(false)
+  const [openAssignSub, setOpenAssignSub] = useState<string | null>(null) // id sous-tâche dont le picker est ouvert
+
   // Attachments
   const [attachments, setAttachments] = useState<DBAttachment[]>([])
   const [attachLoading, setAttachLoading] = useState(false)
@@ -117,7 +125,8 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
         .then(r => r.json()).then(d => setComments(Array.isArray(d) ? d : []))
         .finally(() => setCommentsLoading(false))
     }
-    if (tab === 'subtasks' && subtasks.length === 0) {
+    // Sous-tâches : chargées dès l'ouverture (affichées aussi dans l'onglet Détails)
+    if ((tab === 'subtasks' || tab === 'details') && subtasks.length === 0 && !subtasksLoading) {
       setSubtasksLoading(true)
       fetch(`/api/tasks/${taskId}/subtasks`)
         .then(r => r.json()).then(d => setSubtasks(Array.isArray(d) ? d : []))
@@ -141,7 +150,12 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   useEffect(() => {
     if (!open) return
     fetch('/api/profiles').then(r => r.json())
-      .then(d => setMentionables(Array.isArray(d) ? d.map((p: { id: string; name: string; email: string }) => ({ id: p.id, name: p.name, email: p.email })) : []))
+      .then(d => {
+        if (Array.isArray(d)) {
+          setMentionables(d.map((p: { id: string; name: string; email: string }) => ({ id: p.id, name: p.name, email: p.email })))
+          setAllMembers(d.map((p: { id: string; name: string; email: string; avatar_url?: string | null }) => ({ id: p.id, name: p.name, email: p.email, avatar_url: p.avatar_url ?? null })))
+        }
+      })
       .catch(() => {})
     fetch('/api/tags').then(r => r.json())
       .then(d => setAllTags(Array.isArray(d) ? d : []))
@@ -417,12 +431,55 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
     }
   }
 
+  // Ajoute / retire un collaborateur d'une sous-tâche (plusieurs possibles).
+  async function toggleSubtaskAssignee(sub: DBSubtask, member: { id: string; name: string; avatar_url?: string | null }) {
+    const current = sub.assignees ?? []
+    const isOn = current.some(a => a.id === member.id)
+    const next = isOn ? current.filter(a => a.id !== member.id) : [...current, { id: member.id, name: member.name, avatar_url: member.avatar_url ?? null }]
+    setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, assignees: next } : s))
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks/${sub.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignees: next.map(a => a.id) }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, assignees: current } : s))
+      toast.error('Impossible de modifier les assignés')
+    }
+  }
+
   async function deleteSubtask(id: string) {
     setSubtasks(prev => prev.filter(s => s.id !== id))
     try {
       await fetch(`/api/tasks/${taskId}/subtasks/${id}`, { method: 'DELETE' })
     } catch {
       toast.error('Suppression échouée')
+    }
+  }
+
+  // Ajoute / retire un collaborateur de la carte (sauvegarde immédiate).
+  async function toggleAssignee(member: { id: string; name: string; avatar_url?: string | null }) {
+    const isAssigned = assignees.some(a => a.id === member.id)
+    const next = isAssigned
+      ? assignees.filter(a => a.id !== member.id)
+      : [...assignees, { id: member.id, name: member.name, avatar_url: member.avatar_url ?? null }]
+    setAssignees(next)
+    setSavingAssignees(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignees: next.map(a => a.id) }),
+      })
+      if (!res.ok) throw new Error()
+      refresh()
+    } catch {
+      setAssignees(assignees) // rollback
+      toast.error('Impossible de modifier les assignés')
+    } finally {
+      setSavingAssignees(false)
     }
   }
 
@@ -465,15 +522,15 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="glass-card w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-start justify-between p-5 border-b border-white/10"
+        <div className="flex items-start justify-between p-5 border-b border-border"
           style={{ borderTop: `3px solid ${deptColor}` }}>
           <div className="flex-1 min-w-0 pr-4">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {task.is_cross_team && (
-                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full glass text-muted-foreground">
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                   <Globe className="w-3 h-3" /> Inter-équipes
                 </span>
               )}
@@ -492,17 +549,17 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button onClick={duplicateTask} disabled={saving}
-              title="Dupliquer" className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
+              title="Dupliquer" className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
               <Copy className="w-4 h-4" />
             </button>
             {canEdit && task.status !== 'Archivé' && (
               <>
                 <button onClick={() => { setEditing(true); setTab('details') }} disabled={saving}
-                  title="Modifier" className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
+                  title="Modifier" className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
                   <Pencil className="w-4 h-4" />
                 </button>
                 <button onClick={archiveTask} disabled={saving}
-                  title="Archiver" className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
+                  title="Archiver" className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
                   <Archive className="w-4 h-4" />
                 </button>
                 <button onClick={() => setDeleting(true)} disabled={saving}
@@ -511,20 +568,20 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                 </button>
               </>
             )}
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/10 transition-colors text-muted-foreground">
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Status bar */}
-        <div className="flex items-center gap-1.5 px-5 py-3 border-b border-white/10 overflow-x-auto">
+        <div className="flex items-center gap-1.5 px-5 py-3 border-b border-border overflow-x-auto">
           {saving && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground mr-1 shrink-0" />}
           {TASK_STATUSES.map(s => (
             <button key={s} onClick={() => handleStatusChange(s)} disabled={saving}
               className={cn(
                 'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap transition-all duration-200 font-medium disabled:opacity-50',
-                task.status === s ? 'text-white shadow-md' : 'glass text-muted-foreground hover:text-foreground'
+                task.status === s ? 'text-white shadow-md' : 'bg-muted text-muted-foreground hover:text-foreground'
               )}
               style={task.status === s ? { background: STATUS_COLORS[s], boxShadow: `0 4px 12px ${STATUS_COLORS[s]}55` } : {}}>
               <span className="w-1.5 h-1.5 rounded-full"
@@ -535,7 +592,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-white/10 px-5">
+        <div className="flex border-b border-border px-5">
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={cn(
@@ -546,7 +603,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
               {t.icon}
               {t.label}
               {t.count !== undefined && (
-                <span className="text-xs px-1.5 py-0.5 rounded-full glass">{t.count}</span>
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-muted">{t.count}</span>
               )}
             </button>
           ))}
@@ -558,73 +615,31 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
           {/* ─── DÉTAILS ───────────────────────────────────────────────── */}
           {tab === 'details' && (
             <div className="space-y-5">
-              {/* Étiquettes */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Étiquettes</p>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {taskTags.map(tag => (
-                    <span key={tag.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ backgroundColor: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}55` }}>
-                      {tag.name}
-                      <button onClick={() => toggleTag(tag)} className="hover:opacity-70" title="Retirer">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <button onClick={() => setShowTagPicker(v => !v)}
-                    className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                    <Plus className="w-3 h-3" /> Étiquette
-                  </button>
-                </div>
-                {showTagPicker && (
-                  <div className="mt-2 glass-card p-3 space-y-2">
-                    <div className="flex flex-wrap gap-1.5">
-                      {allTags.map(tag => {
-                        const active = taskTags.some(t => t.id === tag.id)
-                        return (
-                          <button key={tag.id} onClick={() => toggleTag(tag)}
-                            className={cn('text-xs px-2 py-0.5 rounded-full font-medium transition-all', active ? 'ring-2' : 'opacity-70 hover:opacity-100')}
-                            style={{ backgroundColor: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}55` }}>
-                            {tag.name}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                      <input value={newTagName} onChange={e => setNewTagName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); createTag() } }}
-                        placeholder="Créer une étiquette…"
-                        className="flex-1 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/15 text-xs focus:outline-none focus:ring-2 focus:ring-white/30" />
-                      <button onClick={createTag} className="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:bg-muted transition-colors">Créer</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
+              {/* Formulaire d'édition (pleine largeur) */}
               {editing && (
-                <div className="glass-card p-4 space-y-3 border" style={{ borderColor: `${deptColor}55` }}>
+                <div className="bg-card border p-4 space-y-3 rounded-xl" style={{ borderColor: `${deptColor}55` }}>
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Titre</label>
                     <input value={editTitle} onChange={e => setEditTitle(e.target.value)}
-                      className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30" />
+                      className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</label>
                     <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3}
-                      className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30 resize-none" />
+                      className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground resize-none" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Priorité</label>
                       <select value={editPriority} onChange={e => setEditPriority(e.target.value as typeof editPriority)}
-                        className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30">
+                        className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground">
                         {(['Urgent', 'Élevée', 'Moyenne', 'Faible'] as const).map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Échéance</label>
                       <input type="date" value={editDeadline?.slice(0, 10) ?? ''} onChange={e => setEditDeadline(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30" />
+                        className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end pt-1">
@@ -638,64 +653,217 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                   </div>
                 </div>
               )}
-              {task.description && !editing && (
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</p>
-                  <p className="text-sm leading-relaxed text-foreground/80">{task.description}</p>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                {task.deadline && (
-                  <div className="glass-card p-3">
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Échéance</p>
-                    <p className={cn('text-sm font-semibold', overdue && 'text-red-500')}>
-                      {format(parseISO(task.deadline), 'd MMMM yyyy', { locale: fr })}
-                      {overdue && <span className="ml-1 text-xs font-normal">(en retard)</span>}
-                    </p>
+
+              {/* Disposition deux colonnes */}
+              {!editing && (
+              <div className="flex flex-col md:flex-row gap-6">
+                {/* Colonne gauche : description + infos métier */}
+                <div className="flex-1 min-w-0 space-y-5">
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</p>
+                    {task.description
+                      ? <p className="text-sm leading-relaxed text-foreground/80">{task.description}</p>
+                      : <p className="text-sm italic text-muted-foreground">Aucune description.</p>}
                   </div>
-                )}
-                {task.fournisseur_client && (
-                  <div className="glass-card p-3">
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" /> Fournisseur / Client</p>
-                    <p className="text-sm font-semibold truncate">{task.fournisseur_client}</p>
-                  </div>
-                )}
-                {task.ref_collection && (
-                  <div className="glass-card p-3">
-                    <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Tag className="w-3 h-3" /> Collection</p>
-                    <p className="text-sm font-semibold font-mono">{task.ref_collection}</p>
-                  </div>
-                )}
-              </div>
-              {task.assignees && task.assignees.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Assignés</p>
-                  <div className="flex flex-wrap gap-2">
-                    {task.assignees.map(user => (
-                      <div key={user.id} className="flex items-center gap-2 glass-card px-3 py-1.5">
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                          style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}88)` }}>
-                          {getInitials(user.name)}
+
+                  {/* Sous-tâches (résumé + progression) sous la description */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Sous-tâches</p>
+                    {subtasks.length > 0 ? (
+                      <>
+                        <div className="bg-card border border-border rounded-xl p-3 mb-2.5">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-muted-foreground">Progression</span>
+                            <span className="text-xs font-bold" style={{ color: deptColor }}>
+                              {doneSub}/{subtasks.length} · {Math.round((doneSub / subtasks.length) * 100)}%
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full transition-all"
+                              style={{ width: `${Math.max((doneSub / subtasks.length) * 100, 4)}%`, backgroundColor: deptColor }} />
+                          </div>
                         </div>
-                        <span className="text-xs font-medium">{user.name}</span>
-                        <span className="text-xs text-muted-foreground capitalize">{user.role}</span>
+                        <div className="space-y-0.5">
+                          {subtasks.map(sub => (
+                            <div key={sub.id} className="flex items-center gap-2.5 py-1.5">
+                              <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
+                                {sub.is_done
+                                  ? <span className="w-[18px] h-[18px] rounded-md flex items-center justify-center text-white text-[11px]" style={{ backgroundColor: deptColor }}>✓</span>
+                                  : <span className="w-[18px] h-[18px] rounded-md border-[1.5px] border-border block" />}
+                              </button>
+                              <span className={cn('text-sm', sub.is_done && 'line-through text-muted-foreground')}>{sub.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aucune sous-tâche. <button onClick={() => setTab('subtasks')} className="font-medium hover:underline" style={{ color: deptColor }}>En ajouter</button></p>
+                    )}
+                    <div className="flex gap-2 mt-2.5">
+                      <input value={newSubtask} onChange={e => setNewSubtask(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addSubtask()}
+                        placeholder="Ajouter une sous-tâche… (Entrée)"
+                        className="flex-1 bg-background border border-border px-3 py-2 text-sm focus:outline-none rounded-xl" />
+                      <button onClick={addSubtask} disabled={!newSubtask.trim() || addingSubtask}
+                        className="p-2 rounded-xl text-white transition-all disabled:opacity-40"
+                        style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}bb)` }}>
+                        {addingSubtask ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  {(task.fournisseur_client || task.ref_collection) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {task.fournisseur_client && (
+                        <div className="bg-card border border-border rounded-xl p-3">
+                          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" /> Fournisseur / Client</p>
+                          <p className="text-sm font-semibold truncate">{task.fournisseur_client}</p>
+                        </div>
+                      )}
+                      {task.ref_collection && (
+                        <div className="bg-card border border-border rounded-xl p-3">
+                          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><Tag className="w-3 h-3" /> Collection</p>
+                          <p className="text-sm font-semibold font-mono">{task.ref_collection}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Colonne droite : récap */}
+                <div className="w-full md:w-56 flex-shrink-0 space-y-4">
+                  {/* Assignés (éditables) */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Assigné à</p>
+                    {assignees.length > 0 ? (
+                      <div className="space-y-1.5 mb-2">
+                        {assignees.map(user => (
+                          <div key={user.id} className="flex items-center gap-2 group/asg">
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[0.6rem] font-bold text-white flex-shrink-0"
+                              style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}88)` }}>
+                              {getInitials(user.name)}
+                            </div>
+                            <span className="text-sm font-medium truncate flex-1">{user.name}</span>
+                            <button onClick={() => toggleAssignee(user)} disabled={savingAssignees}
+                              className="opacity-0 group-hover/asg:opacity-100 text-muted-foreground hover:text-red-500 transition-all" title="Retirer">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : <p className="text-sm text-muted-foreground mb-2">Personne</p>}
+
+                    <button onClick={() => setShowAssignPicker(v => !v)}
+                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                      <Plus className="w-3 h-3" /> Assigner
+                    </button>
+
+                    {showAssignPicker && (
+                      <div className="mt-2 bg-card border border-border rounded-xl p-2 space-y-0.5 max-h-52 overflow-y-auto shadow-lg">
+                        {allMembers.length === 0 && <p className="text-xs text-muted-foreground p-2">Chargement…</p>}
+                        {allMembers.map(m => {
+                          const active = assignees.some(a => a.id === m.id)
+                          return (
+                            <button key={m.id} onClick={() => toggleAssignee(m)} disabled={savingAssignees}
+                              className={cn('w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors', active ? 'bg-muted' : 'hover:bg-muted')}>
+                              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[0.6rem] font-bold text-white flex-shrink-0"
+                                style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}88)` }}>
+                                {getInitials(m.name)}
+                              </div>
+                              <span className="text-sm flex-1 truncate">{m.name}</span>
+                              {active && <span className="text-xs font-bold" style={{ color: deptColor }}>✓</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-              {task.is_cross_team && task.extra_departments && task.extra_departments.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Départements concernés</p>
-                  <div className="flex flex-wrap gap-2">
-                    {task.extra_departments.map(dept => (
-                      <span key={dept.id} className="text-xs px-3 py-1.5 rounded-full text-white font-medium"
-                        style={{ background: `linear-gradient(135deg, ${dept.color}dd, ${dept.color}88)` }}>
-                        {dept.name}
-                      </span>
-                    ))}
+
+                  {/* Échéance */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Échéance</p>
+                    {task.deadline
+                      ? <p className={cn('text-sm font-semibold flex items-center gap-1.5', overdue && 'text-red-500')}>
+                          <Clock className="w-3.5 h-3.5" />
+                          {format(parseISO(task.deadline), 'd MMMM yyyy', { locale: fr })}
+                        </p>
+                      : <p className="text-sm text-muted-foreground">Aucune</p>}
                   </div>
+
+                  {/* Priorité */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Priorité</p>
+                    <span className="inline-flex text-xs px-2.5 py-1 rounded-md font-bold"
+                      style={{ backgroundColor: `${PRIORITY_COLORS[task.priority]}1A`, color: PRIORITY_COLORS[task.priority] }}>
+                      {task.priority}
+                    </span>
+                  </div>
+
+                  {/* Étiquettes */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Étiquettes</p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {taskTags.map(tag => (
+                        <span key={tag.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ backgroundColor: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}55` }}>
+                          {tag.name}
+                          <button onClick={() => toggleTag(tag)} className="hover:opacity-70" title="Retirer"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                      <button onClick={() => setShowTagPicker(v => !v)}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                        <Plus className="w-3 h-3" /> Étiquette
+                      </button>
+                    </div>
+                    {showTagPicker && (
+                      <div className="mt-2 bg-card border border-border rounded-xl p-3 space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {allTags.map(tag => {
+                            const active = taskTags.some(t => t.id === tag.id)
+                            return (
+                              <button key={tag.id} onClick={() => toggleTag(tag)}
+                                className={cn('text-xs px-2 py-0.5 rounded-full font-medium transition-all', active ? 'ring-2' : 'opacity-70 hover:opacity-100')}
+                                style={{ backgroundColor: `${tag.color}22`, color: tag.color, border: `1px solid ${tag.color}55` }}>
+                                {tag.name}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <input value={newTagName} onChange={e => setNewTagName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); createTag() } }}
+                            placeholder="Créer une étiquette…"
+                            className="flex-1 px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
+                          <button onClick={createTag} className="px-2.5 py-1.5 rounded-lg text-xs border border-border hover:bg-muted transition-colors">Créer</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Espace */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Espace</p>
+                    <span className="inline-flex items-center gap-2 text-sm font-medium">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: deptColor }} />
+                      {task.department?.name}
+                    </span>
+                  </div>
+
+                  {/* Départements concernés (inter-équipes) */}
+                  {task.is_cross_team && task.extra_departments && task.extra_departments.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Aussi concernés</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {task.extra_departments.map(dept => (
+                          <span key={dept.id} className="text-xs px-2.5 py-1 rounded-full text-white font-medium"
+                            style={{ backgroundColor: dept.color }}>
+                            {dept.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </div>
               )}
             </div>
           )}
@@ -721,17 +889,57 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                   )}
                   <div className="space-y-2">
                     {subtasks.map(sub => (
-                      <div key={sub.id} className="flex items-center gap-3 glass-card p-3 group">
-                        <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
-                          {sub.is_done
-                            ? <CheckSquare className="w-4 h-4" style={{ color: deptColor }} />
-                            : <Square className="w-4 h-4 text-muted-foreground" />}
-                        </button>
-                        <span className={cn('text-sm flex-1', sub.is_done && 'line-through text-muted-foreground')}>{sub.title}</span>
-                        <button onClick={() => deleteSubtask(sub.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive">
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                      <div key={sub.id} className="bg-card border border-border rounded-xl p-3 group relative">
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
+                            {sub.is_done
+                              ? <CheckSquare className="w-4 h-4" style={{ color: deptColor }} />
+                              : <Square className="w-4 h-4 text-muted-foreground" />}
+                          </button>
+                          <span className={cn('text-sm flex-1', sub.is_done && 'line-through text-muted-foreground')}>{sub.title}</span>
+
+                          {/* Avatars des assignés */}
+                          <div className="flex -space-x-1.5">
+                            {(sub.assignees ?? []).slice(0, 3).map(a => (
+                              <div key={a.id} title={a.name}
+                                className="w-5 h-5 rounded-full border-2 border-card flex items-center justify-center text-[0.5rem] font-bold text-white"
+                                style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}88)` }}>
+                                {getInitials(a.name)}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Bouton assigner */}
+                          <button onClick={() => setOpenAssignSub(openAssignSub === sub.id ? null : sub.id)}
+                            className="flex-shrink-0 p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Assigner">
+                            <UserPlus className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button onClick={() => deleteSubtask(sub.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {/* Sélecteur d'assignés de la sous-tâche */}
+                        {openAssignSub === sub.id && (
+                          <div className="mt-2 ml-7 bg-muted/40 border border-border rounded-lg p-1.5 space-y-0.5 max-h-44 overflow-y-auto">
+                            {allMembers.map(m => {
+                              const on = (sub.assignees ?? []).some(a => a.id === m.id)
+                              return (
+                                <button key={m.id} onClick={() => toggleSubtaskAssignee(sub, m)}
+                                  className={cn('w-full flex items-center gap-2 px-2 py-1 rounded-md text-left text-sm transition-colors', on ? 'bg-muted' : 'hover:bg-muted')}>
+                                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[0.5rem] font-bold text-white flex-shrink-0"
+                                    style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}88)` }}>
+                                    {getInitials(m.name)}
+                                  </div>
+                                  <span className="flex-1 truncate">{m.name}</span>
+                                  {on && <span className="text-xs font-bold" style={{ color: deptColor }}>✓</span>}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     ))}
                     {subtasks.length === 0 && (
@@ -742,7 +950,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                     <input value={newSubtask} onChange={e => setNewSubtask(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addSubtask()}
                       placeholder="Ajouter une sous-tâche… (Entrée)"
-                      className="flex-1 glass-card px-3 py-2 text-sm bg-transparent focus:outline-none rounded-xl" />
+                      className="flex-1 bg-background border border-border px-3 py-2 text-sm focus:outline-none rounded-xl" />
                     <button onClick={addSubtask} disabled={!newSubtask.trim() || addingSubtask}
                       className="p-2 rounded-xl text-white transition-all disabled:opacity-40"
                       style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}bb)` }}>
@@ -780,7 +988,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                                 {format(parseISO(c.created_at), 'd MMM à HH:mm', { locale: fr })}
                               </span>
                             </div>
-                            <div className="glass-card px-3 py-2.5 text-sm leading-relaxed">{c.content}</div>
+                            <div className="bg-card border border-border px-3 py-2.5 text-sm leading-relaxed">{c.content}</div>
                           </div>
                         </div>
                       )
@@ -789,17 +997,17 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                       <p className="text-sm text-muted-foreground text-center py-4">Aucun commentaire</p>
                     )}
                   </div>
-                  <div className="flex gap-2 pt-2 border-t border-white/10">
+                  <div className="flex gap-2 pt-2 border-t border-border">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
                       style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}77)` }}>
                       {getInitials(currentUserName ?? '?')}
                     </div>
                     <div className="flex-1 flex gap-2 relative">
                       {mentionSuggestions.length > 0 && (
-                        <div className="absolute bottom-full mb-1 left-0 right-12 glass-card rounded-xl overflow-hidden z-10 shadow-lg">
+                        <div className="absolute bottom-full mb-1 left-0 right-12 bg-card border border-border rounded-xl overflow-hidden z-10 shadow-lg">
                           {mentionSuggestions.map(p => (
                             <button key={p.id} type="button" onClick={() => insertMention(p.name)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/10 transition-colors">
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted transition-colors">
                               <div className="w-6 h-6 rounded-full flex items-center justify-center text-[0.6rem] font-bold text-white flex-shrink-0"
                                 style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}77)` }}>
                                 {getInitials(p.name)}
@@ -816,7 +1024,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && mentionSuggestions.length === 0) { e.preventDefault(); submitComment() } }}
                         placeholder="Écrire un commentaire… (tapez @ pour mentionner)"
                         rows={2}
-                        className="flex-1 glass-card px-3 py-2 text-sm bg-transparent focus:outline-none resize-none rounded-xl" />
+                        className="flex-1 bg-background border border-border px-3 py-2 text-sm focus:outline-none resize-none rounded-xl" />
                       <button onClick={submitComment} disabled={!newComment.trim() || postingComment}
                         className="p-2 rounded-xl text-white self-end transition-all disabled:opacity-40"
                         style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}bb)` }}>
@@ -838,7 +1046,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                 <>
                   <div className="space-y-2">
                     {attachments.map(att => (
-                      <div key={att.id} className="flex items-center gap-3 glass-card p-3">
+                      <div key={att.id} className="flex items-center gap-3 bg-card border border-border p-3">
                         <Paperclip className="w-4 h-4 text-muted-foreground shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{att.file_name}</p>
@@ -859,7 +1067,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                     )}
                   </div>
                   <label className={cn(
-                    'flex items-center gap-2 glass-card p-3 cursor-pointer hover:bg-white/10 transition-colors rounded-xl border-dashed',
+                    'flex items-center gap-2 bg-card border border-border p-3 cursor-pointer hover:bg-muted transition-colors rounded-xl border-dashed',
                     uploading && 'opacity-50 cursor-not-allowed'
                   )}>
                     {uploading
@@ -905,7 +1113,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
       {/* Confirmation de suppression */}
       {deleting && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60" onClick={() => setDeleting(false)}>
-          <div className="glass-card p-5 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="bg-card border border-border p-5 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
             <h3 className="font-semibold">Supprimer cette carte ?</h3>
             <p className="text-sm text-muted-foreground">Cette action est définitive. La carte et tout son contenu (sous-tâches, commentaires, fichiers, historique) seront supprimés.</p>
             <div className="flex gap-2 justify-end">

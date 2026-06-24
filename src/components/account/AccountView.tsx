@@ -121,15 +121,15 @@ export function AccountView({ profile, teamSettings }: Props) {
       </div>
 
       {error && (
-        <div className="glass-card p-3 text-sm text-red-500 border border-red-500/30">{error}</div>
+        <div className="bg-card border border-border p-3 text-sm text-red-500 border border-red-500/30">{error}</div>
       )}
 
       {/* Photo + identité */}
-      <section className="glass-card p-6">
+      <section className="bg-card border border-border p-6">
         <div className="flex items-center gap-5">
           <div className="relative">
             <div
-              className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-semibold text-white overflow-hidden ring-2 ring-white/20"
+              className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-semibold text-white overflow-hidden ring-2 ring-border"
               style={{ background: `linear-gradient(135deg, ${deptColor}, ${deptColor}88)` }}
             >
               {avatarUrl
@@ -171,7 +171,7 @@ export function AccountView({ profile, teamSettings }: Props) {
       </section>
 
       {/* Nom */}
-      <section className="glass-card p-6 space-y-3">
+      <section className="bg-card border border-border p-6 space-y-3">
         <label htmlFor="account-name" className="block text-sm font-medium">Nom complet</label>
         <div className="flex gap-2">
           <input
@@ -181,7 +181,7 @@ export function AccountView({ profile, teamSettings }: Props) {
             onChange={e => setName(e.target.value)}
             onBlur={saveName}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-            className="flex-1 px-3 py-2 rounded-xl bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30"
+            className="flex-1 px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground"
             placeholder="Votre nom"
           />
           <button
@@ -202,7 +202,7 @@ export function AccountView({ profile, teamSettings }: Props) {
       </section>
 
       {/* Préférences de notification */}
-      <section className="glass-card p-6">
+      <section className="bg-card border border-border p-6">
         <div className="flex items-center gap-2 mb-4">
           <Mail className="w-4 h-4 text-muted-foreground" />
           <h2 className="font-medium">Notifications par email</h2>
@@ -212,7 +212,7 @@ export function AccountView({ profile, teamSettings }: Props) {
             <label
               key={key}
               htmlFor={key}
-              className="flex items-center justify-between gap-4 py-3 px-1 cursor-pointer border-b border-white/5 last:border-0"
+              className="flex items-center justify-between gap-4 py-3 px-1 cursor-pointer border-b border-border last:border-0"
             >
               <div className="min-w-0">
                 <p className="text-sm font-medium">{label}</p>
@@ -239,7 +239,7 @@ export function AccountView({ profile, teamSettings }: Props) {
 
       {/* Réglages d'équipe — managers uniquement */}
       {teamSettings && (
-        <section className="glass-card p-6">
+        <section className="bg-card border border-border p-6">
           <div className="flex items-center gap-2 mb-4">
             <Archive className="w-4 h-4 text-muted-foreground" />
             <h2 className="font-medium">Archivage automatique — {teamSettings.departmentName}</h2>
@@ -252,7 +252,7 @@ export function AccountView({ profile, teamSettings }: Props) {
               type="number" min={0} max={365}
               value={archiveDays}
               onChange={e => setArchiveDays(Number(e.target.value))}
-              className="w-24 px-3 py-2 rounded-xl bg-white/5 border border-white/15 text-sm focus:outline-none focus:ring-2 focus:ring-white/30"
+              className="w-24 px-3 py-2 rounded-xl bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground"
             />
             <span className="text-sm text-muted-foreground">jours</span>
             <button

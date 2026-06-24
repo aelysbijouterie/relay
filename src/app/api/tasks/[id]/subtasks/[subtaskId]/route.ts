@@ -7,6 +7,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const body = await request.json()
   const supabase = createAdminClient()
 
+  // Mise à jour des assignés de la sous-tâche (liste d'IDs)
+  if (Array.isArray(body.assignees)) {
+    await supabase.from('subtask_assignees').delete().eq('subtask_id', params.subtaskId)
+    if (body.assignees.length > 0) {
+      await supabase.from('subtask_assignees').insert(
+        body.assignees.map((user_id: string) => ({ subtask_id: params.subtaskId, user_id }))
+      )
+    }
+    const { data: profs } = await supabase
+      .from('profiles').select('id, name, avatar_url').in('id', body.assignees.length ? body.assignees : ['00000000-0000-0000-0000-000000000000'])
+    return NextResponse.json({ assignees: profs ?? [] })
+  }
+
+  // Sinon : bascule de l'état "fait"
   const { data, error } = await supabase
     .from('task_subtasks')
     .update({ is_done: body.is_done })

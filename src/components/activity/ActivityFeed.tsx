@@ -114,7 +114,7 @@ export function ActivityFeed() {
                   <button
                     key={a.id}
                     onClick={() => a.task && router.push(`/kanban?task=${a.task.id}`)}
-                    className="w-full text-left glass-card p-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                    className="w-full text-left bg-card border border-border rounded-xl p-3 flex items-center gap-3 hover:bg-muted transition-colors"
                     style={isUnread(a) ? { borderLeft: `3px solid ${a.task?.department?.color ?? '#6366f1'}` } : undefined}
                   >
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-[0.65rem] font-bold text-white flex-shrink-0"

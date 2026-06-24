@@ -70,7 +70,7 @@ export function ArchivesView() {
       ) : (
         <div className="space-y-2">
           {tasks.map(task => (
-            <div key={task.id} className="glass-card p-4 flex items-center gap-4">
+            <div key={task.id} className="bg-card border border-border p-4 flex items-center gap-4">
               <span className="w-1 self-stretch rounded-full flex-shrink-0" style={{ backgroundColor: task.department?.color ?? '#94A3B8' }} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{task.title}</p>
@@ -104,7 +104,7 @@ export function ArchivesView() {
                 ) : (
                   <>
                     <button onClick={() => restore(task.id)} disabled={busy === task.id}
-                      title="Restaurer" className="p-2 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
+                      title="Restaurer" className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
                       {busy === task.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArchiveRestore className="w-4 h-4" />}
                     </button>
                     <button onClick={() => setConfirmDelete(task.id)} disabled={busy === task.id}
