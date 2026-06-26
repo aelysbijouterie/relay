@@ -12,13 +12,12 @@ import type { Profile, Department } from '@/types'
 
 const NAV_ITEMS = [
   { href: '/kanban',     label: 'Kanban',       icon: Columns },
-  { href: '/activite',   label: 'Activité',     icon: Activity },
   { href: '/calendrier', label: 'Calendrier',   icon: Calendar },
   { href: '/timeline',   label: 'Chronologie',  icon: Clock },
   { href: '/stats',      label: 'Statistiques', icon: BarChart2 },
+  { href: '/activite',   label: 'Activité',     icon: Activity },
   { href: '/archives',   label: 'Archives',     icon: Archive },
   { href: '/corbeille',  label: 'Corbeille',    icon: Trash2 },
-  { href: '/compte',     label: 'Mon compte',   icon: User },
 ]
 
 interface SidebarProps {
@@ -144,8 +143,22 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
         })}
       </nav>
 
-      {/* Team members */}
+      {/* Bouton Focus du jour — mis en avant, style « assistant » */}
       <div className="px-4 py-3 border-t border-border">
+        <Link
+          href="/ma-todo"
+          onClick={() => setOpen(false)}
+          className="group relative flex items-center gap-2.5 w-full px-3.5 py-2.5 rounded-xl text-white text-sm font-bold overflow-hidden transition-transform hover:scale-[1.02] active:scale-[0.99]"
+          style={{ backgroundImage: 'linear-gradient(135deg, #D1608F, #7E6FB0 55%, #4891BE)', boxShadow: '0 8px 22px rgba(150,120,170,0.35)' }}
+        >
+          <Sparkles className="w-4 h-4 flex-shrink-0" />
+          <span>Générer mon Focus du jour</span>
+          <span className="absolute right-3 opacity-70 group-hover:translate-x-0.5 transition-transform">→</span>
+        </Link>
+      </div>
+
+      {/* Team members */}
+      <div className="px-4 py-3">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Équipe</p>
         <div className="space-y-2 max-h-40 overflow-y-auto">
           {members.length === 0 && (
@@ -169,20 +182,6 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Bouton Focus du jour — mis en avant, style « assistant » */}
-      <div className="px-4 pt-3">
-        <Link
-          href="/ma-todo"
-          onClick={() => setOpen(false)}
-          className="group relative flex items-center gap-2.5 w-full px-3.5 py-2.5 rounded-xl text-white text-sm font-bold overflow-hidden transition-transform hover:scale-[1.02] active:scale-[0.99]"
-          style={{ backgroundImage: 'linear-gradient(135deg, #D1608F, #7E6FB0 55%, #4891BE)', boxShadow: '0 8px 22px rgba(150,120,170,0.35)' }}
-        >
-          <Sparkles className="w-4 h-4 flex-shrink-0" />
-          <span>Générer mon Focus du jour</span>
-          <span className="absolute right-3 opacity-70 group-hover:translate-x-0.5 transition-transform">→</span>
-        </Link>
       </div>
 
       {/* User */}
