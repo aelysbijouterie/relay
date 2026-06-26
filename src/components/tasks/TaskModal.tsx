@@ -258,9 +258,9 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            assignees: mentioned.map(m => ({ name: m.name, email: m.email })),
+            mentioned: mentioned.map(m => ({ name: m.name, email: m.email })),
             comment: text,
-            task: { id: taskId, title: task.title },
+            task: { id: taskId, title: task.title, priority: task.priority, status: task.status, deadline: task.deadline },
             department: task.department?.name ?? '',
             authorName: currentUserName ?? 'Un collègue',
           }),

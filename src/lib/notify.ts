@@ -7,6 +7,7 @@ export type NotifPref =
   | 'notify_email_status'
   | 'notify_email_deadlines'
   | 'notify_email_weekly'
+  | 'notify_email_mentions'
 
 interface NotifyInput {
   /** Emails des destinataires visés. */

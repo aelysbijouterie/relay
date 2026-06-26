@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2 } from 'lucide-react'
+import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles } from 'lucide-react'
 import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
 import { Logo } from '@/components/brand/Logo'
@@ -169,6 +169,20 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Bouton Focus du jour — mis en avant, style « assistant » */}
+      <div className="px-4 pt-3">
+        <Link
+          href="/ma-todo"
+          onClick={() => setOpen(false)}
+          className="group relative flex items-center gap-2.5 w-full px-3.5 py-2.5 rounded-xl text-white text-sm font-bold overflow-hidden transition-transform hover:scale-[1.02] active:scale-[0.99]"
+          style={{ backgroundImage: 'linear-gradient(135deg, #D1608F, #7E6FB0 55%, #4891BE)', boxShadow: '0 8px 22px rgba(150,120,170,0.35)' }}
+        >
+          <Sparkles className="w-4 h-4 flex-shrink-0" />
+          <span>Générer mon Focus du jour</span>
+          <span className="absolute right-3 opacity-70 group-hover:translate-x-0.5 transition-transform">→</span>
+        </Link>
       </div>
 
       {/* User */}

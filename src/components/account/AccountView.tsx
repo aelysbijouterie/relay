@@ -22,6 +22,7 @@ type Saving = 'idle' | 'saving' | 'saved'
 const NOTIF_OPTIONS: { key: NotifKey; label: string; description: string }[] = [
   { key: 'notify_email_assigned',  label: 'Tâche assignée',       description: "Quand une tâche m'est attribuée" },
   { key: 'notify_email_status',    label: 'Changement de statut', description: "Quand le statut d'une de mes tâches change" },
+  { key: 'notify_email_mentions',  label: 'Mentions',             description: "Quand quelqu'un me mentionne (@) dans un commentaire" },
   { key: 'notify_email_deadlines', label: "Rappels d'échéance",   description: 'À l\'approche des dates limites (J-3, J-1)' },
   { key: 'notify_email_weekly',    label: 'Résumé hebdomadaire',  description: 'Un récapitulatif chaque semaine' },
 ]
@@ -31,6 +32,7 @@ type NotifKey =
   | 'notify_email_status'
   | 'notify_email_deadlines'
   | 'notify_email_weekly'
+  | 'notify_email_mentions'
 
 export function AccountView({ profile, teamSettings }: Props) {
   const router = useRouter()
@@ -48,6 +50,7 @@ export function AccountView({ profile, teamSettings }: Props) {
     notify_email_status:    profile.notify_email_status    ?? true,
     notify_email_deadlines: profile.notify_email_deadlines ?? true,
     notify_email_weekly:    profile.notify_email_weekly    ?? false,
+    notify_email_mentions:  profile.notify_email_mentions  ?? true,
   })
 
   const [nameSaving, setNameSaving] = useState<Saving>('idle')

@@ -10,7 +10,7 @@ function getUserId(): string | null {
 
 const COLUMNS =
   'id, name, email, avatar_url, role, department_id, ' +
-  'notify_email_assigned, notify_email_status, notify_email_deadlines, notify_email_weekly'
+  'notify_email_assigned, notify_email_status, notify_email_deadlines, notify_email_weekly, notify_email_mentions'
 
 export async function GET() {
   const userId = getUserId()
@@ -41,7 +41,7 @@ export async function PATCH(request: NextRequest) {
   if (typeof body.name === 'string' && body.name.trim().length > 0) {
     updates.name = body.name.trim()
   }
-  for (const key of ['notify_email_assigned', 'notify_email_status', 'notify_email_deadlines', 'notify_email_weekly'] as const) {
+  for (const key of ['notify_email_assigned', 'notify_email_status', 'notify_email_deadlines', 'notify_email_weekly', 'notify_email_mentions'] as const) {
     if (typeof body[key] === 'boolean') updates[key] = body[key]
   }
 

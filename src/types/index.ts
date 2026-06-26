@@ -17,6 +17,7 @@ export interface NotificationPreferences {
   notify_email_status: boolean
   notify_email_deadlines: boolean
   notify_email_weekly: boolean
+  notify_email_mentions: boolean
 }
 
 export interface Profile {
@@ -33,6 +34,7 @@ export interface Profile {
   notify_email_status?: boolean
   notify_email_deadlines?: boolean
   notify_email_weekly?: boolean
+  notify_email_mentions?: boolean
 }
 
 export interface Tag {
