@@ -198,3 +198,34 @@ export function emailMention({
     }),
   }
 }
+// ── 7. Assignation à une sous-tâche ────────────────────────────────────────────
+export function emailSubtaskAssigned({
+  assigneeName, createdByName, subtaskTitle, task, department, deadline,
+}: { assigneeName: string; createdByName: string; subtaskTitle: string; task: TaskInfo; department: DeptInfo; deadline?: string | null }) {
+  const deadlineLine = deadline
+    ? `<p style="margin:0 0 18px;color:#8089A0;font-size:13px;">📅 À faire pour le ${new Date(deadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>`
+    : ''
+  return {
+    subject: `✅ Sous-tâche assignée — ${subtaskTitle}`,
+    html: baseHtml({
+      title: 'Sous-tâche assignée',
+      preheader: `${createdByName} t'a confié une sous-tâche : ${subtaskTitle}`,
+      deptColor: department.color,
+      prefLabel: 'Tâche assignée',
+      content: `
+        <h2 style="${H2}">Une sous-tâche pour toi</h2>
+        <p style="${INTRO}">
+          Bonjour <strong>${assigneeName}</strong>,<br/>
+          <strong>${createdByName}</strong> t'a assigné·e à une sous-tâche dans
+          <strong style="color:${department.color}">${department.name}</strong>.
+        </p>
+        <div style="background:#F9FAFB;border-left:4px solid ${department.color};border-radius:0 10px 10px 0;padding:15px 18px;margin-bottom:14px;">
+          <p style="margin:0;font-size:15px;font-weight:600;color:#1C1E26;">${subtaskTitle}</p>
+          <p style="margin:6px 0 0;font-size:12.5px;color:#9098A8;">dans la carte « ${task.title} »</p>
+        </div>
+        ${deadlineLine}
+        ${button({ label: 'Voir la tâche →', color: department.color })}
+      `,
+    }),
+  }
+}

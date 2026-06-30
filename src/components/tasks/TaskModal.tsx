@@ -6,7 +6,7 @@ import { fr } from 'date-fns/locale'
 import {
   X, Globe, Clock, MessageSquare, History,
   CheckSquare, Square, Paperclip, Tag, Building2,
-  Send, Plus, Trash2, Loader2, Download, Pencil, Archive, Copy, UserPlus,
+  Send, Plus, Trash2, Loader2, Download, Pencil, Archive, Copy, UserPlus, GripVertical, Calendar,
 } from 'lucide-react'
 import { cn, formatDeadline, isOverdue, getInitials } from '@/lib/utils'
 import { useTasks } from '@/hooks/useTasks'
@@ -30,6 +30,8 @@ interface DBSubtask {
   title: string
   is_done: boolean
   group_name?: string
+  deadline?: string | null
+  position?: number
   created_at: string
   assignees?: { id: string; name: string; avatar_url?: string | null }[]
 }
@@ -109,6 +111,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   const [showAssignPicker, setShowAssignPicker] = useState(false)
   const [savingAssignees, setSavingAssignees] = useState(false)
   const [openAssignSub, setOpenAssignSub] = useState<string | null>(null) // id sous-tâche dont le picker est ouvert
+  const [dragSubId, setDragSubId] = useState<string | null>(null) // sous-tâche en cours de glisser-déposer
 
   // Attachments
   const [attachments, setAttachments] = useState<DBAttachment[]>([])
@@ -448,6 +451,23 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
         body: JSON.stringify({ assignees: next.map(a => a.id) }),
       })
       if (!res.ok) throw new Error()
+      if (!isOn && member.id !== currentUserId) {
+        const memberFull = allMembers.find(m => m.id === member.id) as { email?: string } | undefined
+        if (memberFull?.email) {
+          fetch('/api/notify/subtask-assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              assignee: { name: member.name, email: memberFull.email },
+              subtaskTitle: sub.title,
+              deadline: sub.deadline ?? null,
+              task: { id: taskId, title: task.title, priority: task.priority, status: task.status, deadline: task.deadline },
+              department: task.department?.name ?? '',
+              createdByName: currentUserName ?? 'Un collègue',
+            }),
+          }).catch(() => {})
+        }
+      }
     } catch {
       setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, assignees: current } : s))
       toast.error('Impossible de modifier les assignés')
@@ -460,6 +480,50 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
       await fetch(`/api/tasks/${taskId}/subtasks/${id}`, { method: 'DELETE' })
     } catch {
       toast.error('Suppression échouée')
+    }
+  }
+
+  // Modifie l'échéance d'une sous-tâche.
+  async function setSubtaskDeadline(sub: DBSubtask, deadline: string) {
+    setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, deadline: deadline || null } : s))
+    try {
+      await fetch(`/api/tasks/${taskId}/subtasks/${sub.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deadline: deadline || null }),
+      })
+    } catch {
+      toast.error('Échéance non enregistrée')
+    }
+  }
+
+  // ── Glisser-déposer des sous-tâches (drag natif HTML5) ──────────────────────
+  function handleSubDragStart(id: string) { setDragSubId(id) }
+  function handleSubDragOver(e: React.DragEvent, overId: string) {
+    e.preventDefault()
+    if (!dragSubId || dragSubId === overId) return
+    setSubtasks(prev => {
+      const ids = prev.map(s => s.id)
+      const from = ids.indexOf(dragSubId)
+      const to   = ids.indexOf(overId)
+      if (from < 0 || to < 0) return prev
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+  }
+  async function handleSubDrop() {
+    if (!dragSubId) return
+    setDragSubId(null)
+    try {
+      await fetch(`/api/tasks/${taskId}/subtasks/reorder`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds: subtasks.map(s => s.id) }),
+      })
+    } catch {
+      toast.error('Ordre non enregistré')
     }
   }
 
@@ -905,8 +969,18 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                   )}
                   <div className="space-y-2">
                     {subtasks.map(sub => (
-                      <div key={sub.id} className="bg-card border border-border rounded-xl p-3 group relative">
-                        <div className="flex items-center gap-3">
+                      <div key={sub.id}
+                        draggable
+                        onDragStart={() => handleSubDragStart(sub.id)}
+                        onDragOver={(e) => handleSubDragOver(e, sub.id)}
+                        onDrop={handleSubDrop}
+                        onDragEnd={() => setDragSubId(null)}
+                        className={cn('bg-card border border-border rounded-xl p-3 group relative transition-opacity',
+                          dragSubId === sub.id && 'opacity-40')}>
+                        <div className="flex items-center gap-2">
+                          <span className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0" title="Glisser pour réordonner">
+                            <GripVertical className="w-3.5 h-3.5" />
+                          </span>
                           <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
                             {sub.is_done
                               ? <CheckSquare className="w-4 h-4" style={{ color: deptColor }} />
@@ -935,6 +1009,19 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive">
                             <Trash2 className="w-3 h-3" />
                           </button>
+                        </div>
+
+                        {/* Échéance de la sous-tâche */}
+                        <div className="flex items-center gap-1.5 mt-2 ml-9">
+                          <Calendar className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                          <input type="date"
+                            value={sub.deadline?.slice(0, 10) ?? ''}
+                            onChange={(e) => setSubtaskDeadline(sub, e.target.value)}
+                            className="text-xs bg-transparent border border-transparent hover:border-border focus:border-border rounded px-1.5 py-0.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-muted-foreground transition-colors cursor-pointer"
+                          />
+                          {sub.deadline && isOverdue(sub.deadline) && !sub.is_done && (
+                            <span className="text-[0.65rem] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 font-semibold">En retard</span>
+                          )}
                         </div>
 
                         {/* Sélecteur d'assignés de la sous-tâche */}

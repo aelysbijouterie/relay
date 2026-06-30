@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_subtasks')
-    .select('id, title, is_done, group_name, position, created_at')
+    .select('id, title, is_done, group_name, position, deadline, created_at')
     .eq('task_id', params.id)
     .order('group_name', { ascending: true })
     .order('position', { ascending: true })
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const { data, error } = await supabase
     .from('task_subtasks')
     .insert({ task_id: params.id, title, created_by: userId, group_name: groupName })
-    .select('id, title, is_done, group_name, position, created_at')
+    .select('id, title, is_done, group_name, position, deadline, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
