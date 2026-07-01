@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays } from 'lucide-react'
+import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Repeat } from 'lucide-react'
 import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
 import { Logo } from '@/components/brand/Logo'
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/activite',   label: 'Activité',     icon: Activity },
   { href: '/archives',   label: 'Archives',     icon: Archive },
   { href: '/corbeille',  label: 'Corbeille',    icon: Trash2 },
+  { href: '/recurrentes', label: 'Récurrentes',  icon: Repeat },
 ]
 
 interface SidebarProps {
