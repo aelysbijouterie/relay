@@ -22,10 +22,13 @@ export async function POST(request: NextRequest) {
     .from('profiles').select('name, department_id, department:departments!department_id(name, color)').eq('id', userId).single()
   if (!requester) return NextResponse.json({ sent: 0 })
 
-  // Responsables : managers du même service + admins
+  // Responsables du SERVICE du demandeur uniquement (manager ou admin
+  // rattaché à ce même service). On n'envoie jamais aux admins d'autres
+  // services. Et jamais au demandeur lui-même.
   const { data: managers } = await supabase
     .from('profiles').select('name, email, role, department_id')
-    .or(`and(role.eq.manager,department_id.eq.${requester.department_id}),role.eq.admin`)
+    .in('role', ['manager', 'admin'])
+    .eq('department_id', requester.department_id)
     .neq('id', userId)
 
   const dept = Array.isArray(requester.department) ? requester.department[0] : requester.department

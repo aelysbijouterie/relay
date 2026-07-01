@@ -54,6 +54,12 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+
+  // Auto-validation : les managers/admins et le motif "Alternance" ne
+  // nécessitent pas de validation (statut "Validé" directement).
+  const { data: me } = await supabase.from('profiles').select('role').eq('id', userId).single()
+  const autoValidated = me?.role === 'manager' || me?.role === 'admin' || type === 'Alternance'
+
   const { data, error } = await supabase
     .from('absences')
     .insert({
@@ -64,11 +70,13 @@ export async function POST(request: NextRequest) {
       start_period: start_period ?? 'full',
       end_period: end_period ?? 'full',
       reason: reason?.trim() || null,
-      status: 'En attente',
+      status: autoValidated ? 'Validé' : 'En attente',
+      reviewed_by: autoValidated ? userId : null,
+      reviewed_at: autoValidated ? new Date().toISOString() : null,
     })
     .select('id')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true, id: data.id })
+  return NextResponse.json({ success: true, id: data.id, autoValidated })
 }

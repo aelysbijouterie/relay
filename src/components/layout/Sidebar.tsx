@@ -157,15 +157,6 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
         </Link>
       </div>
 
-      {/* Accès Congés & absences */}
-      <div className="px-4 py-3 border-t border-border">
-        <Link href="/conges" onClick={() => setOpen(false)}
-          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-          <CalendarDays className="w-4 h-4 flex-shrink-0" />
-          <span>Congés &amp; absences</span>
-        </Link>
-      </div>
-
       {/* Team members */}
       <div className="px-4 py-3">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Équipe</p>
@@ -191,6 +182,15 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Accès Congés & absences — juste au-dessus du profil */}
+      <div className="px-4 py-3 border-t border-border">
+        <Link href="/conges" onClick={() => setOpen(false)}
+          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+          <CalendarDays className="w-4 h-4 flex-shrink-0" />
+          <span>Congés &amp; absences</span>
+        </Link>
       </div>
 
       {/* User */}
