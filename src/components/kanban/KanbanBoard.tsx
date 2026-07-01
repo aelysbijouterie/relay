@@ -32,6 +32,7 @@ export function KanbanBoard({
   const [activeTask, setActiveTask]     = useState<Task | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [optimistic, setOptimistic]     = useState<Record<string, TaskStatus>>({})
+  const [orderOverride, setOrderOverride] = useState<Record<string, string[]>>({}) // ordre local pendant un réordonnancement
 
   // Ouverture directe d'une carte via ?task=<id> (depuis le fil d'activité).
   useEffect(() => {
@@ -71,7 +72,19 @@ export function KanbanBoard({
         || t.created_by === currentUserId
     })
 
-  const getColumnTasks = (status: TaskStatus) => visibleTasks.filter(t => t.status === status)
+  const getColumnTasks = (status: TaskStatus) => {
+    const cols = visibleTasks.filter(t => t.status === status)
+    const override = orderOverride[status]
+    if (override) {
+      // Applique l'ordre local (optimiste) le temps que le serveur réponde.
+      return [...cols].sort((a, b) => {
+        const ia = override.indexOf(a.id), ib = override.indexOf(b.id)
+        if (ia < 0 || ib < 0) return 0
+        return ia - ib
+      })
+    }
+    return cols
+  }
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveTask(tasks.find(t => t.id === event.active.id) ?? null)
@@ -85,12 +98,42 @@ export function KanbanBoard({
     const task = tasks.find(t => t.id === active.id)
     if (!task) return
 
+    const overTask = tasks.find(t => t.id === over.id)
     const newStatus = TASK_STATUSES.includes(over.id as TaskStatus)
       ? (over.id as TaskStatus)
-      : tasks.find(t => t.id === over.id)?.status
+      : overTask?.status
 
-    if (!newStatus || newStatus === task.status) return
+    if (!newStatus) return
 
+    // ── Cas 1 : réordonnancement DANS la même colonne ──────────────────────
+    if (newStatus === task.status) {
+      if (!overTask || overTask.id === task.id) return
+      const column = tasks
+        .filter(t => t.status === task.status && t.status !== 'Archivé')
+        .sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999))
+      const fromIdx = column.findIndex(t => t.id === task.id)
+      const toIdx = column.findIndex(t => t.id === overTask.id)
+      if (fromIdx < 0 || toIdx < 0) return
+      const reordered = [...column]
+      const [moved] = reordered.splice(fromIdx, 1)
+      reordered.splice(toIdx, 0, moved)
+      // Mise à jour optimiste de l'ordre local
+      setOrderOverride(prev => ({ ...prev, [task.status]: reordered.map(t => t.id) }))
+      try {
+        await fetch('/api/tasks/reorder', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: task.status, orderedIds: reordered.map(t => t.id) }),
+        })
+        await refresh()
+        setOrderOverride(prev => { const n = { ...prev }; delete n[task.status]; return n })
+      } catch {
+        toast.error('Erreur lors du réordonnancement')
+        setOrderOverride(prev => { const n = { ...prev }; delete n[task.status]; return n })
+      }
+      return
+    }
+
+    // ── Cas 2 : changement de colonne (statut) ─────────────────────────────
     setOptimistic(prev => ({ ...prev, [task.id]: newStatus }))
 
     try {

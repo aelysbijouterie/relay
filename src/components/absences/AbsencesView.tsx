@@ -28,6 +28,7 @@ export function AbsencesView() {
   const [busyId, setBusyId] = useState<string | null>(null)
   // Filtre services : null = tout le monde ; sinon set d'ids de services
   const [filterDepts, setFilterDepts] = useState<Set<string> | null>(null)
+  const [filterInit, setFilterInit] = useState(false) // le filtre par défaut n'est posé qu'une fois
   const [showFilter, setShowFilter] = useState(false)
 
   const load = useCallback(async () => {
@@ -45,9 +46,14 @@ export function AbsencesView() {
       setPeriods(Array.isArray(pData) ? pData : [])
       setDepts(Array.isArray(dData) ? dData : [])
       setMe(mData?.id ? { id: mData.id, role: mData.role, department_id: mData.department_id } : null)
+      // Vue par défaut : uniquement mon service (une seule fois, sans écraser un choix manuel).
+      if (!filterInit && mData?.department_id) {
+        setFilterDepts(new Set([mData.department_id]))
+        setFilterInit(true)
+      }
     } catch { /* noop */ }
     finally { setLoading(false) }
-  }, [])
+  }, [filterInit])
   useEffect(() => { load() }, [load])
 
   const isManager = me?.role === 'manager' || me?.role === 'admin'

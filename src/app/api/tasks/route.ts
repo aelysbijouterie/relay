@@ -30,7 +30,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('tasks')
     .select(`
-      id, title, description, status, priority, deadline,
+      id, title, description, status, priority, deadline, position,
       is_cross_team, fournisseur_client, ref_collection,
       parent_task_id, created_at, updated_at, department_id, created_by,
       department:departments!department_id(id, name, color, slug, icon),
@@ -44,6 +44,7 @@ export async function GET() {
     .neq('status', 'Archivé')
     .is('deleted_at', null)
     .is('parent_task_id', null)
+    .order('position', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(500)
 
