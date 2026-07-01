@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Loader2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { ABSENCE_TYPES, ABSENCE_COLORS, type AbsenceType, type AbsencePeriod, type Absence } from '@/types/absences'
 
@@ -14,6 +14,21 @@ export function NewAbsenceModal({ absence, onClose, onCreated }: { absence?: Abs
   const [endPeriod, setEndPeriod] = useState<AbsencePeriod>(absence?.end_period ?? 'full')
   const [reason, setReason] = useState(absence?.reason ?? '')
   const [saving, setSaving] = useState(false)
+  const [conflicts, setConflicts] = useState<{ name: string; type: string; start_date: string; end_date: string; status: string }[]>([])
+
+  // Détection de chevauchement dans le même service quand les dates changent.
+  useEffect(() => {
+    if (!startDate || !endDate) { setConflicts([]); return }
+    const ctrl = new AbortController()
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/absences/overlap?from=${startDate}&to=${endDate}`, { signal: ctrl.signal })
+        const d = await r.json()
+        setConflicts(Array.isArray(d.conflicts) ? d.conflicts : [])
+      } catch { /* noop */ }
+    }, 300)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [startDate, endDate])
 
   const sameDay = startDate && endDate && startDate === endDate
 
@@ -122,6 +137,24 @@ export function NewAbsenceModal({ absence, onClose, onCreated }: { absence?: Abs
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
                 className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground resize-none"
                 placeholder="Une précision si besoin…" />
+            </div>
+          )}
+
+          {conflicts.length > 0 && (
+            <div className="rounded-lg p-3 border" style={{ backgroundColor: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.3)' }}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#D97706' }} />
+                <p className="text-sm font-semibold" style={{ color: '#B45309' }}>
+                  {conflicts.length} {conflicts.length > 1 ? 'personnes absentes' : 'personne absente'} dans ton service
+                </p>
+              </div>
+              <ul className="text-xs text-muted-foreground space-y-0.5 ml-6">
+                {conflicts.slice(0, 4).map((c, i) => (
+                  <li key={i}>{c.name} · {c.type}{c.status.includes('attente') ? ' (en attente)' : ''}</li>
+                ))}
+                {conflicts.length > 4 && <li>+{conflicts.length - 4} autre(s)</li>}
+              </ul>
+              <p className="text-xs mt-2 ml-6" style={{ color: '#B45309' }}>Tu peux quand même poser ta demande.</p>
             </div>
           )}
 

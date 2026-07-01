@@ -7,6 +7,7 @@ import { getInitials } from '@/lib/utils'
 import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type Absence, type ActivityPeriod } from '@/types/absences'
 import { NewAbsenceModal } from './NewAbsenceModal'
 import { ActivityPeriodModal } from './ActivityPeriodModal'
+import { LeaveBalance } from './LeaveBalance'
 
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
@@ -136,6 +137,17 @@ export function AbsencesView() {
 
   const myAbsences = me ? absences.filter(a => a.user_id === me.id) : []
 
+  // Pour le responsable : combien d'AUTRES personnes du même service sont
+  // absentes sur les mêmes dates qu'une demande donnée.
+  function overlapCount(a: Absence): number {
+    return absences.filter(o =>
+      o.id !== a.id && o.status !== 'Refusé' &&
+      o.user_id !== a.user_id &&
+      o.user?.department_id === a.user?.department_id &&
+      o.start_date <= a.end_date && o.end_date >= a.start_date
+    ).length
+  }
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
@@ -162,6 +174,9 @@ export function AbsencesView() {
         </div>
       </div>
       <p className="text-sm text-muted-foreground mb-4">Visualisez les absences de l'équipe et posez vos demandes.</p>
+
+      {/* Mes compteurs congés / RTT */}
+      <LeaveBalance refreshKey={absences.length} />
 
       {/* Filtre par service */}
       {showFilter && (
@@ -210,6 +225,11 @@ export function AbsencesView() {
                       : fmtRange(a)}
                     {a.reason && <> · {a.reason}</>}
                   </p>
+                  {overlapCount(a) > 0 && (
+                    <p className="text-[0.7rem] mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-semibold" style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: '#B45309' }}>
+                      ⚠ {overlapCount(a)} autre{overlapCount(a) > 1 ? 's' : ''} absent{overlapCount(a) > 1 ? 's' : ''} sur ces dates
+                    </p>
+                  )}
                 </div>
                 <button onClick={() => review(a.id, 'Validé')} disabled={busyId === a.id}
                   className="p-2 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 transition-colors disabled:opacity-50" title="Valider"><Check className="w-4 h-4" /></button>
