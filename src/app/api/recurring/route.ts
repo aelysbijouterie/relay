@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
   if (!b.title || !b.frequency) return NextResponse.json({ error: 'Titre et fréquence requis' }, { status: 400 })
 
   const supabase = createAdminClient()
+  const today = new Date()
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const { data, error } = await supabase.from('recurring_tasks').insert({
     title: b.title.trim(),
     description: b.description?.trim() || null,
@@ -41,7 +43,12 @@ export async function POST(request: NextRequest) {
     month_day: b.frequency === 'monthly_day' ? b.month_day : null,
     assignee_ids: Array.isArray(b.assignee_ids) ? b.assignee_ids : [],
     is_active: true,
+    last_run_date: b.first_task_id ? todayStr : null,
   }).select('id').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Relier la 1re carte (créée depuis le formulaire) à ce modèle.
+  if (b.first_task_id && data?.id) {
+    await supabase.from('tasks').update({ recurring_task_id: data.id }).eq('id', b.first_task_id)
+  }
   return NextResponse.json({ success: true, id: data.id })
 }

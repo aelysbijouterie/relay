@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Plus, Search, ChevronDown, ChevronUp, CheckSquare, Paperclip, Trash2, FileText } from 'lucide-react'
+import { X, Plus, Search, ChevronDown, ChevronUp, CheckSquare, Paperclip, Trash2, FileText, Repeat } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { createTask } from '@/lib/actions/tasks'
@@ -44,6 +44,12 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
   const [fournisseur, setFournisseur] = useState('')
   const [refCollection, setRefCollection] = useState('')
   const [showAssignees, setShowAssignees] = useState(false)
+
+  // Récurrence (optionnelle)
+  const [isRecurring, setIsRecurring]   = useState(false)
+  const [recFrequency, setRecFrequency] = useState('weekly')
+  const [recWeekday, setRecWeekday]     = useState(0)
+  const [recMonthDay, setRecMonthDay]   = useState(1)
 
   // Listes à cocher (groupées) à créer en même temps que la carte
   const [checklist, setChecklist]     = useState<DraftChecklistItem[]>([])
@@ -122,6 +128,21 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
     }
 
     const newTaskId = result.taskId
+    // Si récurrence activée, enregistrer le modèle (cette carte = 1re occurrence).
+    if (isRecurring) {
+      try {
+        await fetch('/api/recurring', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title.trim(), description: description.trim() || null, priority,
+            department_id: deptId || null, frequency: recFrequency,
+            weekday: recFrequency === 'weekly' ? recWeekday : null,
+            month_day: recFrequency === 'monthly_day' ? recMonthDay : null,
+            assignee_ids: assigneeIds, first_task_id: newTaskId,
+          }),
+        })
+      } catch { /* la carte est créée même si le modèle échoue */ }
+    }
     // Enregistrer les sous-tâches (listes à cocher) et les fichiers, si présents.
     if (newTaskId) {
       try {
@@ -493,6 +514,52 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
               Ajouter des fichiers…
               <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onPickFiles} />
             </label>
+          </div>
+
+          {/* Récurrence */}
+          <div className="border-t border-border pt-4">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)}
+                className="w-4 h-4 rounded" style={{ accentColor: 'var(--accent)' }} />
+              <span className="text-sm font-medium flex items-center gap-1.5">
+                <Repeat className="w-4 h-4 text-muted-foreground" /> Répéter cette carte automatiquement
+              </span>
+            </label>
+            {isRecurring && (
+              <div className="mt-3 pl-6 space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fréquence</label>
+                  <select value={recFrequency} onChange={e => setRecFrequency(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground">
+                    <option value="weekly">Chaque semaine</option>
+                    <option value="monthly_day">Jour fixe du mois</option>
+                    <option value="monthly_first">Premier jour ouvré du mois</option>
+                    <option value="monthly_last">Dernier jour ouvré du mois</option>
+                    <option value="daily">Chaque jour ouvré</option>
+                  </select>
+                </div>
+                {recFrequency === 'weekly' && (
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Jour</label>
+                    <div className="grid grid-cols-5 gap-1.5 mt-1">
+                      {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'].map((d, i) => (
+                        <button key={i} type="button" onClick={() => setRecWeekday(i)}
+                          className={`px-2 py-1.5 rounded-lg text-xs font-medium border transition-all ${recWeekday === i ? 'text-white border-transparent' : 'border-border hover:bg-muted'}`}
+                          style={recWeekday === i ? { backgroundColor: 'var(--accent)' } : {}}>{d}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {recFrequency === 'monthly_day' && (
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Jour du mois (1–31)</label>
+                    <input type="number" min={1} max={31} value={recMonthDay} onChange={e => setRecMonthDay(Number(e.target.value))}
+                      className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">La carte d'aujourd'hui est créée maintenant ; les suivantes seront générées automatiquement.</p>
+              </div>
+            )}
           </div>
 
         </form>

@@ -52,6 +52,7 @@ export interface Task {
   department_id: string
   created_by: string
   deadline: string | null
+  recurring_task_id?: string | null
   position?: number | null
   is_cross_team: boolean
   fournisseur_client: string | null

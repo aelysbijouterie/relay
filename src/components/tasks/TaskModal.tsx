@@ -6,7 +6,7 @@ import { fr } from 'date-fns/locale'
 import {
   X, Globe, Clock, MessageSquare, History,
   CheckSquare, Square, Paperclip, Tag, Building2,
-  Send, Plus, Trash2, Loader2, Download, Pencil, Archive, Copy, UserPlus, GripVertical, Calendar,
+  Send, Plus, Trash2, Loader2, Download, Pencil, Archive, Copy, UserPlus, GripVertical, Calendar, Repeat,
 } from 'lucide-react'
 import { cn, formatDeadline, isOverdue, getInitials } from '@/lib/utils'
 import { useTasks } from '@/hooks/useTasks'
@@ -77,6 +77,19 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
 
   // Édition des détails
   const [editing, setEditing]   = useState(false)
+  const [recurringActive, setRecurringActive] = useState(true)
+
+  async function stopRecurring() {
+    if (!task.recurring_task_id) return
+    try {
+      await fetch(`/api/recurring/${task.recurring_task_id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: false }),
+      })
+      setRecurringActive(false)
+      toast.success('Récurrence arrêtée')
+    } catch { toast.error('Action impossible') }
+  }
   const [editTitle, setEditTitle]       = useState(task.title)
   const [editDesc, setEditDesc]         = useState(task.description ?? '')
   const [editPriority, setEditPriority] = useState(task.priority)
@@ -614,6 +627,19 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
               )}
             </div>
             <h2 className="font-heading font-semibold text-xl leading-tight">{task.title}</h2>
+            {task.recurring_task_id && recurringActive && (
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium" style={{ backgroundColor: 'var(--accent)', color: '#fff' }}>
+                  <Repeat className="w-3 h-3" /> Carte récurrente
+                </span>
+                <button onClick={stopRecurring} className="text-xs text-muted-foreground hover:text-red-500 underline transition-colors">Arrêter la récurrence</button>
+              </div>
+            )}
+            {task.recurring_task_id && !recurringActive && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium bg-muted text-muted-foreground mt-1.5">
+                <Repeat className="w-3 h-3" /> Récurrence arrêtée
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button onClick={duplicateTask} disabled={saving}
