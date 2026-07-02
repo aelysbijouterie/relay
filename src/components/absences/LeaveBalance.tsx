@@ -69,8 +69,8 @@ export function LeaveBalance({ refreshKey }: { refreshKey?: number }) {
 
       <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
         {/* Congés */}
-        <div className="rounded-xl p-3" style={{ backgroundColor: 'rgba(42,157,143,0.08)' }}>
-          <p className="text-xs font-semibold" style={{ color: '#2A9D8F' }}>Congés payés</p>
+        <div className="rounded-xl p-3" style={{ backgroundColor: 'rgba(14,165,165,0.08)' }}>
+          <p className="text-xs font-semibold" style={{ color: '#0EA5A5' }}>Congés payés</p>
           {editing ? (
             <input type="number" step="0.5" value={conges} onChange={e => setConges(e.target.value)} placeholder="Solde annuel"
               className="w-full mt-1 px-2 py-1 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
@@ -83,8 +83,8 @@ export function LeaveBalance({ refreshKey }: { refreshKey?: number }) {
         </div>
 
         {/* RTT */}
-        <div className="rounded-xl p-3" style={{ backgroundColor: 'rgba(62,143,204,0.08)' }}>
-          <p className="text-xs font-semibold" style={{ color: '#3E8FCC' }}>RTT</p>
+        <div className="rounded-xl p-3" style={{ backgroundColor: 'rgba(99,102,241,0.08)' }}>
+          <p className="text-xs font-semibold" style={{ color: '#6366F1' }}>RTT</p>
           {editing ? (
             <input type="number" step="0.5" value={rtt} onChange={e => setRtt(e.target.value)} placeholder="Solde annuel"
               className="w-full mt-1 px-2 py-1 rounded-lg bg-background border border-border text-sm focus:outline-none focus:ring-1 focus:ring-muted-foreground" />

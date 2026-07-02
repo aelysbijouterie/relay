@@ -27,13 +27,15 @@ export interface Absence {
 export const ABSENCE_TYPES: AbsenceType[] = ['Congés payés', 'RTT', 'Maladie', 'Télétravail', 'Alternance', 'Autre']
 
 // Couleur par type d'absence (distincte de la palette des espaces).
+// Couleurs propres aux absences, choisies pour ne PAS coïncider avec les
+// couleurs des services (qui servent d'accent par espace).
 export const ABSENCE_COLORS: Record<AbsenceType, string> = {
-  'Congés payés': '#2A9D8F', // vert-bleu : repos
-  'RTT':          '#3E8FCC', // bleu
-  'Maladie':      '#E0596A', // rouge doux
-  'Télétravail':  '#8B72C4', // violet : présent mais à distance
-  'Alternance':   '#E8944A', // orange : périodes d'école
-  'Autre':        '#8A8F9C', // gris
+  'Congés payés': '#0EA5A5', // turquoise franc
+  'RTT':          '#6366F1', // indigo
+  'Maladie':      '#DC2626', // rouge vif (santé)
+  'Télétravail':  '#0891B2', // cyan profond
+  'Alternance':   '#EA9A16', // ambre
+  'Autre':        '#64748B', // ardoise
 }
 
 export const ABSENCE_STATUS_COLORS: Record<AbsenceStatus, string> = {

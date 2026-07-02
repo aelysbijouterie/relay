@@ -148,11 +148,11 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
         <Link
           href="/ma-todo"
           onClick={() => setOpen(false)}
-          className="group relative flex items-center gap-2.5 w-full px-3.5 py-2.5 rounded-xl text-white text-sm font-bold overflow-hidden transition-transform hover:scale-[1.02] active:scale-[0.99]"
+          className="group relative flex items-center gap-2 w-full pl-3 pr-8 py-2.5 rounded-xl text-white text-sm font-bold overflow-hidden whitespace-nowrap transition-transform hover:scale-[1.02] active:scale-[0.99]"
           style={{ backgroundImage: 'linear-gradient(135deg, #D1608F, #7E6FB0 55%, #4891BE)', boxShadow: '0 8px 22px rgba(150,120,170,0.35)' }}
         >
           <Sparkles className="w-4 h-4 flex-shrink-0" />
-          <span>Générer mon Focus du jour</span>
+          <span className="truncate">Générer mon Focus</span>
           <span className="absolute right-3 opacity-70 group-hover:translate-x-0.5 transition-transform">→</span>
         </Link>
       </div>

@@ -11,9 +11,12 @@ interface KanbanColumnProps {
   status: TaskStatus
   tasks: Task[]
   onTaskClick: (task: Task) => void
+  selectMode?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }
 
-export function KanbanColumn({ status, tasks, onTaskClick }: KanbanColumnProps) {
+export function KanbanColumn({ status, tasks, onTaskClick, selectMode, selectedIds, onToggleSelect }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
 
   return (
@@ -36,7 +39,7 @@ export function KanbanColumn({ status, tasks, onTaskClick }: KanbanColumnProps) 
       <div
         ref={setNodeRef}
         className={cn(
-          'flex flex-col gap-2.5 p-2.5 rounded-2xl min-h-[500px] transition-all duration-200',
+          'flex flex-col gap-2.5 p-2.5 rounded-2xl min-h-[200px] h-fit transition-all duration-200',
           'bg-muted/40',
           isOver && 'ring-2 ring-inset'
         )}
@@ -48,7 +51,8 @@ export function KanbanColumn({ status, tasks, onTaskClick }: KanbanColumnProps) 
       >
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map(task => (
-            <TaskCard key={task.id} task={task} onClick={onTaskClick} />
+            <TaskCard key={task.id} task={task} onClick={onTaskClick}
+              selectMode={selectMode} selected={selectedIds?.has(task.id)} onToggleSelect={onToggleSelect} />
           ))}
         </SortableContext>
 

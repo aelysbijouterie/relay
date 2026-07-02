@@ -2,7 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Globe, AlertCircle, Clock, MessageSquare } from 'lucide-react'
+import { Globe, AlertCircle, Clock, MessageSquare, Check } from 'lucide-react'
 import { cn, isOverdue, formatDeadline, getInitials } from '@/lib/utils'
 import type { Task } from '@/types'
 import { PRIORITY_COLORS } from '@/types'
@@ -10,9 +10,12 @@ import { PRIORITY_COLORS } from '@/types'
 interface TaskCardProps {
   task: Task
   onClick: (task: Task) => void
+  selectMode?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
-export function TaskCard({ task, onClick }: TaskCardProps) {
+export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -42,26 +45,35 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
       style={overdue
         ? { ...style, boxShadow: '0 0 0 1.5px #EF4444, 0 4px 14px rgba(239,68,68,0.18)' }
         : style}
-      {...attributes}
-      {...listeners}
-      onClick={() => onClick(task)}
+      {...(selectMode ? {} : attributes)}
+      {...(selectMode ? {} : listeners)}
+      onClick={() => selectMode ? onToggleSelect?.(task.id) : onClick(task)}
       className={cn(
         'group relative rounded-2xl p-3.5 space-y-2.5',
-        'cursor-grab active:cursor-grabbing select-none',
+        selectMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
+        'select-none',
         'transition-all duration-200',
         'hover:-translate-y-0.5 hover:shadow-lg',
-        isDragging ? 'task-dragging' : 'bg-card border border-border shadow-sm'
+        isDragging ? 'task-dragging' : 'bg-card border border-border shadow-sm',
+        selected && 'ring-2 ring-primary ring-offset-1'
       )}
     >
+      {/* Case de sélection (mode sélection) */}
+      {selectMode && (
+        <span className={cn('absolute top-2 right-2 z-10 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors',
+          selected ? 'bg-primary border-primary text-white' : 'bg-card border-border')}>
+          {selected && <Check className="w-3 h-3" />}
+        </span>
+      )}
       {/* Pastille "en retard" en coin */}
       {overdue && (
         <span className="absolute -top-1.5 -right-1.5 z-10 inline-flex items-center gap-1 text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white shadow-md">
           <AlertCircle className="w-2.5 h-2.5" /> En retard
         </span>
       )}
-      {/* Left accent bar — couleur de l'espace */}
+      {/* Left accent bar — couleur de l'espace, épouse les arrondis de la carte */}
       <div
-        className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
+        className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-2xl overflow-hidden"
         style={{ backgroundColor: deptColor }}
       />
 

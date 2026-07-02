@@ -6,7 +6,7 @@ import {
   useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
-import { User, Search } from 'lucide-react'
+import { User, Search, CheckCircle2, Archive, Trash2 } from 'lucide-react'
 import { KanbanColumn } from './KanbanColumn'
 import { TaskCard } from '@/components/tasks/TaskCard'
 import { TaskModal } from '@/components/tasks/TaskModal'
@@ -28,6 +28,16 @@ export function KanbanBoard({
   const { tasks, refresh }    = useTasks()
   const currentUserId         = useTaskStore(s => s.currentUserId)
   const [myTasksOnly, setMyTasksOnly] = useState(false)
+  const [selectMode, setSelectMode]   = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy]       = useState(false)
+  const [bulkMembers, setBulkMembers] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/profiles', { cache: 'no-store' }).then(r => r.json())
+      .then(d => setBulkMembers(Array.isArray(d) ? d.map((m: { id: string; name: string }) => ({ id: m.id, name: m.name })) : []))
+      .catch(() => {})
+  }, [])
   const [search, setSearch]             = useState('')
   const [activeTask, setActiveTask]     = useState<Task | null>(null)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -157,6 +167,29 @@ export function KanbanBoard({
     }
   }, [tasks, refresh, currentUserName])
 
+  // ── Sélection multiple & actions groupées ──────────────────────────────────
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  function exitSelectMode() { setSelectMode(false); setSelectedIds(new Set()) }
+
+  async function runBulk(action: string, value?: string) {
+    if (selectedIds.size === 0) return
+    setBulkBusy(true)
+    try {
+      const res = await fetch('/api/tasks/bulk', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [...selectedIds], action, value }),
+      })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      toast.success(`${data.count} carte${data.count > 1 ? 's' : ''} mise${data.count > 1 ? 's' : ''} à jour`)
+      await refresh()
+      exitSelectMode()
+    } catch { toast.error('Action groupée impossible') }
+    finally { setBulkBusy(false) }
+  }
+
   return (
     <>
       {/* Barre de filtres */}
@@ -185,12 +218,25 @@ export function KanbanBoard({
           <User className="w-3 h-3" />
           Mes tâches
         </button>
+        <button
+          onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+          className={cn(
+            'inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all',
+            selectMode
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
+          )}
+        >
+          <CheckCircle2 className="w-3 h-3" />
+          {selectMode ? 'Annuler' : 'Sélectionner'}
+        </button>
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 h-full">
+        <div className="flex gap-4 overflow-x-auto pb-4 items-start">
           {TASK_STATUSES.map(status => (
-            <KanbanColumn key={status} status={status} tasks={getColumnTasks(status)} onTaskClick={setSelectedTask} />
+            <KanbanColumn key={status} status={status} tasks={getColumnTasks(status)} onTaskClick={setSelectedTask}
+              selectMode={selectMode} selectedIds={selectedIds} onToggleSelect={toggleSelect} />
           ))}
         </div>
         <DragOverlay>
@@ -209,6 +255,47 @@ export function KanbanBoard({
           onClose={() => setSelectedTask(null)}
           currentUserName={currentUserName}
         />
+      )}
+
+      {/* Barre d'actions groupées */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-card border border-border rounded-2xl px-4 py-3 flex-wrap justify-center"
+          style={{ boxShadow: '0 12px 40px rgba(20,22,40,0.18)' }}>
+          <span className="text-sm font-semibold px-2">{selectedIds.size} sélectionnée{selectedIds.size > 1 ? 's' : ''}</span>
+          <span className="w-px h-6 bg-border" />
+
+          {/* Déplacer */}
+          <select disabled={bulkBusy} defaultValue="" onChange={e => { if (e.target.value) runBulk('move', e.target.value); e.target.value = '' }}
+            className="text-sm px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50">
+            <option value="" disabled>Déplacer vers…</option>
+            {TASK_STATUSES.filter(s => s !== 'Archivé').map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          {/* Priorité */}
+          <select disabled={bulkBusy} defaultValue="" onChange={e => { if (e.target.value) runBulk('priority', e.target.value); e.target.value = '' }}
+            className="text-sm px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50">
+            <option value="" disabled>Priorité…</option>
+            {['Urgent', 'Élevée', 'Moyenne', 'Faible'].map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+
+          {/* Réassigner */}
+          {bulkMembers.length > 0 && (
+            <select disabled={bulkBusy} defaultValue="" onChange={e => { if (e.target.value) runBulk('assign', e.target.value); e.target.value = '' }}
+              className="text-sm px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50">
+              <option value="" disabled>Assigner à…</option>
+              {bulkMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          )}
+
+          <button disabled={bulkBusy} onClick={() => runBulk('archive')}
+            className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50">
+            <Archive className="w-3.5 h-3.5" /> Archiver
+          </button>
+          <button disabled={bulkBusy} onClick={() => { if (confirm(`Supprimer ${selectedIds.size} carte(s) ? Elles iront à la corbeille.`)) runBulk('delete') }}
+            className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-border text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50">
+            <Trash2 className="w-3.5 h-3.5" /> Supprimer
+          </button>
+        </div>
       )}
     </>
   )
