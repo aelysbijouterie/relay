@@ -37,6 +37,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ assignees: profs ?? [] })
   }
 
+  // ── Renommer la sous-tâche ──────────────────────────────────────────────────
+  if (typeof body.title === 'string') {
+    const { data, error } = await supabase
+      .from('task_subtasks')
+      .update({ title: body.title.trim() })
+      .eq('id', params.subtaskId).eq('task_id', params.id)
+      .select('id, title, is_done, deadline, position, created_at').single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  }
+
   // ── 2. Mise à jour de l'échéance de la sous-tâche ───────────────────────────
   if ('deadline' in body) {
     const { data, error } = await supabase

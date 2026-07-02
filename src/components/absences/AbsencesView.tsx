@@ -155,7 +155,7 @@ export function AbsencesView() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <CalendarDays className="w-5 h-5 text-muted-foreground" />
@@ -181,8 +181,10 @@ export function AbsencesView() {
       </div>
       <p className="text-sm text-muted-foreground mb-4">Visualisez les absences de l'équipe et posez vos demandes.</p>
 
-      {/* Mes compteurs congés / RTT */}
-      <LeaveBalance refreshKey={absences.length} />
+      {/* Disposition 2 colonnes : calendrier à gauche, compteurs + demandes à droite */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+        {/* Colonne principale */}
+        <div>
 
       {/* Filtre par service */}
       {showFilter && (
@@ -311,9 +313,16 @@ export function AbsencesView() {
         </div>
       </div>
 
+        </div>{/* fin colonne principale */}
+
+        {/* Colonne latérale : compteurs + mes demandes */}
+        <aside className="space-y-6 lg:sticky lg:top-4">
+          {/* Mes compteurs congés / RTT */}
+          <LeaveBalance refreshKey={absences.length} />
+
       {/* Mes demandes */}
       {me && (
-        <div className="mt-6">
+        <div>
           <h2 className="text-sm font-bold mb-3">Mes demandes</h2>
           <div className="space-y-2">
             {myAbsences.length === 0 ? (
@@ -340,6 +349,8 @@ export function AbsencesView() {
           </div>
         </div>
       )}
+        </aside>{/* fin colonne latérale */}
+      </div>{/* fin grille 2 colonnes */}
 
       {showNew && <NewAbsenceModal absence={editAbsence} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
       {showPeriod && <ActivityPeriodModal periods={periods.filter(p => p.department_id === me?.department_id)} onClose={() => setShowPeriod(false)} onChange={load} />}

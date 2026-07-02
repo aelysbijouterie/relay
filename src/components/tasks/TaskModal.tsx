@@ -125,6 +125,8 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   const [savingAssignees, setSavingAssignees] = useState(false)
   const [openAssignSub, setOpenAssignSub] = useState<string | null>(null) // id sous-tâche dont le picker est ouvert
   const [dragSubId, setDragSubId] = useState<string | null>(null) // sous-tâche en cours de glisser-déposer
+  const [editingSubId, setEditingSubId] = useState<string | null>(null) // sous-tâche dont on édite le titre
+  const [editingSubTitle, setEditingSubTitle] = useState('')
 
   // Attachments
   const [attachments, setAttachments] = useState<DBAttachment[]>([])
@@ -300,6 +302,22 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   const canEdit =
     task.created_by === currentUserId ||
     (task.assignees ?? []).some(a => a.id === currentUserId)
+
+  // Titre de carte éditable en ligne (champ visible).
+  const [inlineTitle, setInlineTitle] = useState(task.title)
+  async function saveTitleInline() {
+    const t = inlineTitle.trim()
+    if (!t || t === task.title) { setInlineTitle(task.title); return }
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: t }),
+      })
+      if (!res.ok) throw new Error()
+      await refresh()
+      toast.success('Titre modifié')
+    } catch { toast.error('Titre non enregistré'); setInlineTitle(task.title) }
+  }
 
   async function saveEdits() {
     setSaving(true)
@@ -496,6 +514,23 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
     }
   }
 
+  // Renomme une sous-tâche.
+  async function saveSubtaskTitle(sub: DBSubtask) {
+    const newTitle = editingSubTitle.trim()
+    setEditingSubId(null)
+    if (!newTitle || newTitle === sub.title) return
+    setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, title: newTitle } : s))
+    try {
+      await fetch(`/api/tasks/${taskId}/subtasks/${sub.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      })
+    } catch {
+      toast.error('Titre non enregistré')
+    }
+  }
+
   // Modifie l'échéance d'une sous-tâche.
   async function setSubtaskDeadline(sub: DBSubtask, deadline: string) {
     setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, deadline: deadline || null } : s))
@@ -626,7 +661,12 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                 </span>
               )}
             </div>
-            <h2 className="font-heading font-semibold text-xl leading-tight">{task.title}</h2>
+            <input value={inlineTitle}
+              onChange={e => setInlineTitle(e.target.value)}
+              onBlur={saveTitleInline}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setInlineTitle(task.title); (e.target as HTMLInputElement).blur() } }}
+              className="font-heading font-semibold text-xl leading-tight w-full bg-transparent border border-transparent hover:border-border focus:border-border focus:bg-background rounded-lg px-2 py-1 -ml-2 transition-colors focus:outline-none focus:ring-1 focus:ring-muted-foreground"
+              title="Cliquer pour modifier le titre" />
             {task.recurring_task_id && recurringActive && (
               <div className="flex items-center gap-2 mt-1.5">
                 <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium" style={{ backgroundColor: 'var(--accent)', color: '#fff' }}>
@@ -791,13 +831,27 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                         </div>
                         <div className="space-y-0.5">
                           {subtasks.map(sub => (
-                            <div key={sub.id} className="flex items-center gap-2.5 py-1.5">
+                            <div key={sub.id} className="flex items-center gap-2.5 py-1.5 group">
                               <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
                                 {sub.is_done
                                   ? <span className="w-[18px] h-[18px] rounded-md flex items-center justify-center text-white text-[11px]" style={{ backgroundColor: deptColor }}>✓</span>
                                   : <span className="w-[18px] h-[18px] rounded-md border-[1.5px] border-border block" />}
                               </button>
-                              <span className={cn('text-sm', sub.is_done && 'line-through text-muted-foreground')}>{sub.title}</span>
+                              {editingSubId === sub.id ? (
+                                <input autoFocus value={editingSubTitle}
+                                  onChange={e => setEditingSubTitle(e.target.value)}
+                                  onBlur={() => saveSubtaskTitle(sub)}
+                                  onKeyDown={e => { if (e.key === 'Enter') saveSubtaskTitle(sub); if (e.key === 'Escape') setEditingSubId(null) }}
+                                  className="text-sm flex-1 bg-background border border-border rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
+                              ) : (
+                                <>
+                                  <span className={cn('text-sm flex-1', sub.is_done && 'line-through text-muted-foreground')}>{sub.title}</span>
+                                  <button onClick={() => { setEditingSubId(sub.id); setEditingSubTitle(sub.title) }}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Renommer">
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1012,7 +1066,21 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                               ? <CheckSquare className="w-4 h-4" style={{ color: deptColor }} />
                               : <Square className="w-4 h-4 text-muted-foreground" />}
                           </button>
-                          <span className={cn('text-sm flex-1', sub.is_done && 'line-through text-muted-foreground')}>{sub.title}</span>
+                          {editingSubId === sub.id ? (
+                            <input autoFocus value={editingSubTitle}
+                              onChange={e => setEditingSubTitle(e.target.value)}
+                              onBlur={() => saveSubtaskTitle(sub)}
+                              onKeyDown={e => { if (e.key === 'Enter') saveSubtaskTitle(sub); if (e.key === 'Escape') setEditingSubId(null) }}
+                              className="text-sm flex-1 bg-background border border-border rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
+                          ) : (
+                            <>
+                              <span className={cn('text-sm flex-1', sub.is_done && 'line-through text-muted-foreground')}>{sub.title}</span>
+                              <button onClick={() => { setEditingSubId(sub.id); setEditingSubTitle(sub.title) }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Renommer">
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
 
                           {/* Avatars des assignés */}
                           <div className="flex -space-x-1.5">

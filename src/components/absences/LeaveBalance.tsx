@@ -45,7 +45,7 @@ export function LeaveBalance({ refreshKey }: { refreshKey?: number }) {
   const fmt = (n: number | null) => n == null ? '—' : (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','))
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-4 mb-5">
+    <div className="bg-card border border-border rounded-2xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Wallet className="w-4 h-4 text-muted-foreground" />
@@ -67,7 +67,7 @@ export function LeaveBalance({ refreshKey }: { refreshKey?: number }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
         {/* Congés */}
         <div className="rounded-xl p-3" style={{ backgroundColor: 'rgba(42,157,143,0.08)' }}>
           <p className="text-xs font-semibold" style={{ color: '#2A9D8F' }}>Congés payés</p>
