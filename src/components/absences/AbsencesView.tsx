@@ -93,13 +93,14 @@ export function AbsencesView() {
   }
 
   async function cancelAbsence(id: string) {
+    if (!confirm('Supprimer cette absence ? Cette action est définitive.')) return
     setBusyId(id)
     try {
       const r = await fetch(`/api/absences/${id}`, { method: 'DELETE' })
       if (!r.ok) throw new Error()
       setAbsences(prev => prev.filter(a => a.id !== id))
-      toast.success('Demande annulée')
-    } catch { toast.error('Annulation impossible') }
+      toast.success('Absence supprimée')
+    } catch { toast.error('Suppression impossible') }
     finally { setBusyId(null) }
   }
 
@@ -359,10 +360,9 @@ export function AbsencesView() {
                   <button onClick={() => { setEditAbsence(a); setShowNew(true) }}
                     className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Modifier les dates"><Pencil className="w-4 h-4" /></button>
                 )}
-                {(a.status === 'En attente' || a.status === 'Modif. en attente') && (
-                  <button onClick={() => cancelAbsence(a.id)} disabled={busyId === a.id}
-                    className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-50" title="Annuler"><Trash2 className="w-4 h-4" /></button>
-                )}
+                {/* Supprimer — possible pour toutes ses propres absences */}
+                <button onClick={() => cancelAbsence(a.id)} disabled={busyId === a.id}
+                  className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-50" title="Supprimer"><Trash2 className="w-4 h-4" /></button>
               </div>
             ))}
           </div>
