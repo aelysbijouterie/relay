@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Check, Loader2, Mail, Archive } from 'lucide-react'
+import { Camera, Check, Loader2, Mail, Archive, CalendarDays } from 'lucide-react'
 import { getInitials, roleLabel } from '@/lib/utils'
 import type { Profile } from '@/types'
 
@@ -53,6 +53,11 @@ export function AccountView({ profile, teamSettings }: Props) {
     notify_email_mentions:  profile.notify_email_mentions  ?? true,
   })
 
+  const [calPrefs, setCalPrefs] = useState({
+    show_holidays: profile.show_holidays ?? true,
+    show_school_holidays: profile.show_school_holidays ?? true,
+  })
+
   const [nameSaving, setNameSaving] = useState<Saving>('idle')
   const [uploading, setUploading]   = useState(false)
   const [error, setError]           = useState<string | null>(null)
@@ -91,6 +96,22 @@ export function AccountView({ profile, teamSettings }: Props) {
     } catch (e) {
       // Revenir à l'état précédent en cas d'échec
       setPrefs(prefs)
+      setError(e instanceof Error ? e.message : 'Erreur')
+    }
+  }
+
+  async function toggleCalPref(key: 'show_holidays' | 'show_school_holidays') {
+    const next = { ...calPrefs, [key]: !calPrefs[key] }
+    setCalPrefs(next)
+    setError(null)
+    try {
+      const res = await fetch('/api/account', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: next[key] }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Erreur')
+    } catch (e) {
+      setCalPrefs(calPrefs)
       setError(e instanceof Error ? e.message : 'Erreur')
     }
   }
@@ -233,6 +254,45 @@ export function AccountView({ profile, teamSettings }: Props) {
                 <span
                   className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
                   style={{ transform: prefs[key] ? 'translateX(24px)' : 'translateX(4px)' }}
+                />
+              </button>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      {/* Préférences d'affichage du calendrier */}
+      <section className="bg-card border border-border p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <CalendarDays className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-medium">Calendrier</h2>
+        </div>
+        <div className="space-y-1">
+          {([
+            { key: 'show_holidays' as const, label: 'Jours fériés', description: 'Afficher les jours fériés sur les calendriers' },
+            { key: 'show_school_holidays' as const, label: 'Vacances scolaires (zone B)', description: 'Afficher les périodes de vacances scolaires' },
+          ]).map(({ key, label, description }) => (
+            <label
+              key={key}
+              htmlFor={key}
+              className="flex items-center justify-between gap-4 py-3 px-1 cursor-pointer border-b border-border last:border-0"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{label}</p>
+                <p className="text-xs text-muted-foreground">{description}</p>
+              </div>
+              <button
+                id={key}
+                type="button"
+                role="switch"
+                aria-checked={calPrefs[key]}
+                onClick={() => toggleCalPref(key)}
+                className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors"
+                style={{ backgroundColor: calPrefs[key] ? deptColor : 'rgba(255,255,255,0.15)' }}
+              >
+                <span
+                  className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                  style={{ transform: calPrefs[key] ? 'translateX(24px)' : 'translateX(4px)' }}
                 />
               </button>
             </label>

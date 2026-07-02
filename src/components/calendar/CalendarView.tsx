@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay,
   isSameDay, isToday, isSameMonth, addMonths, subMonths,
@@ -12,6 +12,12 @@ import { cn } from '@/lib/utils'
 import { TaskModal } from '@/components/tasks/TaskModal'
 import { useTasks } from '@/hooks/useTasks'
 import type { Task } from '@/types'
+import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
+
+// Date → 'YYYY-MM-DD' en heure locale (pour comparer aux tables de fériés).
+function dsLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 type ViewMode = 'month' | 'week' | 'day'
@@ -21,6 +27,15 @@ export function CalendarView() {
   const [view, setView] = useState<ViewMode>('month')
   const [cursor, setCursor] = useState(new Date())
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [showHol, setShowHol] = useState(true)
+  const [showSchool, setShowSchool] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/account', { cache: 'no-store' }).then(r => r.json()).then(d => {
+      setShowHol(d?.show_holidays ?? true)
+      setShowSchool(d?.show_school_holidays ?? true)
+    }).catch(() => {})
+  }, [])
 
   const tasksForDay = (day: Date) =>
     tasks.filter(t => t.deadline && isSameDay(parseISO(t.deadline), day))
@@ -89,7 +104,7 @@ export function CalendarView() {
         </div>
       </div>
 
-      {view === 'month' && <MonthView cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
+      {view === 'month' && <MonthView cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} showHol={showHol} showSchool={showSchool} />}
       {view === 'week'  && <WeekView  cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
       {view === 'day'   && <DayView   cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
 
@@ -104,6 +119,8 @@ interface SubViewProps {
   cursor: Date
   tasksForDay: (day: Date) => Task[]
   onSelect: (task: Task) => void
+  showHol?: boolean
+  showSchool?: boolean
 }
 
 function TaskChip({ task, onSelect }: { task: Task; onSelect: (t: Task) => void }) {
@@ -119,7 +136,7 @@ function TaskChip({ task, onSelect }: { task: Task; onSelect: (t: Task) => void 
   )
 }
 
-function MonthView({ cursor, tasksForDay, onSelect }: SubViewProps) {
+function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool }: SubViewProps) {
   const monthStart = startOfMonth(cursor)
   const days = eachDayOfInterval({ start: monthStart, end: endOfMonth(cursor) })
   const startOffset = (getDay(monthStart) + 6) % 7
@@ -138,11 +155,18 @@ function MonthView({ cursor, tasksForDay, onSelect }: SubViewProps) {
         {days.map(day => {
           const dayTasks = tasksForDay(day)
           const today = isToday(day)
+          const ds = dsLocal(day)
+          const ferie = (showHol ?? true) ? holidayName(ds) : null
+          const vacances = (showSchool ?? true) ? schoolHolidayName(ds) : null
           return (
-            <div key={day.toISOString()} className={cn('min-h-[100px] p-2 border-b border-r border-border', today && 'bg-primary/5')}>
-              <div className={cn('text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full', today && 'bg-primary text-primary-foreground')}>
+            <div key={day.toISOString()} className={cn('min-h-[100px] p-2 border-b border-r border-border', today && 'bg-primary/5')}
+              style={!today && ferie ? { backgroundColor: 'rgba(217,70,239,0.07)' } : !today && vacances ? { backgroundColor: 'rgba(234,179,8,0.07)' } : undefined}
+              title={ferie ?? vacances ?? undefined}>
+              <div className={cn('text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full', today && 'bg-primary text-primary-foreground')}
+                style={!today && ferie ? { color: '#C026D3' } : undefined}>
                 {format(day, 'd')}
               </div>
+              {ferie && <p className="text-[0.6rem] leading-tight mb-0.5 truncate font-medium" style={{ color: '#C026D3' }} title={ferie}>{ferie}</p>}
               <div className="space-y-0.5">
                 {dayTasks.slice(0, 3).map(task => <TaskChip key={task.id} task={task} onSelect={onSelect} />)}
                 {dayTasks.length > 3 && <p className="text-xs text-muted-foreground pl-1">+{dayTasks.length - 3}</p>}

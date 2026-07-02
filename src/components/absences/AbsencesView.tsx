@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Plus, Check, X, Clock, Loader2, CalendarDays
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type Absence, type ActivityPeriod } from '@/types/absences'
+import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
 import { NewAbsenceModal } from './NewAbsenceModal'
 import { ActivityPeriodModal } from './ActivityPeriodModal'
 import { LeaveBalance } from './LeaveBalance'
@@ -12,7 +13,7 @@ import { LeaveBalance } from './LeaveBalance'
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
 
-interface Me { id: string; role: string; department_id: string | null }
+interface Me { id: string; role: string; department_id: string | null; show_holidays?: boolean; show_school_holidays?: boolean }
 interface Dept { id: string; name: string; color: string }
 
 export function AbsencesView() {
@@ -45,7 +46,7 @@ export function AbsencesView() {
       setAbsences(Array.isArray(aData) ? aData : [])
       setPeriods(Array.isArray(pData) ? pData : [])
       setDepts(Array.isArray(dData) ? dData : [])
-      setMe(mData?.id ? { id: mData.id, role: mData.role, department_id: mData.department_id } : null)
+      setMe(mData?.id ? { id: mData.id, role: mData.role, department_id: mData.department_id, show_holidays: mData.show_holidays ?? true, show_school_holidays: mData.show_school_holidays ?? true } : null)
       // Vue par défaut : uniquement mon service (une seule fois, sans écraser un choix manuel).
       if (!filterInit && mData?.department_id) {
         setFilterDepts(new Set([mData.department_id]))
@@ -271,17 +272,23 @@ export function AbsencesView() {
                 const isToday = localDs(date) === todayStr
                 const isWeekend = (date.getDay() === 0 || date.getDay() === 6)
                 const isActivity = activityOn(date)
+                const ds = localDs(date)
+                const ferie = (me?.show_holidays ?? true) ? holidayName(ds) : null
+                const vacances = (me?.show_school_holidays ?? true) ? schoolHolidayName(ds) : null
                 return (
                   <div key={i}
                     className={`aspect-square rounded-lg border p-1 overflow-hidden ${isToday ? 'border-2' : 'border-border'}`}
                     style={{
                       ...(isToday ? { borderColor: 'var(--accent)' } : {}),
                       ...(isActivity ? { backgroundColor: 'rgba(239,68,68,0.09)', borderColor: 'rgba(239,68,68,0.35)' }
+                          : ferie ? { backgroundColor: 'rgba(217,70,239,0.10)', borderColor: 'rgba(217,70,239,0.30)' }
+                          : vacances ? { backgroundColor: 'rgba(234,179,8,0.10)' }
                           : isWeekend ? { backgroundColor: 'var(--muted)', opacity: 0.6 } : {}),
                     }}
-                    title={isActivity ? "Période d'activité — congés déconseillés" : ''}>
+                    title={ferie ? ferie : vacances ? vacances : isActivity ? "Période d'activité — congés déconseillés" : ''}>
                     <div className={`text-xs font-semibold mb-0.5 ${isToday ? '' : 'text-muted-foreground'}`}
-                      style={isToday ? { color: 'var(--accent)' } : isActivity ? { color: '#EF4444' } : {}}>{date.getDate()}</div>
+                      style={isToday ? { color: 'var(--accent)' } : ferie ? { color: '#C026D3' } : isActivity ? { color: '#EF4444' } : {}}>{date.getDate()}</div>
+                    {ferie && <div className="text-[0.5rem] leading-tight px-1 rounded truncate font-medium" style={{ color: '#C026D3' }} title={ferie}>{ferie}</div>}
                     <div className="space-y-0.5">
                       {items.slice(0, 3).map(a => (
                         <div key={a.id} title={`${a.user?.name} · ${a.type}${a.status.includes('attente') ? ' (en attente)' : ''}`}
@@ -310,6 +317,18 @@ export function AbsencesView() {
             <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.25)' }} />
             <span className="text-xs text-muted-foreground">Période d'activité</span>
           </div>
+          {(me?.show_holidays ?? true) && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(217,70,239,0.25)' }} />
+              <span className="text-xs text-muted-foreground">Jour férié</span>
+            </div>
+          )}
+          {(me?.show_school_holidays ?? true) && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(234,179,8,0.25)' }} />
+              <span className="text-xs text-muted-foreground">Vacances scolaires</span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -33,6 +33,14 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
   const overdue = isOverdue(task.deadline) && task.status !== 'Terminé' && task.status !== 'Archivé'
   const deptColor = task.department?.color ?? '#94A3B8'
 
+  // Tâche qui stagne : aucun mouvement depuis 7 jours, sur un statut actif.
+  const stale = (() => {
+    if (!task.updated_at) return false
+    if (!['En cours', 'A Faire', 'Bloqué'].includes(task.status)) return false
+    const days = (Date.now() - new Date(task.updated_at).getTime()) / 86400000
+    return days >= 7
+  })()
+
   // Progression des sous-tâches (si présentes)
   const subtasks = task.subtasks ?? []
   const subTotal = subtasks.length
@@ -82,6 +90,15 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
         <p className="text-sm font-semibold leading-snug line-clamp-2 text-foreground mb-2">
           {task.title}
         </p>
+
+        {/* Badge : tâche qui stagne (aucun mouvement depuis 7 jours) */}
+        {stale && !overdue && (
+          <span className="inline-flex items-center gap-1 text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-md mb-2"
+            style={{ backgroundColor: 'rgba(217,119,6,0.12)', color: '#B45309' }}
+            title="Aucun mouvement depuis plus de 7 jours">
+            <Clock className="w-2.5 h-2.5" /> En pause depuis 7 j
+          </span>
+        )}
 
         {/* Priorité + étiquettes ensemble, sous le titre */}
         <div className="flex items-center gap-1.5 flex-wrap">

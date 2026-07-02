@@ -229,3 +229,31 @@ export function emailSubtaskAssigned({
     }),
   }
 }
+
+// ── Rappel « tâche qui stagne » (doux) ─────────────────────────────────────────
+export function emailStaleReminder({
+  assigneeName, task, department, days,
+}: { assigneeName: string; task: TaskInfo; department: DeptInfo; days: number }) {
+  const color = '#D97706'
+  return {
+    subject: `Un petit point sur « ${task.title} » ?`,
+    html: baseHtml({
+      title: 'Une tâche en pause',
+      preheader: `Pas de mouvement depuis ${days} jours · ${task.title}`,
+      deptColor: department.color,
+      accentBar: color,
+      prefLabel: 'Rappels de tâches',
+      content: `
+        <h2 style="${H2}">Une tâche semble en pause</h2>
+        <p style="${INTRO}">
+          Bonjour <strong>${assigneeName}</strong>,<br/>
+          La tâche ci-dessous n'a pas bougé depuis <strong>${days} jours</strong>.
+          Pas d'inquiétude — c'est juste un petit rappel au cas où elle t'était sortie de la tête.
+          Si elle avance, pense à mettre à jour son statut ; sinon, tu peux l'ignorer.
+        </p>
+        ${taskBlock({ task, deptColor: department.color })}
+        ${button({ label: 'Voir la tâche →', color: department.color })}
+      `,
+    }),
+  }
+}

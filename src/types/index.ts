@@ -35,6 +35,8 @@ export interface Profile {
   notify_email_deadlines?: boolean
   notify_email_weekly?: boolean
   notify_email_mentions?: boolean
+  show_holidays?: boolean
+  show_school_holidays?: boolean
 }
 
 export interface Tag {
