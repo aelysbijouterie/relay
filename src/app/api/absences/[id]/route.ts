@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   // Profil du validateur
   const { data: reviewer } = await supabase
-    .from('profiles').select('role, department_id').eq('id', userId).single()
+    .from('profiles').select('role, department_id, extra_department_ids').eq('id', userId).single()
   if (!reviewer) return NextResponse.json({ error: 'Profil introuvable' }, { status: 403 })
 
   // L'absence + le service du demandeur
@@ -39,10 +39,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     : (absence.user as { department_id: string | null })?.department_id
 
   // Contrôle de droits
-  // Un responsable (manager OU admin) ne valide que les demandes de SON
-  // service — cohérent avec le routage des notifications.
+  // Un responsable (manager OU admin) valide les demandes de SES services :
+  // son service principal ou l'un de ses services additionnels
+  // (extra_department_ids) — cohérent avec le routage des notifications.
+  const reviewerDepts = [reviewer.department_id, ...((reviewer.extra_department_ids as string[] | null) ?? [])].filter(Boolean)
   const canReview = (reviewer.role === 'manager' || reviewer.role === 'admin')
-    && reviewer.department_id === requesterDept
+    && requesterDept != null && reviewerDepts.includes(requesterDept)
   if (!canReview) {
     return NextResponse.json({ error: 'Seul un responsable du service peut valider' }, { status: 403 })
   }

@@ -9,7 +9,7 @@ function getUserId(): string | null {
 }
 
 const COLUMNS =
-  'id, name, email, avatar_url, role, department_id, ' +
+  'id, name, email, avatar_url, role, department_id, extra_department_ids, ' +
   'notify_email_assigned, notify_email_status, notify_email_deadlines, notify_email_weekly, notify_email_mentions, ' +
   'show_holidays, show_school_holidays'
 
@@ -25,7 +25,16 @@ export async function GET() {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } })
+
+  // Service actuellement actif (celui choisi via le switch de la sidebar).
+  // On valide le cookie contre les services autorisés de l'utilisateur, sinon
+  // on retombe sur le service principal.
+  const row = data as unknown as Record<string, unknown>
+  const allowed = [row?.department_id, ...((row?.extra_department_ids as string[] | null) ?? [])].filter(Boolean) as string[]
+  const cookieDept = cookies().get('relays-active-dept')?.value
+  const active_department_id = cookieDept && allowed.includes(cookieDept) ? cookieDept : (row?.department_id as string | null) ?? null
+
+  return NextResponse.json({ ...row, active_department_id }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function PATCH(request: NextRequest) {

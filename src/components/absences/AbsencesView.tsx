@@ -13,7 +13,7 @@ import { LeaveBalance } from './LeaveBalance'
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
 
-interface Me { id: string; role: string; department_id: string | null; show_holidays?: boolean; show_school_holidays?: boolean }
+interface Me { id: string; role: string; department_id: string | null; extra_department_ids?: string[]; active_department_id?: string | null; show_holidays?: boolean; show_school_holidays?: boolean }
 interface Dept { id: string; name: string; color: string }
 
 export function AbsencesView() {
@@ -46,10 +46,12 @@ export function AbsencesView() {
       setAbsences(Array.isArray(aData) ? aData : [])
       setPeriods(Array.isArray(pData) ? pData : [])
       setDepts(Array.isArray(dData) ? dData : [])
-      setMe(mData?.id ? { id: mData.id, role: mData.role, department_id: mData.department_id, show_holidays: mData.show_holidays ?? true, show_school_holidays: mData.show_school_holidays ?? true } : null)
-      // Vue par défaut : uniquement mon service (une seule fois, sans écraser un choix manuel).
-      if (!filterInit && mData?.department_id) {
-        setFilterDepts(new Set([mData.department_id]))
+      setMe(mData?.id ? { id: mData.id, role: mData.role, department_id: mData.department_id, extra_department_ids: mData.extra_department_ids ?? [], active_department_id: mData.active_department_id ?? mData.department_id, show_holidays: mData.show_holidays ?? true, show_school_holidays: mData.show_school_holidays ?? true } : null)
+      // Vue par défaut : le SERVICE ACTIF (celui choisi dans la sidebar),
+      // pour qu'en switchant, Audrey arrive directement sur le bon tableau.
+      const activeDept = mData?.active_department_id ?? mData?.department_id
+      if (!filterInit && activeDept) {
+        setFilterDepts(new Set([activeDept]))
         setFilterInit(true)
       }
     } catch { /* noop */ }
@@ -65,14 +67,28 @@ export function AbsencesView() {
     return absences.filter(a => a.user?.department_id && filterDepts.has(a.user.department_id))
   }, [absences, filterDepts])
 
+  // Services gérés par le responsable : principal + additionnels.
+  const managedDeptIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (me?.department_id) ids.add(me.department_id)
+    for (const d of me?.extra_department_ids ?? []) ids.add(d)
+    return ids
+  }, [me])
+
+  // Demandes à valider = celles du SERVICE ACTIF (celui choisi dans la sidebar),
+  // à condition que ce service soit bien géré par le responsable.
+  // Ainsi Audrey (Compta + resp. RH + Administratif) valide Chloé en switchant
+  // sur RH, et Sarah en switchant sur Administratif.
   const toReview = useMemo(() => {
     if (!me || !isManager) return []
+    const activeDept = me.active_department_id ?? me.department_id
+    if (!activeDept || !managedDeptIds.has(activeDept)) return []
     return absences.filter(a =>
       (a.status === 'En attente' || a.status === 'Modif. en attente') &&
       a.user_id !== me.id &&
-      a.user?.department_id === me.department_id
+      a.user?.department_id === activeDept
     )
-  }, [absences, me, isManager])
+  }, [absences, me, isManager, managedDeptIds])
 
   async function review(id: string, status: 'Validé' | 'Refusé') {
     setBusyId(id)

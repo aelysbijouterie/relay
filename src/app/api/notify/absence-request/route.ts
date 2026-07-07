@@ -22,14 +22,20 @@ export async function POST(request: NextRequest) {
     .from('profiles').select('name, department_id, department:departments!department_id(name, color)').eq('id', userId).single()
   if (!requester) return NextResponse.json({ sent: 0 })
 
-  // Responsables du SERVICE du demandeur uniquement (manager ou admin
-  // rattaché à ce même service). On n'envoie jamais aux admins d'autres
-  // services. Et jamais au demandeur lui-même.
-  const { data: managers } = await supabase
-    .from('profiles').select('name, email, role, department_id')
+  // Responsables (manager/admin) du SERVICE du demandeur : soit ce service est
+  // leur service principal, soit il fait partie de leurs services additionnels
+  // (extra_department_ids). Cela couvre les responsables de plusieurs services
+  // (ex : Audrey pour RH + Administratif). Jamais le demandeur lui-même.
+  const { data: allManagers } = await supabase
+    .from('profiles').select('id, name, email, role, department_id, extra_department_ids')
     .in('role', ['manager', 'admin'])
-    .eq('department_id', requester.department_id)
     .neq('id', userId)
+
+  const managers = (allManagers ?? []).filter(m => {
+    if (m.department_id === requester.department_id) return true
+    const extras: string[] = m.extra_department_ids ?? []
+    return extras.includes(requester.department_id as string)
+  })
 
   const dept = Array.isArray(requester.department) ? requester.department[0] : requester.department
   const deptColor = (dept as { color?: string })?.color ?? '#E0596A'
