@@ -13,6 +13,8 @@ export interface RecurringTask {
   assignee_ids: string[]
   is_active: boolean
   last_run_date: string | null
+  lead_days: number
+  horizon_months: number | null
   created_at: string
   department?: { id: string; name: string; color: string } | null
 }

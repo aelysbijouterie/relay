@@ -44,3 +44,28 @@ export function isDue(
       return false
   }
 }
+
+// Format 'YYYY-MM-DD' local
+function ds(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Toutes les dates d'échéance d'un modèle dans l'intervalle [from, to] inclus.
+// Sert aux projections du calendrier ET au cron (échéances proches).
+export function occurrencesInRange(
+  frequency: RecurringFrequency,
+  opts: { weekday?: number | null; month_day?: number | null },
+  from: Date, to: Date
+): string[] {
+  const out: string[] = []
+  if (to < from) return out
+  const cur = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate())
+  let guard = 0
+  while (cur <= end && guard < 2000) {
+    if (isDue(frequency, opts, cur)) out.push(ds(cur))
+    cur.setDate(cur.getDate() + 1)
+    guard++
+  }
+  return out
+}

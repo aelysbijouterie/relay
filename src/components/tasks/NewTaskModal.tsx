@@ -50,6 +50,8 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
   const [recFrequency, setRecFrequency] = useState('weekly')
   const [recWeekday, setRecWeekday]     = useState(0)
   const [recMonthDay, setRecMonthDay]   = useState(1)
+  const [recLeadDays, setRecLeadDays]   = useState(3)
+  const [recHorizon, setRecHorizon]     = useState('')  // '' = indéfini
 
   // Listes à cocher (groupées) à créer en même temps que la carte
   const [checklist, setChecklist]     = useState<DraftChecklistItem[]>([])
@@ -107,6 +109,35 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
     if (!title.trim()) { toast.error('Le titre est requis'); return }
 
     setLoading(true)
+
+    // Cas récurrent : on n'enregistre QUE le modèle (pas de carte immédiate).
+    // Les cartes réelles seront créées automatiquement avant chaque échéance.
+    if (isRecurring) {
+      try {
+        const res = await fetch('/api/recurring', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title.trim(), description: description.trim() || null, priority,
+            department_id: deptId || null, frequency: recFrequency,
+            weekday: recFrequency === 'weekly' ? recWeekday : null,
+            month_day: recFrequency === 'monthly_day' ? recMonthDay : null,
+            assignee_ids: assigneeIds,
+            lead_days: recLeadDays,
+            horizon_months: recHorizon === '' ? null : Number(recHorizon),
+          }),
+        })
+        if (!res.ok) throw new Error()
+        toast.success('Carte récurrente programmée')
+        setLoading(false)
+        onClose()
+        onCreated?.()
+      } catch {
+        setLoading(false)
+        toast.error('Erreur lors de la programmation')
+      }
+      return
+    }
+
     const result = await createTask({
       title:             title.trim(),
       description:       description.trim() || undefined,
@@ -128,21 +159,6 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
     }
 
     const newTaskId = result.taskId
-    // Si récurrence activée, enregistrer le modèle (cette carte = 1re occurrence).
-    if (isRecurring) {
-      try {
-        await fetch('/api/recurring', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: title.trim(), description: description.trim() || null, priority,
-            department_id: deptId || null, frequency: recFrequency,
-            weekday: recFrequency === 'weekly' ? recWeekday : null,
-            month_day: recFrequency === 'monthly_day' ? recMonthDay : null,
-            assignee_ids: assigneeIds, first_task_id: newTaskId,
-          }),
-        })
-      } catch { /* la carte est créée même si le modèle échoue */ }
-    }
     // Enregistrer les sous-tâches (listes à cocher) et les fichiers, si présents.
     if (newTaskId) {
       try {
@@ -557,7 +573,28 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
                       className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">La carte d'aujourd'hui est créée maintenant ; les suivantes seront générées automatiquement.</p>
+                {/* Délai de création avant échéance */}
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Créer la carte combien de jours avant l'échéance ?</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input type="number" min={0} max={60} value={recLeadDays} onChange={e => setRecLeadDays(Number(e.target.value))}
+                      className="w-24 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">jours avant</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">La carte apparaîtra dans le Kanban ce nombre de jours avant sa date. Avant ça, elle est seulement visible dans le calendrier.</p>
+                </div>
+
+                {/* Horizon de projection dans le calendrier */}
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Afficher dans le calendrier sur combien de mois ?</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input type="number" min={1} max={36} value={recHorizon} onChange={e => setRecHorizon(e.target.value)} placeholder="Indéfini"
+                      className="w-24 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">mois (vide = indéfini)</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">Aucune carte n'est créée maintenant : les occurrences apparaîtront dans le calendrier, et chaque carte arrivera dans le Kanban à l'approche de sa date.</p>
               </div>
             )}
           </div>
