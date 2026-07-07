@@ -11,6 +11,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskModal } from '@/components/tasks/TaskModal'
 import { useTasks } from '@/hooks/useTasks'
+import { useTaskStore } from '@/store/tasks'
 import type { Task } from '@/types'
 import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
 import { occurrencesInRange } from '@/lib/recurring/schedule'
@@ -34,6 +35,17 @@ type ViewMode = 'month' | 'week' | 'day'
 
 export function CalendarView() {
   const { tasks } = useTasks()
+  const currentUserId = useTaskStore(s => s.currentUserId)
+
+  // Confidentialité : dans le calendrier, chacun ne voit QUE ses propres tâches
+  // (assigné ou créateur). Le partage entre services ne concerne que le tableau
+  // des congés, pas les tâches.
+  const myTasks = useMemo(() =>
+    tasks.filter(t =>
+      !currentUserId // pas encore hydraté : on n'affiche rien de plus large
+        ? false
+        : (t.assignees ?? []).some(a => a.id === currentUserId) || t.created_by === currentUserId
+    ), [tasks, currentUserId])
   const [view, setView] = useState<ViewMode>('month')
   const [cursor, setCursor] = useState(new Date())
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -44,9 +56,16 @@ export function CalendarView() {
 
   useEffect(() => {
     fetch('/api/recurring', { cache: 'no-store' }).then(r => r.json())
-      .then(d => setRecurring(Array.isArray(d) ? d.filter((m: RecurringTask) => m.is_active) : []))
+      .then(d => setRecurring(Array.isArray(d)
+        ? d.filter((m: RecurringTask) =>
+            m.is_active && (
+              !currentUserId
+                ? false
+                : (m.assignee_ids ?? []).includes(currentUserId) || m.created_by === currentUserId
+            ))
+        : []))
       .catch(() => {})
-  }, [])
+  }, [currentUserId])
 
   // Projections des occurrences récurrentes pour le mois affiché.
   // Clé = 'YYYY-MM-DD' → liste des modèles dont une occurrence tombe ce jour.
@@ -79,7 +98,7 @@ export function CalendarView() {
   }, [])
 
   const tasksForDay = (day: Date) =>
-    tasks.filter(t => t.deadline && isSameDay(parseISO(t.deadline), day))
+    myTasks.filter(t => t.deadline && isSameDay(parseISO(t.deadline), day))
 
   // Titre + navigation dépendent de la vue
   const { title, goPrev, goNext } = useMemo(() => {
