@@ -149,8 +149,10 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
         })}
       </nav>
 
-      {/* Bouton Focus du jour — mis en avant, style « assistant » */}
-      <div className="px-4 py-3 border-t border-border">
+      {/* Bouton Focus du jour — mis en avant, style « assistant ».
+          mt-auto : pousse ce bloc (Focus + Équipe + Congés) vers le bas quand
+          il y a de la place ; si l'écran est trop court, la zone défile. */}
+      <div className="px-4 py-3 border-t border-border mt-auto">
         <Link
           href="/ma-todo"
           onClick={() => setOpen(false)}

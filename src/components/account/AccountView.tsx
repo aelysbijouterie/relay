@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, Check, Loader2, Mail, Archive, CalendarDays } from 'lucide-react'
 import { getInitials, roleLabel } from '@/lib/utils'
@@ -57,6 +57,25 @@ export function AccountView({ profile, teamSettings }: Props) {
     show_holidays: profile.show_holidays ?? true,
     show_school_holidays: profile.show_school_holidays ?? true,
   })
+
+  // Services affichés par défaut dans le tableau des congés.
+  const [allDepts, setAllDepts] = useState<{ id: string; name: string; color: string }[]>([])
+  const [congesDepts, setCongesDepts] = useState<string[]>(profile.conges_default_dept_ids ?? [])
+  useEffect(() => {
+    fetch('/api/departments', { cache: 'no-store' }).then(r => r.json())
+      .then(d => setAllDepts(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
+
+  async function toggleCongesDept(id: string) {
+    const next = congesDepts.includes(id) ? congesDepts.filter(x => x !== id) : [...congesDepts, id]
+    setCongesDepts(next)
+    try {
+      await fetch('/api/account', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conges_default_dept_ids: next }),
+      })
+    } catch { setError('Enregistrement impossible') }
+  }
 
   const [nameSaving, setNameSaving] = useState<Saving>('idle')
   const [uploading, setUploading]   = useState(false)
@@ -297,6 +316,36 @@ export function AccountView({ profile, teamSettings }: Props) {
               </button>
             </label>
           ))}
+        </div>
+      </section>
+
+      {/* Services affichés par défaut dans le tableau des congés */}
+      <section className="bg-card border border-border p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <CalendarDays className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-medium">Congés — services affichés par défaut</h2>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Choisissez les services affichés d'emblée dans le tableau des congés. Vous pourrez toujours changer l'affichage via les filtres. Si rien n'est coché, votre service actif est utilisé.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {allDepts.map(d => {
+            const on = congesDepts.includes(d.id)
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => toggleCongesDept(d.id)}
+                className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border transition-all"
+                style={on
+                  ? { backgroundColor: d.color, borderColor: d.color, color: '#fff' }
+                  : { borderColor: 'var(--border)', color: 'var(--muted-foreground)' }}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: on ? '#fff' : d.color }} />
+                {d.name}
+              </button>
+            )
+          })}
         </div>
       </section>
 

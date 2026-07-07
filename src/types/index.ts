@@ -37,6 +37,7 @@ export interface Profile {
   notify_email_mentions?: boolean
   show_holidays?: boolean
   show_school_holidays?: boolean
+  conges_default_dept_ids?: string[] | null
 }
 
 export interface Tag {

@@ -47,12 +47,20 @@ export function AbsencesView() {
       setPeriods(Array.isArray(pData) ? pData : [])
       setDepts(Array.isArray(dData) ? dData : [])
       setMe(mData?.id ? { id: mData.id, role: mData.role, department_id: mData.department_id, extra_department_ids: mData.extra_department_ids ?? [], active_department_id: mData.active_department_id ?? mData.department_id, show_holidays: mData.show_holidays ?? true, show_school_holidays: mData.show_school_holidays ?? true } : null)
-      // Vue par défaut : le SERVICE ACTIF (celui choisi dans la sidebar),
-      // pour qu'en switchant, Audrey arrive directement sur le bon tableau.
+      // Vue par défaut du tableau des congés :
+      //  - si l'utilisateur a défini des services par défaut dans son profil,
+      //    on les utilise ;
+      //  - sinon on retombe sur son service actif (celui de la sidebar).
+      const prefDepts: string[] = Array.isArray(mData?.conges_default_dept_ids) ? mData.conges_default_dept_ids : []
       const activeDept = mData?.active_department_id ?? mData?.department_id
-      if (!filterInit && activeDept) {
-        setFilterDepts(new Set([activeDept]))
-        setFilterInit(true)
+      if (!filterInit) {
+        if (prefDepts.length > 0) {
+          setFilterDepts(new Set(prefDepts))
+          setFilterInit(true)
+        } else if (activeDept) {
+          setFilterDepts(new Set([activeDept]))
+          setFilterInit(true)
+        }
       }
     } catch { /* noop */ }
     finally { setLoading(false) }

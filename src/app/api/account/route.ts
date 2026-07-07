@@ -9,7 +9,7 @@ function getUserId(): string | null {
 }
 
 const COLUMNS =
-  'id, name, email, avatar_url, role, department_id, extra_department_ids, ' +
+  'id, name, email, avatar_url, role, department_id, extra_department_ids, conges_default_dept_ids, ' +
   'notify_email_assigned, notify_email_status, notify_email_deadlines, notify_email_weekly, notify_email_mentions, ' +
   'show_holidays, show_school_holidays'
 
@@ -53,6 +53,12 @@ export async function PATCH(request: NextRequest) {
   }
   for (const key of ['notify_email_assigned', 'notify_email_status', 'notify_email_deadlines', 'notify_email_weekly', 'notify_email_mentions', 'show_holidays', 'show_school_holidays'] as const) {
     if (typeof body[key] === 'boolean') updates[key] = body[key]
+  }
+
+  // Services affichés par défaut dans le tableau des congés (liste d'UUID).
+  if (Array.isArray(body.conges_default_dept_ids)) {
+    const ids = body.conges_default_dept_ids.filter((x: unknown) => typeof x === 'string')
+    updates.conges_default_dept_ids = ids.length > 0 ? ids : null
   }
 
   if (Object.keys(updates).length === 0) {
