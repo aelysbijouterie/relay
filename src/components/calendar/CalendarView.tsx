@@ -126,11 +126,23 @@ export function CalendarView() {
   }, [recurring, cursor])
 
   useEffect(() => {
-    fetch('/api/account', { cache: 'no-store' }).then(r => r.json()).then(d => {
-      setShowHol(d?.show_holidays ?? true)
-      setShowAbs(d?.show_absences_calendar ?? false)
-      setShowSchool(d?.show_school_holidays ?? true)
-    }).catch(() => {})
+    function loadPrefs() {
+      fetch('/api/account', { cache: 'no-store' }).then(r => r.json()).then(d => {
+        setShowHol(d?.show_holidays ?? true)
+        setShowAbs(d?.show_absences_calendar ?? false)
+        setShowSchool(d?.show_school_holidays ?? true)
+      }).catch(() => {})
+    }
+    loadPrefs()
+    // Recharge aussi quand on revient sur l'onglet (ex : après avoir changé
+    // l'option dans "Mon compte" puis être revenu sur le calendrier).
+    function onVisible() { if (document.visibilityState === 'visible') loadPrefs() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', loadPrefs)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', loadPrefs)
+    }
   }, [])
 
   // Crée MAINTENANT la carte d'une occurrence récurrente et l'ouvre en entier.
