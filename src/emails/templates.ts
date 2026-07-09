@@ -257,3 +257,31 @@ export function emailStaleReminder({
     }),
   }
 }
+
+// ── Rappel « tâche déléguée qui stagne » — adressé au créateur, pas à l'assigné ──
+export function emailDelegatedStaleReminder({
+  creatorName, assigneeNames, task, department, days,
+}: { creatorName: string; assigneeNames: string[]; task: TaskInfo; department: DeptInfo; days: number }) {
+  const color = '#D97706'
+  const who = assigneeNames.length > 0 ? assigneeNames.join(', ') : 'personne'
+  return {
+    subject: `Petit point sur « ${task.title} » (confiée à ${who})`,
+    html: baseHtml({
+      title: 'Une tâche déléguée est en pause',
+      preheader: `Pas de mouvement depuis ${days} jours · confiée à ${who}`,
+      deptColor: department.color,
+      accentBar: color,
+      prefLabel: 'Rappels de tâches',
+      content: `
+        <h2 style="${H2}">Une tâche que vous suivez semble en pause</h2>
+        <p style="${INTRO}">
+          Bonjour <strong>${creatorName}</strong>,<br/>
+          Vous avez confié cette tâche à <strong>${who}</strong>, et elle n'a pas bougé depuis <strong>${days} jours</strong>.
+          C'est peut-être le bon moment pour relancer un petit point, ou simplement vérifier où ça en est.
+        </p>
+        ${taskBlock({ task, deptColor: department.color })}
+        ${button({ label: 'Voir la tâche →', color: department.color })}
+      `,
+    }),
+  }
+}

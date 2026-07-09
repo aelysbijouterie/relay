@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { notifyByPreference } from '@/lib/notify'
-import { emailStaleReminder } from '@/emails/templates'
+import { emailStaleReminder, emailDelegatedStaleReminder } from '@/emails/templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,9 +24,10 @@ export async function GET(request: NextRequest) {
   const { data: tasks } = await supabase
     .from('tasks')
     .select(`
-      id, title, description, status, priority, deadline, updated_at,
+      id, title, description, status, priority, deadline, updated_at, created_by,
       department:departments!department_id(name, color),
-      assignees:task_assignees(user:profiles(id, name, email))
+      assignees:task_assignees(user:profiles(id, name, email)),
+      creator:profiles!created_by(id, name, email)
     `)
     .in('status', ['En cours', 'A Faire', 'Bloqué'])
     .is('deleted_at', null)
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
   for (const task of tasks) {
     const dept = Array.isArray(task.department) ? task.department[0] : task.department
     const days = Math.floor((Date.now() - new Date(task.updated_at).getTime()) / 86400000)
-    const assignees = (task.assignees ?? []).map((a: { user: { name: string; email: string }[] | { name: string; email: string } }) =>
+    const assignees = (task.assignees ?? []).map((a: { user: { id: string; name: string; email: string }[] | { id: string; name: string; email: string } }) =>
       Array.isArray(a.user) ? a.user[0] : a.user
     ).filter(Boolean)
 
@@ -54,6 +55,26 @@ export async function GET(request: NextRequest) {
         pref: 'notify_email_deadlines',
         subject: tpl.subject,
         html: tpl.html,
+      })
+    }
+
+    // Rappel au CRÉATEUR, s'il n'est pas lui-même assigné (tâche déléguée) —
+    // pour qu'il puisse suivre l'avancement de ce qu'il a confié à d'autres.
+    const creator = Array.isArray(task.creator) ? task.creator[0] : task.creator
+    const creatorIsAssignee = assignees.some((a: { id: string }) => a.id === creator?.id)
+    if (creator && !creatorIsAssignee) {
+      const tplDelegated = emailDelegatedStaleReminder({
+        creatorName: creator.name.split(' ')[0],
+        assigneeNames: assignees.map((a: { name: string }) => a.name.split(' ')[0]),
+        task: { ...task, deadline: task.deadline },
+        department: dept as { name: string; color: string },
+        days,
+      })
+      sent += await notifyByPreference({
+        emails: [creator.email],
+        pref: 'notify_email_deadlines',
+        subject: tplDelegated.subject,
+        html: tplDelegated.html,
       })
     }
   }

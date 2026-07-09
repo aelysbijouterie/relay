@@ -6,7 +6,7 @@ import {
   useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
-import { User, Search, CheckCircle2, Archive, Trash2 } from 'lucide-react'
+import { User, Search, CheckCircle2, Archive, Trash2, Send } from 'lucide-react'
 import { KanbanColumn } from './KanbanColumn'
 import { TaskCard } from '@/components/tasks/TaskCard'
 import { TaskModal } from '@/components/tasks/TaskModal'
@@ -27,7 +27,7 @@ export function KanbanBoard({
 }) {
   const { tasks, refresh }    = useTasks()
   const currentUserId         = useTaskStore(s => s.currentUserId)
-  const [myTasksOnly, setMyTasksOnly] = useState(false)
+  const [taskFilter, setTaskFilter] = useState<'all' | 'mine' | 'delegated'>('all')
   const [selectMode, setSelectMode]   = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy]       = useState(false)
@@ -90,10 +90,13 @@ export function KanbanBoard({
         ].filter(Boolean).join(' ').toLowerCase()
         if (!haystack.includes(q)) return false
       }
-      if (!myTasksOnly) return true
+      if (taskFilter === 'all') return true
       if (!currentUserId) return true // pas encore hydraté
-      return (t.assignees ?? []).some(a => a.id === currentUserId)
-        || t.created_by === currentUserId
+      const isAssignedToMe = (t.assignees ?? []).some(a => a.id === currentUserId)
+      const isCreatedByMe = t.created_by === currentUserId
+      if (taskFilter === 'mine') return isAssignedToMe || isCreatedByMe
+      // 'delegated' : ce que j'ai créé pour d'autres, sans y être moi-même assignée.
+      return isCreatedByMe && !isAssignedToMe
     })
 
   const getColumnTasks = (status: TaskStatus) => {
@@ -220,18 +223,30 @@ export function KanbanBoard({
         <span className="text-xs text-muted-foreground">
           {visibleTasks.length} tâche{visibleTasks.length !== 1 ? 's' : ''}
         </span>
-        <button
-          onClick={() => setMyTasksOnly(v => !v)}
-          className={cn(
-            'inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all',
-            myTasksOnly
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
-          )}
-        >
-          <User className="w-3 h-3" />
-          Mes tâches
-        </button>
+        <div className="inline-flex rounded-lg border border-border overflow-hidden">
+          <button
+            onClick={() => setTaskFilter('all')}
+            className={cn('text-xs px-2.5 py-1.5 transition-colors',
+              taskFilter === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+          >
+            Tout
+          </button>
+          <button
+            onClick={() => setTaskFilter('mine')}
+            className={cn('inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 transition-colors border-l border-border',
+              taskFilter === 'mine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+          >
+            <User className="w-3 h-3" /> Mes tâches
+          </button>
+          <button
+            onClick={() => setTaskFilter('delegated')}
+            className={cn('inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 transition-colors border-l border-border',
+              taskFilter === 'delegated' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
+            title="Ce que vous avez créé pour d'autres personnes"
+          >
+            <Send className="w-3 h-3" /> Créées par moi
+          </button>
+        </div>
         <button
           onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
           className={cn(
