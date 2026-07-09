@@ -68,8 +68,8 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
       className="flex flex-col h-full bg-card border-r border-border"
       style={{ width: 'var(--sidebar-width)' }}
     >
-      {/* Logo */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+      {/* Logo — hauteur alignée sur --header-height pour un alignement parfait avec le bandeau du haut */}
+      <div className="flex items-center justify-between px-5 border-b border-border flex-shrink-0" style={{ height: 'var(--header-height)' }}>
         <div className="flex items-center gap-2.5">
           <Logo size={26} />
           <span className="font-bold text-lg tracking-tight">relays</span>

@@ -50,19 +50,25 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
   return (
     <div
       ref={setNodeRef}
-      style={overdue
-        ? { ...style, boxShadow: '0 0 0 1.5px #EF4444, 0 4px 14px rgba(239,68,68,0.18)' }
-        : style}
+      style={{
+        ...style,
+        borderLeftColor: deptColor,
+        ...(overdue ? { boxShadow: '0 0 0 1.5px #EF4444, 0 4px 14px rgba(239,68,68,0.18)' } : {}),
+      }}
       {...(selectMode ? {} : attributes)}
       {...(selectMode ? {} : listeners)}
       onClick={() => selectMode ? onToggleSelect?.(task.id) : onClick(task)}
       className={cn(
         'group relative rounded-2xl p-3.5 space-y-2.5',
+        // Bordure gauche épaissie dans la couleur du service : le rayon étant
+        // appliqué sur toute la carte, le navigateur courbe nativement cette
+        // bordure dans les 2 angles — raccord fluide, sans artifice superposé.
+        'border-t border-r border-b border-l-[6px] border-border',
         selectMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
         'select-none',
         'transition-all duration-200',
         'hover:-translate-y-0.5 hover:shadow-lg',
-        isDragging ? 'task-dragging' : 'bg-card border border-border shadow-sm',
+        isDragging ? 'task-dragging' : 'bg-card shadow-sm',
         selected && 'ring-2 ring-primary ring-offset-1'
       )}
     >
@@ -79,13 +85,11 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
           <AlertCircle className="w-2.5 h-2.5" /> En retard
         </span>
       )}
-      {/* Left accent bar — couleur de l'espace, épouse les arrondis de la carte */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-2xl overflow-hidden"
-        style={{ backgroundColor: deptColor }}
-      />
+      {/* Glow discret dans la couleur du service, sur toute la hauteur gauche */}
+      <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none"
+        style={{ background: `linear-gradient(90deg, ${deptColor}38 0%, ${deptColor}0F 45%, transparent 75%)` }} />
 
-      <div className="pl-2">
+      <div>
         {/* Titre en premier */}
         <p className="text-sm font-semibold leading-snug line-clamp-2 text-foreground mb-2">
           {task.title}
