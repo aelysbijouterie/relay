@@ -30,7 +30,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('tasks')
     .select(`
-      id, title, description, status, priority, deadline, position, recurring_task_id,
+      id, title, description, status, priority, deadline, position, recurring_task_id, completed_at,
       is_cross_team, fournisseur_client, ref_collection,
       parent_task_id, created_at, updated_at, department_id, created_by,
       department:departments!department_id(id, name, color, slug, icon),

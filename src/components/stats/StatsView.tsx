@@ -15,12 +15,20 @@ interface StatsViewProps {
 }
 
 type Scope = 'personal' | 'team'
+type Period = 'week' | 'month' | 'all'
+
+const PERIOD_LABELS: Record<Period, string> = {
+  week: 'Cette semaine',
+  month: 'Ce mois-ci',
+  all: 'Tout',
+}
 
 const fetcher = (url: string) =>
   fetch(url, { cache: 'no-store' }).then(r => r.json()).then(d => (Array.isArray(d) ? d : []))
 
 export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
   const [scope, setScope] = useState<Scope>('personal')
+  const [period, setPeriod] = useState<Period>('week')
 
   // Vue personnelle : tâches déjà visibles (créées + assignées) via le cache SWR partagé.
   const { tasks: personalTasks } = useTasks()
@@ -34,14 +42,14 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
 
   const activeTasks = scope === 'team' ? (teamTasks ?? []) : personalTasks
 
-  const stats = useMemo(() => computeStats(activeTasks), [activeTasks])
+  const stats = useMemo(() => computeStats(activeTasks, period), [activeTasks, period])
 
   const maxTasks  = Math.max(...stats.byPerson.map(p => p.tasks), 1)
   const maxStatus = Math.max(...stats.byStatus.map(s => s.count), 1)
 
   const kpis = [
     { label: 'Tâches actives', value: stats.active.length, icon: <Clock className="w-5 h-5" />, color: '#3B82F6', sub: `dont ${stats.blocked.length} bloquée${stats.blocked.length > 1 ? 's' : ''}` },
-    { label: 'Terminées',      value: stats.done.length,   icon: <CheckCircle2 className="w-5 h-5" />, color: '#10B981', sub: 'au total' },
+    { label: 'Terminées',      value: stats.done.length,   icon: <CheckCircle2 className="w-5 h-5" />, color: '#10B981', sub: period === 'all' ? 'au total' : PERIOD_LABELS[period].toLowerCase() },
     { label: 'En retard',      value: stats.overdue.length, icon: <AlertTriangle className="w-5 h-5" />, color: stats.overdue.length > 0 ? '#EF4444' : '#10B981', sub: `${stats.overdueRate}% du total actif` },
     { label: 'Inter-équipes',  value: stats.crossTeam, icon: <Users className="w-5 h-5" />, color: '#9B59B6', sub: "avec d'autres services" },
   ]
@@ -58,24 +66,37 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
 
-        {canSeeTeam && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Sélecteur de période — s'applique au compteur "Terminées" */}
           <div className="inline-flex rounded-lg border border-border overflow-hidden self-start">
-            <button
-              onClick={() => setScope('personal')}
-              className={cn('text-sm px-3 py-1.5 flex items-center gap-1.5 transition-colors',
-                scope === 'personal' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted')}
-            >
-              <User className="w-3.5 h-3.5" /> Moi
-            </button>
-            <button
-              onClick={() => setScope('team')}
-              className={cn('text-sm px-3 py-1.5 flex items-center gap-1.5 transition-colors',
-                scope === 'team' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted')}
-            >
-              <Users className="w-3.5 h-3.5" /> Mon équipe
-            </button>
+            {(['week', 'month', 'all'] as Period[]).map(p => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={cn('text-sm px-3 py-1.5 transition-colors',
+                  period === p ? 'bg-primary text-primary-foreground' : 'hover:bg-muted')}>
+                {PERIOD_LABELS[p]}
+              </button>
+            ))}
           </div>
-        )}
+
+          {canSeeTeam && (
+            <div className="inline-flex rounded-lg border border-border overflow-hidden self-start">
+              <button
+                onClick={() => setScope('personal')}
+                className={cn('text-sm px-3 py-1.5 flex items-center gap-1.5 transition-colors',
+                  scope === 'personal' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted')}
+              >
+                <User className="w-3.5 h-3.5" /> Moi
+              </button>
+              <button
+                onClick={() => setScope('team')}
+                className={cn('text-sm px-3 py-1.5 flex items-center gap-1.5 transition-colors',
+                  scope === 'team' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted')}
+              >
+                <Users className="w-3.5 h-3.5" /> Mon équipe
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {scope === 'team' && teamLoading ? (
@@ -218,10 +239,27 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
   )
 }
 
-function computeStats(tasks: Task[]) {
+function computeStats(tasks: Task[], period: Period = 'all') {
   const active = tasks.filter(t => t.status !== 'Archivé')
   const overdue = active.filter(t => isOverdue(t.deadline))
-  const done = tasks.filter(t => t.status === 'Terminé')
+
+  // "Terminées" respecte la période choisie (basé sur la date réelle de
+  // clôture, completed_at) — les autres compteurs restent des instantanés du
+  // moment présent et ne dépendent pas d'une période.
+  const periodStart = (() => {
+    if (period === 'all') return null
+    const d = new Date()
+    if (period === 'week') { d.setDate(d.getDate() - 7) } else { d.setDate(d.getDate() - 30) }
+    d.setHours(0, 0, 0, 0)
+    return d
+  })()
+  const done = tasks.filter(t => {
+    if (t.status !== 'Terminé') return false
+    if (!periodStart) return true
+    if (!t.completed_at) return false
+    return new Date(t.completed_at) >= periodStart
+  })
+
   const blocked = tasks.filter(t => t.status === 'Bloqué')
   const overdueRate = active.length ? Math.round((overdue.length / active.length) * 100) : 0
   const crossTeam = tasks.filter(t => t.is_cross_team).length

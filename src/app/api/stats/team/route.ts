@@ -50,7 +50,7 @@ export async function GET() {
   let query = supabase
     .from('tasks')
     .select(`
-      id, title, description, status, priority, deadline,
+      id, title, description, status, priority, deadline, completed_at,
       is_cross_team, fournisseur_client, ref_collection,
       parent_task_id, created_at, updated_at, department_id, created_by,
       department:departments!department_id(id, name, color, slug, icon),
