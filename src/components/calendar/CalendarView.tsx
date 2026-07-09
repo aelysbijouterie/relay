@@ -7,7 +7,7 @@ import {
   startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays,
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Palmtree } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { TaskModal } from '@/components/tasks/TaskModal'
@@ -362,10 +362,11 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
                 ))}
                 {/* Mon congé validé ce jour (option du profil) */}
                 {dayAbsences.length > 0 && (
-                  <p className="text-[0.6rem] leading-tight px-1.5 py-0.5 rounded truncate italic"
+                  <p className="flex items-center gap-1 text-[0.6rem] leading-tight px-1.5 py-0.5 rounded truncate italic"
                     style={{ backgroundColor: 'rgba(14,165,165,0.10)', color: '#0F766E' }}
                     title={dayAbsences[0].type}>
-                    🏖 {dayAbsences[0].type}
+                    <Palmtree className="w-2.5 h-2.5 flex-shrink-0" />
+                    {dayAbsences[0].type}
                   </p>
                 )}
               </div>

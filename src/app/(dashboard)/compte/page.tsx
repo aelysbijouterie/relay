@@ -17,8 +17,9 @@ export default async function ComptePage() {
   const { data } = await supabase
     .from('profiles')
     .select(
-      'id, name, email, avatar_url, role, department_id, ' +
+      'id, name, email, avatar_url, role, department_id, extra_department_ids, conges_default_dept_ids, ' +
       'notify_email_assigned, notify_email_status, notify_email_deadlines, notify_email_weekly, notify_email_mentions, ' +
+      'show_holidays, show_school_holidays, show_absences_calendar, ' +
       'department:departments!department_id(id, name, color, slug, auto_archive_days)'
     )
     .eq('id', userId!)
