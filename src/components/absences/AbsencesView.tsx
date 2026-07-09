@@ -25,6 +25,7 @@ export function AbsencesView() {
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
   const [showNew, setShowNew] = useState(false)
   const [showPeriod, setShowPeriod] = useState(false)
+  const [dayDetail, setDayDetail] = useState<Date | null>(null) // jour dont on liste toutes les absences
   const [editAbsence, setEditAbsence] = useState<Absence | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   // Filtre services : null = tout le monde ; sinon set d'ids de services
@@ -322,7 +323,12 @@ export function AbsencesView() {
                           {(a.user?.name ?? '?').split(' ')[0]}
                         </div>
                       ))}
-                      {items.length > 3 && <div className="text-[0.55rem] text-muted-foreground px-1">+{items.length - 3}</div>}
+                      {items.length > 3 && (
+                        <button onClick={() => setDayDetail(date)}
+                          className="w-full text-left text-[0.55rem] font-semibold text-muted-foreground px-1 rounded hover:bg-muted transition-colors">
+                          +{items.length - 3} — tout voir
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -397,6 +403,29 @@ export function AbsencesView() {
 
       {showNew && <NewAbsenceModal absence={editAbsence} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
       {showPeriod && <ActivityPeriodModal periods={periods.filter(p => p.department_id === me?.department_id)} onClose={() => setShowPeriod(false)} onChange={load} />}
+
+      {/* Liste complète des absents d'un jour (quand la cellule est trop chargée) */}
+      {dayDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setDayDetail(null)}>
+          <div className="bg-card rounded-2xl w-full max-w-sm p-6 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{ boxShadow: '0 30px 80px rgba(20,30,40,0.2)' }}>
+            <h2 className="text-lg font-extrabold tracking-tight mb-1">Absences ce jour</h2>
+            <p className="text-sm text-muted-foreground mb-4 capitalize">
+              {dayDetail.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+            <div className="space-y-2">
+              {absencesOn(dayDetail).map(a => (
+                <div key={a.id} className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-muted/40">
+                  <span className="text-sm font-medium">{a.user?.name ?? '?'}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-md font-medium text-white" style={{ backgroundColor: ABSENCE_COLORS[a.type], opacity: a.status.includes('attente') ? 0.6 : 1 }}>
+                    {a.type}{a.status.includes('attente') ? ' (en attente)' : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setDayDetail(null)} className="mt-4 w-full py-2 rounded-xl bg-muted text-sm font-medium hover:bg-muted/70 transition-colors">Fermer</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

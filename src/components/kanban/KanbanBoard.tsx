@@ -62,7 +62,21 @@ export function KanbanBoard({
 
   // Filtre : par défaut toutes les tâches non archivées
   // Toggle "Mes tâches" : uniquement les tâches où l'utilisateur est assigné ou créateur
+  // Cartes récurrentes : masquées du Kanban tant que l'échéance est au-delà
+  // de leur fenêtre d'apparition (lead_days). Elles restent visibles et
+  // ouvrables dans le calendrier.
+  const inLeadWindow = (t: Task): boolean => {
+    if (!t.recurring_task_id || !t.deadline) return true
+    const lead = t.recurring?.lead_days
+    if (lead == null) return true
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const due = new Date(t.deadline + 'T00:00:00')
+    const days = Math.ceil((due.getTime() - today.getTime()) / 86400000)
+    return days <= lead
+  }
+
   const visibleTasks = tasks
+    .filter(inLeadWindow)
     .map(t => ({ ...t, status: (optimistic[t.id] ?? t.status) as TaskStatus }))
     .filter(t => {
       if (t.status === 'Archivé') return false

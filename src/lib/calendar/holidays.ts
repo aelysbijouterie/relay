@@ -27,6 +27,18 @@ export const PUBLIC_HOLIDAYS: Record<string, string> = {
   '2026-11-01': 'Toussaint',
   '2026-11-11': 'Armistice 1918',
   '2026-12-25': 'Noël',
+  // 2027
+  '2027-01-01': 'Jour de l\'An',
+  '2027-03-29': 'Lundi de Pâques',
+  '2027-05-01': 'Fête du Travail',
+  '2027-05-06': 'Ascension',
+  '2027-05-08': 'Victoire 1945',
+  '2027-05-17': 'Lundi de Pentecôte',
+  '2027-07-14': 'Fête nationale',
+  '2027-08-15': 'Assomption',
+  '2027-11-01': 'Toussaint',
+  '2027-11-11': 'Armistice 1918',
+  '2027-12-25': 'Noël',
 }
 
 // ── Vacances scolaires ZONE B — année scolaire 2025-2026 ────────────────────
@@ -37,6 +49,12 @@ export const SCHOOL_HOLIDAYS_ZONE_B: { label: string; start: string; end: string
   { label: 'Vacances d\'hiver',         start: '2026-02-14', end: '2026-03-01' },
   { label: 'Vacances de printemps',     start: '2026-04-11', end: '2026-04-26' },
   { label: 'Vacances d\'été',           start: '2026-07-04', end: '2026-08-31' },
+  // Année scolaire 2026-2027 (zone B, arrêté du 22 octobre 2025)
+  { label: 'Vacances de la Toussaint',  start: '2026-10-17', end: '2026-11-01' },
+  { label: 'Vacances de Noël',          start: '2026-12-19', end: '2027-01-03' },
+  { label: 'Vacances d\'hiver',         start: '2027-02-20', end: '2027-03-07' },
+  { label: 'Vacances de printemps',     start: '2027-04-17', end: '2027-05-02' },
+  { label: 'Vacances d\'été',           start: '2027-07-03', end: '2027-08-31' },
 ]
 
 export function holidayName(dateStr: string): string | null {

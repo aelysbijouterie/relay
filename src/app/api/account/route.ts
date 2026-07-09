@@ -11,7 +11,7 @@ function getUserId(): string | null {
 const COLUMNS =
   'id, name, email, avatar_url, role, department_id, extra_department_ids, conges_default_dept_ids, ' +
   'notify_email_assigned, notify_email_status, notify_email_deadlines, notify_email_weekly, notify_email_mentions, ' +
-  'show_holidays, show_school_holidays'
+  'show_holidays, show_school_holidays, show_absences_calendar'
 
 export async function GET() {
   const userId = getUserId()
@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest) {
   if (typeof body.name === 'string' && body.name.trim().length > 0) {
     updates.name = body.name.trim()
   }
-  for (const key of ['notify_email_assigned', 'notify_email_status', 'notify_email_deadlines', 'notify_email_weekly', 'notify_email_mentions', 'show_holidays', 'show_school_holidays'] as const) {
+  for (const key of ['notify_email_assigned', 'notify_email_status', 'notify_email_deadlines', 'notify_email_weekly', 'notify_email_mentions', 'show_holidays', 'show_school_holidays', 'show_absences_calendar'] as const) {
     if (typeof body[key] === 'boolean') updates[key] = body[key]
   }
 

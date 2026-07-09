@@ -39,7 +39,8 @@ export async function GET() {
           department:departments(id, name, color, slug))
       ),
       extra_departments:task_departments(department:departments(id, name, color, slug)),
-      tags:task_tags(tag:tags(id, name, color))
+      tags:task_tags(tag:tags(id, name, color)),
+      recurring:recurring_tasks!recurring_task_id(lead_days)
     `)
     .neq('status', 'Archivé')
     .is('deleted_at', null)
@@ -58,6 +59,7 @@ export async function GET() {
     assignees:         ((t.assignees as { user: unknown }[]) ?? []).map(a => a.user).filter(Boolean),
     extra_departments: ((t.extra_departments as { department: unknown }[]) ?? []).map(a => a.department).filter(Boolean),
     tags:              ((t.tags as { tag: unknown }[]) ?? []).map(a => a.tag).filter(Boolean),
+    recurring:         Array.isArray(t.recurring) ? t.recurring[0] ?? null : t.recurring ?? null,
   })) as unknown as Task[]
 
   // Visibilité personnelle : chacun ne voit que ses tâches créées + assignées.

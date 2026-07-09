@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Check, Loader2, Mail, Archive, CalendarDays } from 'lucide-react'
+import { Camera, Check, Loader2, Mail, Archive, CalendarDays, User, Bell, Sun } from 'lucide-react'
 import { getInitials, roleLabel } from '@/lib/utils'
 import type { Profile } from '@/types'
 
@@ -56,7 +56,9 @@ export function AccountView({ profile, teamSettings }: Props) {
   const [calPrefs, setCalPrefs] = useState({
     show_holidays: profile.show_holidays ?? true,
     show_school_holidays: profile.show_school_holidays ?? true,
+    show_absences_calendar: profile.show_absences_calendar ?? false,
   })
+  const [activeTab, setActiveTab] = useState<'profil' | 'notifications' | 'calendrier' | 'conges' | 'equipe'>('profil')
 
   // Services affichés par défaut dans le tableau des congés.
   const [allDepts, setAllDepts] = useState<{ id: string; name: string; color: string }[]>([])
@@ -119,7 +121,7 @@ export function AccountView({ profile, teamSettings }: Props) {
     }
   }
 
-  async function toggleCalPref(key: 'show_holidays' | 'show_school_holidays') {
+  async function toggleCalPref(key: 'show_holidays' | 'show_school_holidays' | 'show_absences_calendar') {
     const next = { ...calPrefs, [key]: !calPrefs[key] }
     setCalPrefs(next)
     setError(null)
@@ -156,8 +158,16 @@ export function AccountView({ profile, teamSettings }: Props) {
     }
   }
 
+  const TABS = [
+    { id: 'profil' as const,        label: 'Profil',        icon: User },
+    { id: 'notifications' as const, label: 'Notifications', icon: Bell },
+    { id: 'calendrier' as const,    label: 'Calendrier',    icon: CalendarDays },
+    { id: 'conges' as const,        label: 'Congés',        icon: Sun },
+    ...(teamSettings ? [{ id: 'equipe' as const, label: 'Équipe', icon: Archive }] : []),
+  ]
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="font-heading font-bold text-2xl tracking-tight">Mon compte</h1>
         <p className="text-sm text-muted-foreground mt-1">Gérez vos informations et vos préférences</p>
@@ -167,6 +177,24 @@ export function AccountView({ profile, teamSettings }: Props) {
         <div className="bg-card border border-border p-3 text-sm text-red-500 border border-red-500/30">{error}</div>
       )}
 
+      <div className="grid grid-cols-1 md:grid-cols-[210px_1fr] gap-6 items-start">
+        {/* Menu latéral des catégories */}
+        <nav className="flex md:flex-col gap-1 overflow-x-auto md:sticky md:top-4 bg-card border border-border rounded-2xl p-2">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setActiveTab(id)}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors text-left ${
+                activeTab === id ? 'text-white' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+              style={activeTab === id ? { backgroundColor: deptColor } : {}}>
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Contenu de la catégorie active */}
+        <div className="space-y-6 min-w-0">
+
+      {activeTab === 'profil' && (<>
       {/* Photo + identité */}
       <section className="bg-card border border-border p-6">
         <div className="flex items-center gap-5">
@@ -244,6 +272,9 @@ export function AccountView({ profile, teamSettings }: Props) {
         <p className="text-xs text-muted-foreground">L'email et le rôle sont gérés par un administrateur.</p>
       </section>
 
+      </>)}
+
+      {activeTab === 'notifications' && (<>
       {/* Préférences de notification */}
       <section className="bg-card border border-border p-6">
         <div className="flex items-center gap-2 mb-4">
@@ -280,6 +311,9 @@ export function AccountView({ profile, teamSettings }: Props) {
         </div>
       </section>
 
+      </>)}
+
+      {activeTab === 'calendrier' && (<>
       {/* Préférences d'affichage du calendrier */}
       <section className="bg-card border border-border p-6">
         <div className="flex items-center gap-2 mb-4">
@@ -290,6 +324,7 @@ export function AccountView({ profile, teamSettings }: Props) {
           {([
             { key: 'show_holidays' as const, label: 'Jours fériés', description: 'Afficher les jours fériés sur les calendriers' },
             { key: 'show_school_holidays' as const, label: 'Vacances scolaires (zone B)', description: 'Afficher les périodes de vacances scolaires' },
+            { key: 'show_absences_calendar' as const, label: 'Mes congés', description: 'Afficher mes propres congés validés dans le calendrier des tâches (pour anticiper mon planning)' },
           ]).map(({ key, label, description }) => (
             <label
               key={key}
@@ -319,6 +354,9 @@ export function AccountView({ profile, teamSettings }: Props) {
         </div>
       </section>
 
+      </>)}
+
+      {activeTab === 'conges' && (<>
       {/* Services affichés par défaut dans le tableau des congés */}
       <section className="bg-card border border-border p-6">
         <div className="flex items-center gap-2 mb-1">
@@ -349,8 +387,10 @@ export function AccountView({ profile, teamSettings }: Props) {
         </div>
       </section>
 
+      </>)}
+
       {/* Réglages d'équipe — managers uniquement */}
-      {teamSettings && (
+      {activeTab === 'equipe' && teamSettings && (
         <section className="bg-card border border-border p-6">
           <div className="flex items-center gap-2 mb-4">
             <Archive className="w-4 h-4 text-muted-foreground" />
@@ -394,6 +434,9 @@ export function AccountView({ profile, teamSettings }: Props) {
           </div>
         </section>
       )}
+
+        </div>{/* fin contenu */}
+      </div>{/* fin grille */}
     </div>
   )
 }

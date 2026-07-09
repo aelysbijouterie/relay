@@ -9,6 +9,7 @@ import {
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import { TaskModal } from '@/components/tasks/TaskModal'
 import { useTasks } from '@/hooks/useTasks'
 import { useTaskStore } from '@/store/tasks'
@@ -34,7 +35,7 @@ const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 type ViewMode = 'month' | 'week' | 'day'
 
 export function CalendarView() {
-  const { tasks } = useTasks()
+  const { tasks, refresh } = useTasks()
   const currentUserId = useTaskStore(s => s.currentUserId)
 
   // Confidentialité : dans le calendrier, chacun ne voit QUE ses propres tâches
@@ -52,7 +53,10 @@ export function CalendarView() {
   const [showHol, setShowHol] = useState(true)
   const [showSchool, setShowSchool] = useState(true)
   const [recurring, setRecurring] = useState<RecurringTask[]>([])
-  const [selectedRecurring, setSelectedRecurring] = useState<RecurringTask | null>(null)
+  const [selectedRecurring, setSelectedRecurring] = useState<{ model: RecurringTask; date: string } | null>(null)
+  const [showAbs, setShowAbs] = useState(false)
+  const [absences, setAbsences] = useState<{ id: string; type: string; start_date: string; end_date: string; status: string; user?: { name?: string } }[]>([])
+  const [materializing, setMaterializing] = useState(false)
 
   useEffect(() => {
     fetch('/api/recurring', { cache: 'no-store' }).then(r => r.json())
@@ -66,6 +70,37 @@ export function CalendarView() {
         : []))
       .catch(() => {})
   }, [currentUserId])
+
+  // MES congés validés (si l'option est activée dans le profil) — jamais ceux
+  // des collègues : le calendrier des tâches reste strictement personnel.
+  useEffect(() => {
+    if (!showAbs || !currentUserId) { setAbsences([]); return }
+    fetch('/api/absences', { cache: 'no-store' }).then(r => r.json())
+      .then(d => setAbsences(Array.isArray(d)
+        ? d.filter((a: { status: string; user_id: string }) => a.status === 'Validé' && a.user_id === currentUserId)
+        : []))
+      .catch(() => {})
+  }, [showAbs, currentUserId])
+
+  // Mes absences par jour pour le mois affiché.
+  const absencesByDay = useMemo(() => {
+    const map = new Map<string, { name: string; type: string }[]>()
+    if (!showAbs || absences.length === 0) return map
+    const from = startOfMonth(cursor); const to = endOfMonth(cursor)
+    for (const a of absences) {
+      const start = a.start_date > dsLocal(from) ? new Date(a.start_date + 'T00:00:00') : from
+      const end = a.end_date < dsLocal(to) ? new Date(a.end_date + 'T00:00:00') : to
+      const cur = new Date(start)
+      while (cur <= end) {
+        const key = dsLocal(cur)
+        const arr = map.get(key) ?? []
+        arr.push({ name: a.user?.name ?? '?', type: a.type })
+        map.set(key, arr)
+        cur.setDate(cur.getDate() + 1)
+      }
+    }
+    return map
+  }, [absences, cursor, showAbs])
 
   // Projections des occurrences récurrentes pour le mois affiché.
   // Clé = 'YYYY-MM-DD' → liste des modèles dont une occurrence tombe ce jour.
@@ -93,9 +128,29 @@ export function CalendarView() {
   useEffect(() => {
     fetch('/api/account', { cache: 'no-store' }).then(r => r.json()).then(d => {
       setShowHol(d?.show_holidays ?? true)
+      setShowAbs(d?.show_absences_calendar ?? false)
       setShowSchool(d?.show_school_holidays ?? true)
     }).catch(() => {})
   }, [])
+
+  // Crée MAINTENANT la carte d'une occurrence récurrente et l'ouvre en entier.
+  async function materializeAndOpen() {
+    if (!selectedRecurring) return
+    setMaterializing(true)
+    try {
+      const r = await fetch(`/api/recurring/${selectedRecurring.model.id}/materialize`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: selectedRecurring.date }),
+      })
+      const d = await r.json()
+      if (!r.ok || !d.task) throw new Error(d.error)
+      await refresh()
+      setSelectedRecurring(null)
+      setSelectedTask(d.task as Task)
+      if (d.created) toast.success('Carte ouverte — elle apparaîtra dans le Kanban à l\'approche de sa date')
+    } catch { toast.error('Création impossible') }
+    finally { setMaterializing(false) }
+  }
 
   const tasksForDay = (day: Date) =>
     myTasks.filter(t => t.deadline && isSameDay(parseISO(t.deadline), day))
@@ -164,7 +219,7 @@ export function CalendarView() {
         </div>
       </div>
 
-      {view === 'month' && <MonthView cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} showHol={showHol} showSchool={showSchool} projectionsByDay={projectionsByDay} onSelectRecurring={setSelectedRecurring} />}
+      {view === 'month' && <MonthView cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} showHol={showHol} showSchool={showSchool} projectionsByDay={projectionsByDay} onSelectRecurring={(m, date) => setSelectedRecurring({ model: m, date })} absencesByDay={absencesByDay} />}
       {view === 'week'  && <WeekView  cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
       {view === 'day'   && <DayView   cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
 
@@ -183,31 +238,40 @@ export function CalendarView() {
             <div className="space-y-3">
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Titre</p>
-                <p className="text-sm font-medium">{selectedRecurring.title}</p>
+                <p className="text-sm font-medium">{selectedRecurring.model.title}</p>
               </div>
-              {selectedRecurring.description && (
+              {selectedRecurring.model.description && (
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</p>
-                  <p className="text-sm text-muted-foreground">{selectedRecurring.description}</p>
+                  <p className="text-sm text-muted-foreground">{selectedRecurring.model.description}</p>
                 </div>
               )}
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Récurrence</p>
-                <p className="text-sm">{describeRecurrence(selectedRecurring)}</p>
+                <p className="text-sm">{describeRecurrence(selectedRecurring.model)}</p>
               </div>
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Apparition dans le Kanban</p>
-                <p className="text-sm">{selectedRecurring.lead_days} jour{selectedRecurring.lead_days > 1 ? 's' : ''} avant l'échéance</p>
+                <p className="text-sm">{selectedRecurring.model.lead_days} jour{selectedRecurring.model.lead_days > 1 ? 's' : ''} avant l'échéance</p>
               </div>
-              {selectedRecurring.department && (
+              {selectedRecurring.model.department && (
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedRecurring.department.color }} />
-                  <span className="text-sm text-muted-foreground">{selectedRecurring.department.name}</span>
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedRecurring.model.department.color }} />
+                  <span className="text-sm text-muted-foreground">{selectedRecurring.model.department.name}</span>
                 </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-4">Cette occurrence est une projection : la carte réelle sera créée automatiquement à l'approche de sa date.</p>
-            <button onClick={() => setSelectedRecurring(null)} className="mt-4 w-full py-2 rounded-xl bg-muted text-sm font-medium hover:bg-muted/70 transition-colors">Fermer</button>
+            <p className="text-xs text-muted-foreground mt-4">Cette occurrence est une projection. En l'ouvrant, la carte complète est disponible (commentaires, sous-tâches…) mais elle n'apparaîtra dans le Kanban qu'à l'approche de sa date.</p>
+            <div className="mt-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Occurrence</p>
+              <p className="text-sm font-medium">{format(parseISO(selectedRecurring.date), 'EEEE d MMMM yyyy', { locale: fr })}</p>
+            </div>
+            <button onClick={materializeAndOpen} disabled={materializing}
+              className="mt-4 w-full py-2.5 rounded-xl text-white text-sm font-bold transition-transform hover:scale-[1.01] disabled:opacity-50"
+              style={{ backgroundColor: selectedRecurring.model.department?.color ?? 'var(--accent)' }}>
+              {materializing ? 'Ouverture…' : 'Ouvrir la carte complète'}
+            </button>
+            <button onClick={() => setSelectedRecurring(null)} className="mt-2 w-full py-2 rounded-xl bg-muted text-sm font-medium hover:bg-muted/70 transition-colors">Fermer</button>
           </div>
         </div>
       )}
@@ -222,7 +286,8 @@ interface SubViewProps {
   showHol?: boolean
   showSchool?: boolean
   projectionsByDay?: Map<string, RecurringTask[]>
-  onSelectRecurring?: (m: RecurringTask) => void
+  absencesByDay?: Map<string, { name: string; type: string }[]>
+  onSelectRecurring?: (m: RecurringTask, date: string) => void
 }
 
 function TaskChip({ task, onSelect }: { task: Task; onSelect: (t: Task) => void }) {
@@ -238,7 +303,7 @@ function TaskChip({ task, onSelect }: { task: Task; onSelect: (t: Task) => void 
   )
 }
 
-function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, projectionsByDay, onSelectRecurring }: SubViewProps) {
+function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, projectionsByDay, onSelectRecurring, absencesByDay }: SubViewProps) {
   const monthStart = startOfMonth(cursor)
   const days = eachDayOfInterval({ start: monthStart, end: endOfMonth(cursor) })
   const startOffset = (getDay(monthStart) + 6) % 7
@@ -261,6 +326,7 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
           const ferie = (showHol ?? true) ? holidayName(ds) : null
           const vacances = (showSchool ?? true) ? schoolHolidayName(ds) : null
           const projections = projectionsByDay?.get(ds) ?? []
+          const dayAbsences = absencesByDay?.get(ds) ?? []
           return (
             <div key={day.toISOString()} className={cn('min-h-[100px] p-2 border-b border-r border-border', today && 'bg-primary/5')}
               style={!today && ferie ? { backgroundColor: 'rgba(217,70,239,0.07)' } : !today && vacances ? { backgroundColor: 'rgba(234,179,8,0.07)' } : undefined}
@@ -275,13 +341,21 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
                 {dayTasks.length > 3 && <p className="text-xs text-muted-foreground pl-1">+{dayTasks.length - 3}</p>}
                 {/* Projections récurrentes (fantômes) : occurrences à venir, cliquables */}
                 {projections.map(m => (
-                  <button key={`proj-${m.id}`} onClick={() => onSelectRecurring?.(m)}
+                  <button key={`proj-${m.id}`} onClick={() => onSelectRecurring?.(m, ds)}
                     className="w-full text-left text-[0.65rem] leading-tight px-1.5 py-0.5 rounded truncate border border-dashed transition-colors hover:bg-muted"
                     style={{ borderColor: (m.department?.color ?? '#94A3B8') + '99', color: 'var(--muted-foreground)' }}
                     title={`${m.title} (récurrent)`}>
                     ↻ {m.title}
                   </button>
                 ))}
+                {/* Mon congé validé ce jour (option du profil) */}
+                {dayAbsences.length > 0 && (
+                  <p className="text-[0.6rem] leading-tight px-1.5 py-0.5 rounded truncate italic"
+                    style={{ backgroundColor: 'rgba(14,165,165,0.10)', color: '#0F766E' }}
+                    title={dayAbsences[0].type}>
+                    🏖 {dayAbsences[0].type}
+                  </p>
+                )}
               </div>
             </div>
           )

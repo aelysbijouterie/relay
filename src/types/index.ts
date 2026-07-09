@@ -38,6 +38,7 @@ export interface Profile {
   show_holidays?: boolean
   show_school_holidays?: boolean
   conges_default_dept_ids?: string[] | null
+  show_absences_calendar?: boolean
 }
 
 export interface Tag {
@@ -56,6 +57,7 @@ export interface Task {
   created_by: string
   deadline: string | null
   recurring_task_id?: string | null
+  recurring?: { lead_days: number } | null
   position?: number | null
   is_cross_team: boolean
   fournisseur_client: string | null
