@@ -87,7 +87,7 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
       )}
       {/* Glow discret dans la couleur du service, sur toute la hauteur gauche */}
       <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none"
-        style={{ background: `linear-gradient(90deg, ${deptColor}38 0%, ${deptColor}0F 45%, transparent 75%)` }} />
+        style={{ background: `linear-gradient(90deg, ${deptColor}2A 0%, ${deptColor}0B 45%, transparent 75%)` }} />
 
       <div>
         {/* Titre en premier */}

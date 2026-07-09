@@ -5,7 +5,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { cn } from '@/lib/utils'
 import { TaskCard } from '@/components/tasks/TaskCard'
 import type { Task, TaskStatus } from '@/types'
-import { STATUS_COLORS } from '@/types'
+import { STATUS_COLORS, STATUS_LABELS } from '@/types'
 
 interface KanbanColumnProps {
   status: TaskStatus
@@ -28,7 +28,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, selectMode, selectedI
             className="w-2 h-2 rounded-full"
             style={{ backgroundColor: STATUS_COLORS[status] }}
           />
-          <h3 className="text-sm font-semibold tracking-tight">{status}</h3>
+          <h3 className="text-sm font-semibold tracking-tight">{STATUS_LABELS[status]}</h3>
         </div>
         <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-semibold">
           {tasks.length}

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { AlertTriangle, CheckCircle2, Clock, Users, TrendingUp, TrendingDown, User } from 'lucide-react'
 import { isOverdue, cn } from '@/lib/utils'
-import { PRIORITY_COLORS, STATUS_COLORS } from '@/types'
+import { PRIORITY_COLORS, STATUS_COLORS, STATUS_LABELS } from '@/types'
 import { useTasks } from '@/hooks/useTasks'
 import type { Task } from '@/types'
 
@@ -149,7 +149,7 @@ export function StatsView({ canSeeTeam, deptName, deptColor }: StatsViewProps) {
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                        <span className="text-sm">{s.status}</span>
+                        <span className="text-sm">{STATUS_LABELS[s.status as keyof typeof STATUS_LABELS] ?? s.status}</span>
                       </div>
                       <span className="text-xs text-muted-foreground font-medium">{s.count}</span>
                     </div>

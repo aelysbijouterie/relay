@@ -123,6 +123,18 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
   'Archivé':  'var(--status-archived)',
 }
 
+// Libellé AFFICHÉ à l'écran — distinct de la valeur technique stockée en base
+// (TaskStatus). Seul 'A revoir' a un libellé différent ("À valider") ; tous
+// les autres statuts affichent leur valeur technique telle quelle.
+export const STATUS_LABELS: Record<TaskStatus, string> = {
+  'A Faire':  'A Faire',
+  'En cours': 'En cours',
+  'Bloqué':   'Bloqué',
+  'A revoir': 'À valider',
+  'Terminé':  'Terminé',
+  'Archivé':  'Archivé',
+}
+
 export const PRIORITY_COLORS: Record<TaskPriority, string> = {
   'Urgent':  'var(--priority-urgent)',
   'Élevée':  'var(--priority-high)',

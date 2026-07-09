@@ -12,7 +12,7 @@ import { cn, formatDeadline, isOverdue, getInitials } from '@/lib/utils'
 import { useTasks } from '@/hooks/useTasks'
 import { useTaskStore } from '@/store/tasks'
 import { updateTaskStatus } from '@/lib/actions/tasks'
-import { PRIORITY_COLORS, STATUS_COLORS, TASK_STATUSES } from '@/types'
+import { PRIORITY_COLORS, STATUS_COLORS, STATUS_LABELS, TASK_STATUSES } from '@/types'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
 
@@ -208,7 +208,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
       await updateTaskStatus(taskId, status)
       await refresh() // met à jour SWR → tout composant useTasks() se rafraîchit
       if (status === 'Bloqué') toast.error('Tâche bloquée — le manager sera notifié')
-      else toast.success(`Statut : ${status}`)
+      else toast.success(`Statut : ${STATUS_LABELS[status]}`)
 
       // Notification : assignés + créateur, sauf l'auteur, selon préférences (géré côté serveur)
       fetch('/api/notify/status', {
@@ -720,7 +720,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
               style={task.status === s ? { background: STATUS_COLORS[s], boxShadow: `0 4px 12px ${STATUS_COLORS[s]}55` } : {}}>
               <span className="w-1.5 h-1.5 rounded-full"
                 style={{ backgroundColor: task.status === s ? '#fff' : STATUS_COLORS[s] }} />
-              {s}
+              {STATUS_LABELS[s]}
             </button>
           ))}
         </div>

@@ -13,7 +13,7 @@ import { TaskModal } from '@/components/tasks/TaskModal'
 import { useTasks } from '@/hooks/useTasks'
 import { useTaskStore } from '@/store/tasks'
 import { updateTaskStatus } from '@/lib/actions/tasks'
-import { TASK_STATUSES } from '@/types'
+import { TASK_STATUSES, STATUS_LABELS } from '@/types'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -282,7 +282,7 @@ export function KanbanBoard({
           <select disabled={bulkBusy} defaultValue="" onChange={e => { if (e.target.value) runBulk('move', e.target.value); e.target.value = '' }}
             className="text-sm px-2.5 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50">
             <option value="" disabled>Déplacer vers…</option>
-            {TASK_STATUSES.filter(s => s !== 'Archivé').map(s => <option key={s} value={s}>{s}</option>)}
+            {TASK_STATUSES.filter(s => s !== 'Archivé').map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
           </select>
 
           {/* Priorité */}

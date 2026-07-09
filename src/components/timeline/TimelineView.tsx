@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { format, parseISO, isToday, isTomorrow, isThisWeek, isPast } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
-import { PRIORITY_COLORS, STATUS_COLORS } from '@/types'
+import { PRIORITY_COLORS, STATUS_COLORS, STATUS_LABELS } from '@/types'
 import { useTasks } from '@/hooks/useTasks'
 import type { Task, TaskPriority } from '@/types'
 
@@ -75,6 +75,14 @@ export function TimelineView() {
     return STATUS_COLORS[key as keyof typeof STATUS_COLORS]
   }
 
+  // Libellé affiché du groupe : les statuts ont un libellé distinct de leur
+  // valeur technique (ex : 'A revoir' → 'À valider') ; dates et priorités
+  // s'affichent telles quelles.
+  function groupLabel(key: string): string {
+    if (groupBy === 'status') return STATUS_LABELS[key as keyof typeof STATUS_LABELS] ?? key
+    return key
+  }
+
   return (
     <div className="space-y-6">
       {/* Contrôles */}
@@ -109,7 +117,7 @@ export function TimelineView() {
           <div key={group}>
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: groupColor(group) }} />
-              {group}
+              {groupLabel(group)}
               <span className="text-xs text-muted-foreground font-normal">({groupTasks.length})</span>
             </h3>
 
