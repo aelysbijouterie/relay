@@ -148,12 +148,14 @@ export function AbsencesView() {
     return visibleAbsences.filter(a => a.status !== 'Refusé' && ds >= a.start_date && ds <= a.end_date)
   }
   // Une date est-elle en "période d'activité" (pour affichage rouge) ?
-  function activityOn(date: Date): boolean {
+  // Renvoie le libellé de la période si oui, sinon null.
+  function activityOn(date: Date): string | null {
     const ds = localDs(date)
     const relevant = filterDepts
       ? periods.filter(p => filterDepts.has(p.department_id))
       : periods
-    return relevant.some(p => ds >= p.start_date && ds <= p.end_date)
+    const match = relevant.find(p => ds >= p.start_date && ds <= p.end_date)
+    return match ? match.label : null
   }
 
   const todayStr = localDs(new Date())
@@ -311,10 +313,11 @@ export function AbsencesView() {
                           : vacances ? { backgroundColor: 'rgba(234,179,8,0.10)' }
                           : isWeekend ? { backgroundColor: 'var(--muted)', opacity: 0.6 } : {}),
                     }}
-                    title={ferie ? ferie : vacances ? vacances : isActivity ? "Période d'activité — congés déconseillés" : ''}>
+                    title={ferie ? ferie : vacances ? vacances : isActivity ? isActivity : ''}>
                     <div className={`text-xs font-semibold mb-0.5 ${isToday ? '' : 'text-muted-foreground'}`}
                       style={isToday ? { color: 'var(--accent)' } : ferie ? { color: '#C026D3' } : isActivity ? { color: '#EF4444' } : {}}>{date.getDate()}</div>
                     {ferie && <div className="text-[0.5rem] leading-tight px-1 rounded truncate font-medium" style={{ color: '#C026D3' }} title={ferie}>{ferie}</div>}
+                    {isActivity && <div className="text-[0.5rem] leading-tight px-1 rounded truncate font-medium" style={{ color: '#EF4444' }} title={isActivity}>{isActivity}</div>}
                     <div className="space-y-0.5">
                       {items.slice(0, 3).map(a => (
                         <div key={a.id} title={`${a.user?.name} · ${a.type}${a.status.includes('attente') ? ' (en attente)' : ''}`}

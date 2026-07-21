@@ -808,7 +808,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</p>
                     {task.description
-                      ? <p className="text-sm leading-relaxed text-foreground/80">{task.description}</p>
+                      ? <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">{task.description}</p>
                       : <p className="text-sm italic text-muted-foreground">Aucune description.</p>}
                   </div>
 

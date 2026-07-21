@@ -243,6 +243,16 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
     toast.success(`Modèle « ${tpl.name} » appliqué`)
   }
 
+  async function deleteTemplate(templateId: string) {
+    if (!confirm('Supprimer ce modèle ? Cette action est définitive et concerne tout le monde.')) return
+    try {
+      const res = await fetch(`/api/templates/${templateId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      setTemplates(prev => prev.filter(t => t.id !== templateId))
+      toast.success('Modèle supprimé')
+    } catch { toast.error('Suppression impossible') }
+  }
+
   async function saveAsTemplate() {
     const name = window.prompt('Nom du modèle :', title.trim() || 'Nouveau modèle')
     if (!name?.trim()) return
@@ -295,14 +305,18 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
                 <FileText className="w-3.5 h-3.5" /> Partir d&apos;un modèle
               </label>
-              <select
-                onChange={e => applyTemplate(e.target.value)}
-                defaultValue=""
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                <option value="">— Aucun (carte vierge) —</option>
-                {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+              <div className="flex flex-wrap gap-1.5">
+                {templates.map(t => (
+                  <span key={t.id} className="group inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-lg border border-border bg-background text-xs hover:border-foreground/30 transition-colors">
+                    <button type="button" onClick={() => applyTemplate(t.id)} className="hover:underline">{t.name}</button>
+                    <button type="button" onClick={() => deleteTemplate(t.id)}
+                      className="p-0.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Supprimer ce modèle">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 

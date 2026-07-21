@@ -34,11 +34,11 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
   const deptColor = task.department?.color ?? '#94A3B8'
 
   // Tâche qui stagne : aucun mouvement depuis 7 jours, sur un statut actif.
-  const stale = (() => {
-    if (!task.updated_at) return false
-    if (!['En cours', 'A Faire', 'Bloqué'].includes(task.status)) return false
-    const days = (Date.now() - new Date(task.updated_at).getTime()) / 86400000
-    return days >= 7
+  const staleDays = (() => {
+    if (!task.updated_at) return null
+    if (!['En cours', 'A Faire', 'Bloqué'].includes(task.status)) return null
+    const days = Math.floor((Date.now() - new Date(task.updated_at).getTime()) / 86400000)
+    return days >= 7 ? days : null
   })()
 
   // Progression des sous-tâches (si présentes)
@@ -85,8 +85,11 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
           <AlertCircle className="w-2.5 h-2.5" /> En retard
         </span>
       )}
-      {/* Glow discret dans la couleur du service, sur toute la hauteur gauche */}
-      <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none"
+      {/* Glow discret dans la couleur du service, sur toute la hauteur gauche.
+          Décalage négatif = même rectangle que la bordure (6px à gauche, 1px
+          ailleurs), pour que son arrondi coïncide exactement avec celui de la
+          carte, y compris quand le badge "En retard" est affiché. */}
+      <div className="absolute -left-[6px] -top-px -right-px -bottom-px rounded-2xl overflow-hidden pointer-events-none"
         style={{ background: `linear-gradient(90deg, ${deptColor}15 0%, ${deptColor}06 45%, transparent 75%)` }} />
 
       <div>
@@ -96,11 +99,11 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
         </p>
 
         {/* Badge : tâche qui stagne (aucun mouvement depuis 7 jours) */}
-        {stale && !overdue && (
+        {staleDays !== null && !overdue && (
           <span className="inline-flex items-center gap-1 text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-md mb-2"
             style={{ backgroundColor: 'rgba(217,119,6,0.12)', color: '#B45309' }}
-            title="Aucun mouvement depuis plus de 7 jours">
-            <Clock className="w-2.5 h-2.5" /> En pause depuis 7 j
+            title={`Aucun mouvement depuis ${staleDays} jours`}>
+            <Clock className="w-2.5 h-2.5" /> En pause depuis {staleDays} j
           </span>
         )}
 
