@@ -40,7 +40,9 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
   const [priority, setPriority]       = useState('Moyenne')
   const [deadline, setDeadline]       = useState('')
   const [deptId, setDeptId]           = useState(currentDepartmentId)
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([])
+  // Par défaut, la carte est assignée au créateur (c'est sa todo, tant qu'il
+  // ne se retire pas volontairement pour la déléguer entièrement à d'autres).
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(profile?.id ? [profile.id] : [])
   const [fournisseur, setFournisseur] = useState('')
   const [refCollection, setRefCollection] = useState('')
   const [showAssignees, setShowAssignees] = useState(false)

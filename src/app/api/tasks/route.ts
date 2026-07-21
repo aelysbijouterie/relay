@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isTaskVisibleTo } from '@/lib/tasks/visibility'
 import type { Task } from '@/types'
 
 // CRITIQUE : sans cet export, Next.js considère cette route comme statique
@@ -63,7 +62,9 @@ export async function GET() {
   })) as unknown as Task[]
 
   // Visibilité personnelle : chacun ne voit que ses tâches créées + assignées.
-  const visibleTasks = tasks.filter(t => isTaskVisibleTo(t, { userId }))
+  // Visibilité d'équipe : tout le monde voit les tâches de son espace partagé
+  // (le calendrier personnel, lui, filtre séparément côté client).
+  const visibleTasks = tasks
 
   // Progression des sous-tâches (table task_subtasks) pour les barres de Kanban.
   const ids = visibleTasks.map(t => t.id)

@@ -2,10 +2,11 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Globe, AlertCircle, Clock, MessageSquare, Check } from 'lucide-react'
+import { Globe, AlertCircle, Clock, MessageSquare, Check, Eye } from 'lucide-react'
 import { cn, isOverdue, formatDeadline, getInitials } from '@/lib/utils'
 import type { Task } from '@/types'
 import { PRIORITY_COLORS } from '@/types'
+import { useTaskStore } from '@/store/tasks'
 
 interface TaskCardProps {
   task: Task
@@ -32,6 +33,13 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
 
   const overdue = isOverdue(task.deadline) && task.status !== 'Terminé' && task.status !== 'Archivé'
   const deptColor = task.department?.color ?? '#94A3B8'
+  const currentUserId = useTaskStore(s => s.currentUserId)
+
+  // Tâche déléguée : créée par moi, mais je m'en suis retirée volontairement
+  // des assignés (sinon, par défaut, le créateur reste assigné à sa carte).
+  const isDelegated = !!currentUserId
+    && task.created_by === currentUserId
+    && !(task.assignees ?? []).some(a => a.id === currentUserId)
 
   // Tâche qui stagne : aucun mouvement depuis 7 jours, sur un statut actif.
   const staleDays = (() => {
@@ -63,7 +71,9 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
         // Bordure gauche épaissie dans la couleur du service : le rayon étant
         // appliqué sur toute la carte, le navigateur courbe nativement cette
         // bordure dans les 2 angles — raccord fluide, sans artifice superposé.
-        'border-t border-r border-b border-l-[6px] border-border',
+        isDelegated
+          ? 'border-t-2 border-r-2 border-b-2 border-dashed border-l-[6px] border-border'
+          : 'border-t border-r border-b border-l-[6px] border-border',
         selectMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
         'select-none',
         'transition-all duration-200',
@@ -83,6 +93,12 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
       {overdue && (
         <span className="absolute -top-1.5 -right-1.5 z-10 inline-flex items-center gap-1 text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white shadow-md">
           <AlertCircle className="w-2.5 h-2.5" /> En retard
+        </span>
+      )}
+      {/* Icône discrète : tâche déléguée, je surveille sans être assignée */}
+      {isDelegated && !selectMode && (
+        <span className="absolute top-2 right-2 z-10 text-muted-foreground/70" title="Vous avez délégué cette tâche : vous n'y êtes pas assignée">
+          <Eye className="w-4 h-4" />
         </span>
       )}
       {/* Glow discret dans la couleur du service, sur toute la hauteur gauche.

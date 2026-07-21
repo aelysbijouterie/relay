@@ -7,7 +7,6 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
 import { AccentProvider } from '@/components/layout/AccentProvider'
 import { TasksProvider } from '@/components/providers/TasksProvider'
-import { isTaskVisibleTo } from '@/lib/tasks/visibility'
 import { DEMO_DEPARTMENTS, DEMO_PROFILES, getTasksForDept } from '@/lib/demo-data'
 import type { Profile, Department, Task } from '@/types'
 
@@ -149,12 +148,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       department,
     }
 
-    // Visibilité personnelle : chacun ne voit que les tâches qu'il a créées
-    // ou auxquelles il est assigné, quel que soit le département ou le rôle.
-    // Le tableau de bord est un espace personnel. Comme toutes les lectures
-    // passent par le client admin (qui bypass RLS), ce filtre applicatif est
-    // la seule chose qui garantit cette règle.
-    tasks = tasks.filter(t => isTaskVisibleTo(t, { userId: userId! }))
+    // Visibilité d'équipe : le tableau de bord (Kanban) est un espace
+    // PARTAGÉ — chacun voit les tâches de l'équipe, pas seulement les
+    // siennes. Seul le calendrier personnel filtre séparément côté client.
 
     const { data: memberRows } = await supabase
       .from('profiles')
