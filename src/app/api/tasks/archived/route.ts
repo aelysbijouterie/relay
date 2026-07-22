@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
+import { isTaskVisibleTo, getUserDepartmentIds } from '@/lib/tasks/visibility'
 import type { Task } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +44,7 @@ export async function GET() {
   })) as unknown as Task[]
 
   // Visibilité d'équipe (voir route.ts principal pour le contexte)
-  const visible = tasks
+  const departmentIds = await getUserDepartmentIds(supabase, userId)
+  const visible = tasks.filter(t => isTaskVisibleTo(t, { userId, departmentIds }))
   return NextResponse.json(visible, { headers: { 'Cache-Control': 'no-store' } })
 }

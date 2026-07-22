@@ -71,9 +71,9 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
         // Bordure gauche épaissie dans la couleur du service : le rayon étant
         // appliqué sur toute la carte, le navigateur courbe nativement cette
         // bordure dans les 2 angles — raccord fluide, sans artifice superposé.
-        isDelegated
-          ? 'border-t-2 border-r-2 border-b-2 border-dashed border-l-[6px] border-border'
-          : 'border-t border-r border-b border-l-[6px] border-border',
+        // (Identique, que la carte soit déléguée ou non — le bloc triangulaire
+        // + l'œil suffisent à signaler la délégation, sans besoin de pointillés.)
+        'border-t border-r border-b border-l-[6px] border-border',
         selectMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
         'select-none',
         'transition-all duration-200',
@@ -101,12 +101,21 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
           <Eye className="w-4 h-4" />
         </span>
       )}
-      {/* Glow discret dans la couleur du service, sur toute la hauteur gauche.
+      {/* Glow discret dans la couleur du service, sur toute la hauteur gauche,
+          + bloc triangulaire dans le coin haut-droit si la carte est déléguée.
           Décalage négatif = même rectangle que la bordure (6px à gauche, 1px
-          ailleurs), pour que son arrondi coïncide exactement avec celui de la
+          ailleurs), pour que l'arrondi coïncide exactement avec celui de la
           carte, y compris quand le badge "En retard" est affiché. */}
-      <div className="absolute -left-[6px] -top-px -right-px -bottom-px rounded-2xl overflow-hidden pointer-events-none"
-        style={{ background: `linear-gradient(90deg, ${deptColor}15 0%, ${deptColor}06 45%, transparent 75%)` }} />
+      <div className="absolute -left-[6px] -top-px -right-px -bottom-px rounded-2xl overflow-hidden pointer-events-none">
+        <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, ${deptColor}15 0%, ${deptColor}06 45%, transparent 75%)` }} />
+        {isDelegated && (
+          <div style={{
+            position: 'absolute', top: 0, right: 0, width: 0, height: 0,
+            borderStyle: 'solid', borderWidth: '0 44px 44px 0',
+            borderColor: `transparent ${deptColor}1A transparent transparent`,
+          }} />
+        )}
+      </div>
 
       <div>
         {/* Titre en premier */}

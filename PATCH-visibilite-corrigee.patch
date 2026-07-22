@@ -1,0 +1,127 @@
+diff --git a/src/app/(dashboard)/layout.tsx b/src/app/(dashboard)/layout.tsx
+index c286d22..ff4e45c 100644
+--- a/src/app/(dashboard)/layout.tsx
++++ b/src/app/(dashboard)/layout.tsx
+@@ -149,8 +149,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
+     }
+ 
+     // Visibilité d'équipe : le tableau de bord (Kanban) est un espace
+-    // PARTAGÉ — chacun voit les tâches de l'équipe, pas seulement les
+-    // siennes. Seul le calendrier personnel filtre séparément côté client.
++    // PARTAGÉ — chacun voit les tâches de son/ses service(s) (principal +
++    // additionnels), plus ce qui le concerne personnellement (créateur ou
++    // assigné) même hors de ses services — cas d'une délégation croisée.
++    // Seul le calendrier personnel filtre séparément côté client (plus strict).
++    const myDeptIds = [profileRow?.department_id, ...extraDeptIds].filter(Boolean) as string[]
++    tasks = tasks.filter(t =>
++      (t.department_id && myDeptIds.includes(t.department_id))
++      || t.created_by === userId
++      || (t.assignees ?? []).some((a: { id: string }) => a.id === userId)
++    )
+ 
+     const { data: memberRows } = await supabase
+       .from('profiles')
+diff --git a/src/app/api/tasks/archived/route.ts b/src/app/api/tasks/archived/route.ts
+index d5e1916..3515809 100644
+--- a/src/app/api/tasks/archived/route.ts
++++ b/src/app/api/tasks/archived/route.ts
+@@ -1,6 +1,7 @@
+ import { NextResponse } from 'next/server'
+ import { cookies } from 'next/headers'
+ import { createAdminClient } from '@/lib/supabase/server'
++import { isTaskVisibleTo, getUserDepartmentIds } from '@/lib/tasks/visibility'
+ import type { Task } from '@/types'
+ 
+ export const dynamic = 'force-dynamic'
+@@ -43,6 +44,7 @@ export async function GET() {
+   })) as unknown as Task[]
+ 
+   // Visibilité d'équipe (voir route.ts principal pour le contexte)
+-  const visible = tasks
++  const departmentIds = await getUserDepartmentIds(supabase, userId)
++  const visible = tasks.filter(t => isTaskVisibleTo(t, { userId, departmentIds }))
+   return NextResponse.json(visible, { headers: { 'Cache-Control': 'no-store' } })
+ }
+\ No newline at end of file
+diff --git a/src/app/api/tasks/route.ts b/src/app/api/tasks/route.ts
+index 82c8131..ebc4169 100644
+--- a/src/app/api/tasks/route.ts
++++ b/src/app/api/tasks/route.ts
+@@ -1,6 +1,7 @@
+ import { NextResponse } from 'next/server'
+ import { cookies } from 'next/headers'
+ import { createAdminClient } from '@/lib/supabase/server'
++import { isTaskVisibleTo, getUserDepartmentIds } from '@/lib/tasks/visibility'
+ import type { Task } from '@/types'
+ 
+ // CRITIQUE : sans cet export, Next.js considère cette route comme statique
+@@ -61,10 +62,11 @@ export async function GET() {
+     recurring:         Array.isArray(t.recurring) ? t.recurring[0] ?? null : t.recurring ?? null,
+   })) as unknown as Task[]
+ 
+-  // Visibilité personnelle : chacun ne voit que ses tâches créées + assignées.
+-  // Visibilité d'équipe : tout le monde voit les tâches de son espace partagé
+-  // (le calendrier personnel, lui, filtre séparément côté client).
+-  const visibleTasks = tasks
++  // Visibilité : services de l'utilisateur (principal + additionnels) + ce
++  // qui le concerne personnellement (créateur ou assigné), même hors de ses
++  // services — cas d'une délégation vers un autre service.
++  const departmentIds = await getUserDepartmentIds(supabase, userId)
++  const visibleTasks = tasks.filter(t => isTaskVisibleTo(t, { userId, departmentIds }))
+ 
+   // Progression des sous-tâches (table task_subtasks) pour les barres de Kanban.
+   const ids = visibleTasks.map(t => t.id)
+diff --git a/src/lib/tasks/visibility.ts b/src/lib/tasks/visibility.ts
+new file mode 100644
+index 0000000..032e943
+--- /dev/null
++++ b/src/lib/tasks/visibility.ts
+@@ -0,0 +1,48 @@
++import type { Task } from '@/types'
++
++interface VisibilityContext {
++  userId: string
++  departmentIds: string[]  // service actif + services additionnels de l'utilisateur
++}
++
++/**
++ * Visibilité des tâches — modèle d'ESPACE PARTAGÉ + implication personnelle.
++ *
++ * Une tâche est visible si :
++ *   - elle appartient à l'un des services de l'utilisateur (service principal
++ *     ou additionnel), OU
++ *   - l'utilisateur en est le créateur (même si elle est classée dans un
++ *     AUTRE service — cas d'une délégation inter-services), OU
++ *   - l'utilisateur y est assigné (même logique, peu importe le service).
++ *
++ * Règle IDENTIQUE pour tous les rôles, y compris admin : pas de vision
++ * "toute l'entreprise" par défaut, uniquement ses propres services + ce qui
++ * le concerne personnellement.
++ *
++ * Le calendrier personnel applique un filtre PLUS strict, séparément côté
++ * client (uniquement créateur/assigné, sans l'ouverture par service) — ne
++ * pas confondre les deux règles.
++ */
++export function isTaskVisibleTo(task: Task, ctx: VisibilityContext): boolean {
++  if (task.department_id && ctx.departmentIds.includes(task.department_id)) return true
++  if (task.created_by === ctx.userId) return true
++  if ((task.assignees ?? []).some(a => a.id === ctx.userId)) return true
++  return false
++}
++
++/**
++ * Services d'un utilisateur : service principal + additionnels (ex : Audrey
++ * en Comptabilité, responsable RH + Administratif). Utilisé pour déterminer
++ * l'ensemble de tâches qu'il peut voir (voir isTaskVisibleTo ci-dessus).
++ */
++export async function getUserDepartmentIds(
++  supabase: ReturnType<typeof import('@/lib/supabase/server').createAdminClient>,
++  userId: string
++): Promise<string[]> {
++  const { data } = await supabase
++    .from('profiles').select('department_id, extra_department_ids').eq('id', userId).single()
++  const ids = new Set<string>()
++  if (data?.department_id) ids.add(data.department_id)
++  for (const d of (data?.extra_department_ids as string[] | null) ?? []) ids.add(d)
++  return [...ids]
++}

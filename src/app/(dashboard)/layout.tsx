@@ -149,8 +149,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
 
     // Visibilité d'équipe : le tableau de bord (Kanban) est un espace
-    // PARTAGÉ — chacun voit les tâches de l'équipe, pas seulement les
-    // siennes. Seul le calendrier personnel filtre séparément côté client.
+    // PARTAGÉ — chacun voit les tâches de son/ses service(s) (principal +
+    // additionnels), plus ce qui le concerne personnellement (créateur ou
+    // assigné) même hors de ses services — cas d'une délégation croisée.
+    // Seul le calendrier personnel filtre séparément côté client (plus strict).
+    const myDeptIds = [profileRow?.department_id, ...extraDeptIds].filter(Boolean) as string[]
+    tasks = tasks.filter(t =>
+      (t.department_id && myDeptIds.includes(t.department_id))
+      || t.created_by === userId
+      || (t.assignees ?? []).some((a: { id: string }) => a.id === userId)
+    )
 
     const { data: memberRows } = await supabase
       .from('profiles')
