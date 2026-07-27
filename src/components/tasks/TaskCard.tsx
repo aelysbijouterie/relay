@@ -2,11 +2,10 @@
 
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Globe, AlertCircle, Clock, MessageSquare, Check, Eye } from 'lucide-react'
+import { Globe, AlertCircle, Clock, MessageSquare, Check } from 'lucide-react'
 import { cn, isOverdue, formatDeadline, getInitials } from '@/lib/utils'
 import type { Task } from '@/types'
 import { PRIORITY_COLORS } from '@/types'
-import { useTaskStore } from '@/store/tasks'
 
 interface TaskCardProps {
   task: Task
@@ -33,13 +32,6 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
 
   const overdue = isOverdue(task.deadline) && task.status !== 'Terminé' && task.status !== 'Archivé'
   const deptColor = task.department?.color ?? '#94A3B8'
-  const currentUserId = useTaskStore(s => s.currentUserId)
-
-  // Tâche déléguée : créée par moi, mais je m'en suis retirée volontairement
-  // des assignés (sinon, par défaut, le créateur reste assigné à sa carte).
-  const isDelegated = !!currentUserId
-    && task.created_by === currentUserId
-    && !(task.assignees ?? []).some(a => a.id === currentUserId)
 
   // Tâche qui stagne : aucun mouvement depuis 7 jours, sur un statut actif.
   const staleDays = (() => {
@@ -95,27 +87,12 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
           <AlertCircle className="w-2.5 h-2.5" /> En retard
         </span>
       )}
-      {/* Icône discrète : tâche déléguée, je surveille sans être assignée */}
-      {isDelegated && !selectMode && (
-        <span className="absolute top-2 right-2 z-10 text-muted-foreground/70" title="Vous avez délégué cette tâche : vous n'y êtes pas assignée">
-          <Eye className="w-4 h-4" />
-        </span>
-      )}
-      {/* Glow discret dans la couleur du service, sur toute la hauteur gauche,
-          + bloc triangulaire dans le coin haut-droit si la carte est déléguée.
+      {/* Glow discret dans la couleur du service, sur toute la hauteur gauche.
           Décalage négatif = même rectangle que la bordure (6px à gauche, 1px
           ailleurs), pour que l'arrondi coïncide exactement avec celui de la
           carte, y compris quand le badge "En retard" est affiché. */}
-      <div className="absolute -left-[6px] -top-px -right-px -bottom-px rounded-2xl overflow-hidden pointer-events-none">
-        <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg, ${deptColor}15 0%, ${deptColor}06 45%, transparent 75%)` }} />
-        {isDelegated && (
-          <div style={{
-            position: 'absolute', top: 0, right: 0, width: 0, height: 0,
-            borderStyle: 'solid', borderWidth: '0 44px 44px 0',
-            borderColor: `transparent ${deptColor}1A transparent transparent`,
-          }} />
-        )}
-      </div>
+      <div className="absolute -left-[6px] -top-px -right-px -bottom-px rounded-2xl overflow-hidden pointer-events-none"
+        style={{ background: `linear-gradient(90deg, ${deptColor}15 0%, ${deptColor}06 45%, transparent 75%)` }} />
 
       <div>
         {/* Titre en premier */}
