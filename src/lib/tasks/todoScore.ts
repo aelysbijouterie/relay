@@ -1,4 +1,5 @@
 import type { Task } from '@/types'
+import { effectiveDeadline } from './deadline'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Calcul de l'ordre "à traiter" d'une tâche (to-do priorisée).
@@ -53,7 +54,7 @@ function deadlineScore(deadline: string | null): number {
 }
 
 export function todoScore(task: Task): number {
-  return deadlineScore(task.deadline)
+  return deadlineScore(effectiveDeadline(task))
        + PRIORITY_WEIGHT[task.priority] * 30   // la priorité départage à deadline égale
        + (STATUS_WEIGHT[task.status] ?? 0) * 8 // le statut affine
 }
@@ -89,14 +90,14 @@ export function focusOfDay(tasks: Task[], limit = 6): Task[] {
 
   // 1+2. Les urgentes (retard + échéances proches), triées par score.
   const urgent = active
-    .filter(t => isUrgentBucket(urgencyBucket(t.deadline)))
+    .filter(t => isUrgentBucket(urgencyBucket(effectiveDeadline(t))))
     .sort((a, b) => todoScore(b) - todoScore(a))
 
   // 3. Le reste (pas d'urgence forte), trié par sous-tâches :
   //    presque finies d'abord (peu de restantes > 0), puis gros chantiers,
   //    et les tâches sans sous-tâches en dernier.
   const rest = active
-    .filter(t => !isUrgentBucket(urgencyBucket(t.deadline)))
+    .filter(t => !isUrgentBucket(urgencyBucket(effectiveDeadline(t))))
     .sort((a, b) => {
       const ra = remainingSubtasks(a)
       const rb = remainingSubtasks(b)

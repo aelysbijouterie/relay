@@ -548,6 +548,40 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
     }
   }
 
+  // ── Décalage en bloc des échéances de sous-tâches ───────────────────────────
+  const [selectedSubIds, setSelectedSubIds] = useState<Set<string>>(new Set())
+  const [shiftDays, setShiftDays] = useState(1)
+  const [shifting, setShifting] = useState(false)
+
+  function toggleSubSelect(id: string) {
+    setSelectedSubIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  async function shiftSelectedDeadlines() {
+    const targets = subtasks.filter(s => selectedSubIds.has(s.id) && s.deadline)
+    if (targets.length === 0) { toast.error('Sélectionnez au moins une sous-tâche avec une échéance'); return }
+    setShifting(true)
+    try {
+      for (const s of targets) {
+        const d = new Date(s.deadline as string)
+        d.setDate(d.getDate() + shiftDays)
+        const newDeadline = d.toISOString().slice(0, 10)
+        setSubtasks(prev => prev.map(x => x.id === s.id ? { ...x, deadline: newDeadline } : x))
+        await fetch(`/api/tasks/${taskId}/subtasks/${s.id}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deadline: newDeadline }),
+        })
+      }
+      toast.success(`${targets.length} échéance${targets.length > 1 ? 's' : ''} décalée${targets.length > 1 ? 's' : ''} de ${shiftDays > 0 ? '+' : ''}${shiftDays} j`)
+      setSelectedSubIds(new Set())
+      refresh() // pour que le Kanban reflète la nouvelle échéance dynamique
+    } catch {
+      toast.error('Décalage partiel — certaines échéances n\'ont pas pu être mises à jour')
+    } finally {
+      setShifting(false)
+    }
+  }
+
   // ── Glisser-déposer des sous-tâches (drag natif HTML5) ──────────────────────
   function handleSubDragStart(id: string) { setDragSubId(id) }
   function handleSubDragOver(e: React.DragEvent, overId: string) {
@@ -1038,6 +1072,23 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                 <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
               ) : (
                 <>
+                  {selectedSubIds.size > 0 && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/50 border border-dashed border-border flex-wrap">
+                      <span className="text-xs font-semibold text-muted-foreground">{selectedSubIds.size} sélectionnée{selectedSubIds.size > 1 ? 's' : ''}</span>
+                      <span className="text-xs text-muted-foreground">Décaler de</span>
+                      <input type="number" value={shiftDays} onChange={e => setShiftDays(Number(e.target.value))}
+                        className="w-16 px-2 py-1 rounded-lg bg-background border border-border text-xs focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">jour{Math.abs(shiftDays) > 1 ? 's' : ''} ({shiftDays >= 0 ? 'plus tard' : 'plus tôt'})</span>
+                      <button onClick={shiftSelectedDeadlines} disabled={shifting}
+                        className="ml-auto px-3 py-1.5 rounded-lg text-white text-xs font-bold disabled:opacity-50 transition-transform hover:scale-[1.02]"
+                        style={{ backgroundColor: deptColor }}>
+                        {shifting ? 'Décalage…' : 'Appliquer'}
+                      </button>
+                      <button onClick={() => setSelectedSubIds(new Set())} className="px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-muted transition-colors">
+                        Annuler
+                      </button>
+                    </div>
+                  )}
                   {subtasks.length > 0 && (
                     <div>
                       <div className="flex items-center justify-between mb-2">
@@ -1064,6 +1115,13 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                           <span className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0" title="Glisser pour réordonner">
                             <GripVertical className="w-3.5 h-3.5" />
                           </span>
+                          {/* Sélection pour le décalage en bloc — uniquement si une échéance existe */}
+                          {sub.deadline && (
+                            <button onClick={() => toggleSubSelect(sub.id)} className="flex-shrink-0" title="Sélectionner pour décaler l'échéance">
+                              <span className={cn('w-3.5 h-3.5 rounded border-[1.5px] block transition-colors',
+                                selectedSubIds.has(sub.id) ? 'bg-primary border-primary' : 'border-border')} />
+                            </button>
+                          )}
                           <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
                             {sub.is_done
                               ? <CheckSquare className="w-4 h-4" style={{ color: deptColor }} />

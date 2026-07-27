@@ -6,6 +6,7 @@ import { Globe, AlertCircle, Clock, MessageSquare, Check } from 'lucide-react'
 import { cn, isOverdue, formatDeadline, getInitials } from '@/lib/utils'
 import type { Task } from '@/types'
 import { PRIORITY_COLORS } from '@/types'
+import { effectiveDeadline, isDeadlineFromSubtask as isDeadlineFromSubtaskFn } from '@/lib/tasks/deadline'
 
 interface TaskCardProps {
   task: Task
@@ -38,22 +39,12 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
   const subDone  = subtasks.filter(s => s.status === 'Terminé').length
   const subPct   = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
 
-  // Si la carte elle-même n'a pas d'échéance, on affiche dynamiquement la
-  // prochaine échéance parmi ses sous-tâches non cochées (la plus proche).
-  // Dès qu'une sous-tâche est cochée, elle sort du calcul et la suivante
-  // prend sa place automatiquement — aucune action manuelle nécessaire.
-  const nearestSubtaskDeadline = (() => {
-    if (task.deadline) return null // la carte a sa propre échéance : priorité à elle
-    const pending = subtasks
-      .filter(s => s.status !== 'Terminé' && s.deadline)
-      .map(s => s.deadline as string)
-      .sort()
-    return pending[0] ?? null
-  })()
-  const effectiveDeadline = task.deadline ?? nearestSubtaskDeadline
-  const isDeadlineFromSubtask = !task.deadline && !!nearestSubtaskDeadline
-  const overdue = effectiveDeadline
-    ? isOverdue(effectiveDeadline) && task.status !== 'Terminé' && task.status !== 'Archivé'
+  // Échéance effective (propre à la carte, ou dérivée de la sous-tâche non
+  // cochée la plus proche) — logique partagée avec le Focus du jour.
+  const effectiveDeadlineValue = effectiveDeadline(task)
+  const isDeadlineFromSubtask = isDeadlineFromSubtaskFn(task)
+  const overdue = effectiveDeadlineValue
+    ? isOverdue(effectiveDeadlineValue) && task.status !== 'Terminé' && task.status !== 'Archivé'
     : false
 
   // Tâche qui stagne : aucun mouvement depuis 7 jours, sur un statut actif.
@@ -184,7 +175,7 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
         {/* Footer */}
         <div className="flex items-center justify-between mt-2.5">
           {/* Deadline (propre à la carte, ou dérivée de la sous-tâche la plus proche) */}
-          {effectiveDeadline ? (
+          {effectiveDeadlineValue ? (
             <span className={cn(
               'inline-flex items-center gap-1 text-xs font-medium',
               overdue ? 'text-red-500' : 'text-muted-foreground'
@@ -193,7 +184,7 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
                 ? <AlertCircle className="w-3 h-3" />
                 : <Clock className="w-3 h-3" />
               }
-              {formatDeadline(effectiveDeadline)}
+              {formatDeadline(effectiveDeadlineValue)}
               {isDeadlineFromSubtask && <span className="text-muted-foreground/70">(sous-tâche)</span>}
             </span>
           ) : <span />}

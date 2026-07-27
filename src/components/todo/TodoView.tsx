@@ -6,6 +6,7 @@ import { useTasks } from '@/hooks/useTasks'
 import { useTaskStore } from '@/store/tasks'
 import { TaskModal } from '@/components/tasks/TaskModal'
 import { focusOfDay, urgencyBucket, urgencyLabel, remainingSubtasks } from '@/lib/tasks/todoScore'
+import { effectiveDeadline, isDeadlineFromSubtask } from '@/lib/tasks/deadline'
 import { PRIORITY_COLORS } from '@/types'
 import type { Task } from '@/types'
 import { cn, getInitials } from '@/lib/utils'
@@ -14,7 +15,7 @@ const TONE_BG: Record<string, string> = { red: '#EF4444', orange: '#F97316', blu
 
 // Raison pour laquelle la tâche est dans le focus (petit libellé explicatif).
 function reasonFor(task: Task): { text: string; icon: typeof Clock; color: string } {
-  const b = urgencyBucket(task.deadline)
+  const b = urgencyBucket(effectiveDeadline(task))
   if (b === 'retard')     return { text: 'En retard — à traiter', icon: AlertTriangle, color: '#EF4444' }
   if (b === 'aujourdhui') return { text: 'Échéance aujourd’hui',  icon: Clock,         color: '#EF4444' }
   if (b === 'demain')     return { text: 'Échéance demain',       icon: Clock,         color: '#F97316' }
@@ -74,7 +75,9 @@ export function TodoView() {
         <div className="space-y-2.5">
           {focus.map((task, idx) => {
             const deptColor = task.department?.color ?? '#94A3B8'
-            const urg = urgencyLabel(task.deadline)
+            const taskDeadline = effectiveDeadline(task)
+            const fromSubtask = isDeadlineFromSubtask(task)
+            const urg = urgencyLabel(taskDeadline)
             const reason = reasonFor(task)
             const RIcon = reason.icon
             return (
@@ -96,9 +99,9 @@ export function TodoView() {
                       {task.priority}
                     </span>
                     <span className="text-[0.65rem] px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-medium">{task.status}</span>
-                    {task.deadline && (
+                    {taskDeadline && (
                       <span className="text-[0.65rem] px-2 py-0.5 rounded-md font-semibold text-white" style={{ backgroundColor: TONE_BG[urg.tone] }}>
-                        {urg.text}
+                        {urg.text}{fromSubtask && ' (sous-tâche)'}
                       </span>
                     )}
                   </div>
