@@ -98,7 +98,7 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
           jamais toucher un coin arrondi — le style le plus sûr possible. */}
       <div className="absolute left-2.5 top-3.5 bottom-3.5 w-[3px] rounded-full" style={{ backgroundColor: deptColor }} />
       <div className="absolute left-2.5 top-3.5 bottom-3.5 w-16 rounded-full pointer-events-none"
-        style={{ background: `linear-gradient(90deg, ${deptColor}14 0%, transparent 100%)` }} />
+        style={{ background: `linear-gradient(90deg, ${deptColor}30 0%, ${deptColor}10 55%, transparent 100%)` }} />
 
       <div className="pl-2">
         {/* Titre en premier */}
