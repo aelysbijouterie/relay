@@ -70,7 +70,7 @@ export interface Task {
   creator?: Profile
   assignees?: Profile[]
   extra_departments?: Department[]
-  subtasks?: Task[]
+  subtasks?: { status: string; deadline: string | null }[]
   tags?: Tag[]
 }
 

@@ -68,18 +68,20 @@ export async function GET() {
   const departmentIds = await getUserDepartmentIds(supabase, userId)
   const visibleTasks = tasks.filter(t => isTaskVisibleTo(t, { userId, departmentIds }))
 
-  // Progression des sous-tâches (table task_subtasks) pour les barres de Kanban.
+  // Progression des sous-tâches (table task_subtasks) pour les barres de
+  // Kanban, + échéance de chacune (pour afficher la prochaine échéance de
+  // sous-tâche quand la carte elle-même n'en a pas).
   const ids = visibleTasks.map(t => t.id)
   if (ids.length > 0) {
     const { data: subs } = await supabase
       .from('task_subtasks')
-      .select('task_id, is_done')
+      .select('task_id, is_done, deadline')
       .in('task_id', ids)
     if (subs && subs.length > 0) {
-      const byTask = new Map<string, { status: string }[]>()
-      for (const s of subs as { task_id: string; is_done: boolean }[]) {
+      const byTask = new Map<string, { status: string; deadline: string | null }[]>()
+      for (const s of subs as { task_id: string; is_done: boolean; deadline: string | null }[]) {
         const arr = byTask.get(s.task_id) ?? []
-        arr.push({ status: s.is_done ? 'Terminé' : 'A Faire' })
+        arr.push({ status: s.is_done ? 'Terminé' : 'A Faire', deadline: s.deadline })
         byTask.set(s.task_id, arr)
       }
       for (const t of visibleTasks) {

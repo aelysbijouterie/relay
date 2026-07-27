@@ -30,8 +30,31 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
     transition,
   }
 
-  const overdue = isOverdue(task.deadline) && task.status !== 'Terminé' && task.status !== 'Archivé'
   const deptColor = task.department?.color ?? '#94A3B8'
+
+  // Progression des sous-tâches (si présentes)
+  const subtasks = task.subtasks ?? []
+  const subTotal = subtasks.length
+  const subDone  = subtasks.filter(s => s.status === 'Terminé').length
+  const subPct   = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
+
+  // Si la carte elle-même n'a pas d'échéance, on affiche dynamiquement la
+  // prochaine échéance parmi ses sous-tâches non cochées (la plus proche).
+  // Dès qu'une sous-tâche est cochée, elle sort du calcul et la suivante
+  // prend sa place automatiquement — aucune action manuelle nécessaire.
+  const nearestSubtaskDeadline = (() => {
+    if (task.deadline) return null // la carte a sa propre échéance : priorité à elle
+    const pending = subtasks
+      .filter(s => s.status !== 'Terminé' && s.deadline)
+      .map(s => s.deadline as string)
+      .sort()
+    return pending[0] ?? null
+  })()
+  const effectiveDeadline = task.deadline ?? nearestSubtaskDeadline
+  const isDeadlineFromSubtask = !task.deadline && !!nearestSubtaskDeadline
+  const overdue = effectiveDeadline
+    ? isOverdue(effectiveDeadline) && task.status !== 'Terminé' && task.status !== 'Archivé'
+    : false
 
   // Tâche qui stagne : aucun mouvement depuis 7 jours, sur un statut actif.
   const staleDays = (() => {
@@ -40,12 +63,6 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
     const days = Math.floor((Date.now() - new Date(task.updated_at).getTime()) / 86400000)
     return days >= 7 ? days : null
   })()
-
-  // Progression des sous-tâches (si présentes)
-  const subtasks = task.subtasks ?? []
-  const subTotal = subtasks.length
-  const subDone  = subtasks.filter(s => s.status === 'Terminé').length
-  const subPct   = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
 
   return (
     <div
@@ -166,17 +183,18 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-2.5">
-          {/* Deadline */}
-          {task.deadline ? (
+          {/* Deadline (propre à la carte, ou dérivée de la sous-tâche la plus proche) */}
+          {effectiveDeadline ? (
             <span className={cn(
               'inline-flex items-center gap-1 text-xs font-medium',
               overdue ? 'text-red-500' : 'text-muted-foreground'
-            )}>
+            )} title={isDeadlineFromSubtask ? 'Échéance de la sous-tâche la plus proche' : undefined}>
               {overdue
                 ? <AlertCircle className="w-3 h-3" />
                 : <Clock className="w-3 h-3" />
               }
-              {formatDeadline(task.deadline)}
+              {formatDeadline(effectiveDeadline)}
+              {isDeadlineFromSubtask && <span className="text-muted-foreground/70">(sous-tâche)</span>}
             </span>
           ) : <span />}
 

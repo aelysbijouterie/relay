@@ -463,6 +463,9 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
         body: JSON.stringify({ is_done: next }),
       })
       if (!res.ok) throw new Error()
+      // Met à jour la liste des tâches (Kanban) pour que la carte affiche
+      // immédiatement la prochaine échéance de sous-tâche, si elle en dépend.
+      refresh()
     } catch {
       setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, is_done: sub.is_done } : s))
       toast.error('Impossible de mettre à jour')
