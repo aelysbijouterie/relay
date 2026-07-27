@@ -60,8 +60,6 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
       ref={setNodeRef}
       style={{
         ...style,
-        borderLeftColor: deptColor,
-        backgroundImage: `linear-gradient(90deg, ${deptColor}12 0%, ${deptColor}05 40%, transparent 70%)`,
         ...(overdue ? { boxShadow: '0 0 0 1.5px #EF4444, 0 4px 14px rgba(239,68,68,0.18)' } : {}),
       }}
       {...(selectMode ? {} : attributes)}
@@ -69,14 +67,11 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
       onClick={() => selectMode ? onToggleSelect?.(task.id) : onClick(task)}
       className={cn(
         'group relative rounded-2xl p-3.5 space-y-2.5',
-        // Bordure de LARGEUR UNIFORME (2px partout) : seule la COULEUR change
-        // sur le côté gauche, jamais la largeur. Changer la couleur d'un côté
-        // ne déforme jamais l'arrondi (contrairement à changer sa LARGEUR) —
-        // le rayon reste un cercle parfait, identique à celui du contour
-        // rouge "en retard". Le dégradé est le fond natif de la carte, pas un
-        // calque séparé : le navigateur le découpe lui-même selon le même
-        // rayon, sans aucun risque de décalage, quels que soient la taille ou
-        // l'état de la carte.
+        // Bordure classique, uniforme, grise : ne porte plus la couleur du
+        // service. La barre + le glow sont entièrement DÉCOLLÉS du bord de la
+        // carte (jamais posés sur la bordure elle-même), donc ils ne touchent
+        // jamais un coin arrondi — aucun risque de coupure ou de décalage,
+        // quels que soient la taille ou l'état de la carte.
         'border-2 border-border',
         selectMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
         'select-none',
@@ -99,6 +94,11 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
           <AlertCircle className="w-2.5 h-2.5" /> En retard
         </span>
       )}
+      {/* Barre + glow À L'INTÉRIEUR de la carte, décollés du bord (inset), sans
+          jamais toucher un coin arrondi — le style le plus sûr possible. */}
+      <div className="absolute left-2.5 top-3.5 bottom-3.5 w-[3px] rounded-full" style={{ backgroundColor: deptColor }} />
+      <div className="absolute left-2.5 top-3.5 bottom-3.5 w-16 rounded-full pointer-events-none"
+        style={{ background: `linear-gradient(90deg, ${deptColor}14 0%, transparent 100%)` }} />
 
       <div className="pl-2">
         {/* Titre en premier */}
