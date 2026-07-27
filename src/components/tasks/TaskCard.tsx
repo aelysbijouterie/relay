@@ -68,12 +68,11 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
       onClick={() => selectMode ? onToggleSelect?.(task.id) : onClick(task)}
       className={cn(
         'group relative rounded-2xl p-3.5 space-y-2.5',
-        // Bordure gauche épaissie dans la couleur du service : le rayon étant
-        // appliqué sur toute la carte, le navigateur courbe nativement cette
-        // bordure dans les 2 angles — raccord fluide, sans artifice superposé.
-        // (Identique, que la carte soit déléguée ou non — le bloc triangulaire
-        // + l'œil suffisent à signaler la délégation, sans besoin de pointillés.)
-        'border-t border-r border-b border-l-[6px] border-border',
+        // Bordure UNIFORME (même épaisseur sur les 4 côtés) : son rayon de
+        // 16px est un cercle géométrique parfait, identique à celui du
+        // contour rouge "en retard" (box-shadow) — garantit qu'ils coïncident
+        // toujours, quelle que soit la taille ou l'état de la carte.
+        'border border-border',
         selectMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
         'select-none',
         'transition-all duration-200',
@@ -95,14 +94,17 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
           <AlertCircle className="w-2.5 h-2.5" /> En retard
         </span>
       )}
-      {/* Glow discret dans la couleur du service, sur toute la hauteur gauche.
-          Décalage négatif = même rectangle que la bordure (6px à gauche, 1px
-          ailleurs), pour que l'arrondi coïncide exactement avec celui de la
-          carte, y compris quand le badge "En retard" est affiché. */}
-      <div className="absolute -left-[6px] -top-px -right-px -bottom-px rounded-2xl overflow-hidden pointer-events-none"
-        style={{ background: `linear-gradient(90deg, ${deptColor}15 0%, ${deptColor}06 45%, transparent 75%)` }} />
+      {/* Barre colorée + glow, en overlay, découpés avec EXACTEMENT le même
+          rayon que la carte (-inset-px = calé pile sur le bord de la carte,
+          bordure uniforme oblige). Comme le rayon est un cercle uniforme
+          partout, cette barre coïncide toujours avec le contour de la carte,
+          y compris avec le contour rouge "en retard", peu importe la taille. */}
+      <div className="absolute -inset-px rounded-2xl overflow-hidden pointer-events-none">
+        <div className="absolute left-0 top-0 bottom-0 w-[6px]" style={{ backgroundColor: deptColor }} />
+        <div className="absolute inset-0" style={{ background: `linear-gradient(90deg, ${deptColor}15 0%, ${deptColor}06 45%, transparent 75%)` }} />
+      </div>
 
-      <div>
+      <div className="pl-2">
         {/* Titre en premier */}
         <p className="text-sm font-semibold leading-snug line-clamp-2 text-foreground mb-2">
           {task.title}
