@@ -17,7 +17,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('tasks')
     .select(`
-      id, title, status, priority, deadline, deleted_at,
+      id, title, status, priority, deadline, deleted_at, created_by,
       department:departments!department_id(id, name, color, slug),
       assignees:task_assignees(user:profiles(id, name, avatar_url))
     `)
@@ -31,5 +31,11 @@ export async function GET() {
     ...t,
     assignees: ((t.assignees as { user: unknown }[]) ?? []).map(a => a.user).filter(Boolean),
   }))
-  return NextResponse.json(mapped, { headers: { 'Cache-Control': 'no-store' } })
+
+  // Visibilité PERSONNELLE stricte : chacun ne voit que sa propre corbeille
+  // (créateur ou assigné), jamais celle de ses collègues.
+  const visible = (mapped as { created_by?: string; assignees: { id: string }[] }[]).filter(t =>
+    t.created_by === userId || t.assignees.some(a => a.id === userId))
+
+  return NextResponse.json(visible, { headers: { 'Cache-Control': 'no-store' } })
 }

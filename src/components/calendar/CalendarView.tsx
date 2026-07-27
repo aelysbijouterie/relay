@@ -18,6 +18,9 @@ import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
 import { occurrencesInRange } from '@/lib/recurring/schedule'
 import type { RecurringTask } from '@/types/recurring'
 import { FREQUENCY_LABELS, WEEKDAYS } from '@/types/recurring'
+import { EventModal } from './EventModal'
+import { CATEGORY_LABELS, CATEGORY_COLORS, eventOccursOn, dsLocal as dsLocalEvt, type CalendarEvent } from '@/types/calendarEvents'
+import { Plus } from 'lucide-react'
 
 // Décrit la règle de récurrence en clair.
 function describeRecurrence(m: RecurringTask): string {
@@ -57,6 +60,31 @@ export function CalendarView() {
   const [showAbs, setShowAbs] = useState(false)
   const [absences, setAbsences] = useState<{ id: string; type: string; start_date: string; end_date: string; status: string; user?: { name?: string } }[]>([])
   const [materializing, setMaterializing] = useState(false)
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [showEventModal, setShowEventModal] = useState<{ date?: Date; event?: CalendarEvent } | null>(null)
+
+  async function loadEvents() {
+    try {
+      const r = await fetch('/api/calendar-events', { cache: 'no-store' })
+      const d = await r.json()
+      setEvents(Array.isArray(d) ? d : [])
+    } catch { /* noop */ }
+  }
+  useEffect(() => { loadEvents() }, [])
+
+  // Événements du mois affiché, groupés par jour.
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>()
+    const from = startOfMonth(cursor); const to = endOfMonth(cursor)
+    const cur = new Date(from)
+    while (cur <= to) {
+      const ds = dsLocalEvt(cur)
+      const matches = events.filter(e => eventOccursOn(e, cur))
+      if (matches.length) map.set(ds, matches)
+      cur.setDate(cur.getDate() + 1)
+    }
+    return map
+  }, [events, cursor])
 
   useEffect(() => {
     fetch('/api/recurring', { cache: 'no-store' }).then(r => r.json())
@@ -231,7 +259,7 @@ export function CalendarView() {
         </div>
       </div>
 
-      {view === 'month' && <MonthView cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} showHol={showHol} showSchool={showSchool} projectionsByDay={projectionsByDay} onSelectRecurring={(m, date) => setSelectedRecurring({ model: m, date })} absencesByDay={absencesByDay} />}
+      {view === 'month' && <MonthView cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} showHol={showHol} showSchool={showSchool} projectionsByDay={projectionsByDay} onSelectRecurring={(m, date) => setSelectedRecurring({ model: m, date })} absencesByDay={absencesByDay} eventsByDay={eventsByDay} onSelectEvent={(ev, date) => setShowEventModal({ event: ev, date })} onAddEvent={(date) => setShowEventModal({ date })} />}
       {view === 'week'  && <WeekView  cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
       {view === 'day'   && <DayView   cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
 
@@ -240,6 +268,16 @@ export function CalendarView() {
       )}
 
       {/* Détail d'une occurrence récurrente (clic sur un fantôme du calendrier) */}
+      {/* Création / édition d'un événement de calendrier (réunion, anniversaire…) */}
+      {showEventModal && (
+        <EventModal
+          defaultDate={showEventModal.date}
+          event={showEventModal.event}
+          onClose={() => setShowEventModal(null)}
+          onSaved={() => { setShowEventModal(null); loadEvents() }}
+        />
+      )}
+
       {selectedRecurring && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setSelectedRecurring(null)}>
           <div className="bg-card rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()} style={{ boxShadow: '0 30px 80px rgba(20,30,40,0.2)' }}>
@@ -300,6 +338,9 @@ interface SubViewProps {
   projectionsByDay?: Map<string, RecurringTask[]>
   absencesByDay?: Map<string, { name: string; type: string }[]>
   onSelectRecurring?: (m: RecurringTask, date: string) => void
+  eventsByDay?: Map<string, CalendarEvent[]>
+  onSelectEvent?: (ev: CalendarEvent, date?: Date) => void
+  onAddEvent?: (date: Date) => void
 }
 
 function TaskChip({ task, onSelect }: { task: Task; onSelect: (t: Task) => void }) {
@@ -315,7 +356,7 @@ function TaskChip({ task, onSelect }: { task: Task; onSelect: (t: Task) => void 
   )
 }
 
-function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, projectionsByDay, onSelectRecurring, absencesByDay }: SubViewProps) {
+function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, projectionsByDay, onSelectRecurring, absencesByDay, eventsByDay, onSelectEvent, onAddEvent }: SubViewProps) {
   const monthStart = startOfMonth(cursor)
   const days = eachDayOfInterval({ start: monthStart, end: endOfMonth(cursor) })
   const startOffset = (getDay(monthStart) + 6) % 7
@@ -339,16 +380,33 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
           const vacances = (showSchool ?? true) ? schoolHolidayName(ds) : null
           const projections = projectionsByDay?.get(ds) ?? []
           const dayAbsences = absencesByDay?.get(ds) ?? []
+          const dayEvents = eventsByDay?.get(ds) ?? []
           return (
-            <div key={day.toISOString()} className={cn('min-h-[100px] p-2 border-b border-r border-border', today && 'bg-primary/5')}
+            <div key={day.toISOString()} className={cn('group relative min-h-[100px] p-2 border-b border-r border-border', today && 'bg-primary/5')}
               style={!today && ferie ? { backgroundColor: 'rgba(217,70,239,0.07)' } : !today && vacances ? { backgroundColor: 'rgba(234,179,8,0.07)' } : undefined}
               title={ferie ?? vacances ?? undefined}>
-              <div className={cn('text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full', today && 'bg-primary text-primary-foreground')}
-                style={!today && ferie ? { color: '#C026D3' } : undefined}>
-                {format(day, 'd')}
+              <div className="flex items-center justify-between mb-1">
+                <div className={cn('text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full', today && 'bg-primary text-primary-foreground')}
+                  style={!today && ferie ? { color: '#C026D3' } : undefined}>
+                  {format(day, 'd')}
+                </div>
+                <button onClick={() => onAddEvent?.(day)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted text-muted-foreground"
+                  title="Ajouter un événement ce jour">
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
               </div>
               {ferie && <p className="text-[0.6rem] leading-tight mb-0.5 truncate font-medium" style={{ color: '#C026D3' }} title={ferie}>{ferie}</p>}
               <div className="space-y-0.5">
+                {/* Événements de calendrier (réunions, anniversaires…) — jamais dans le Kanban */}
+                {dayEvents.map(ev => (
+                  <button key={`evt-${ev.id}`} onClick={() => onSelectEvent?.(ev, day)}
+                    className="w-full text-left text-[0.65rem] leading-tight px-1.5 py-0.5 rounded truncate font-medium text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: CATEGORY_COLORS[ev.category] }}
+                    title={`${ev.title}${ev.event_time ? ' · ' + ev.event_time.slice(0, 5) : ''}`}>
+                    {ev.event_time ? `${ev.event_time.slice(0, 5)} ` : ''}{ev.title}
+                  </button>
+                ))}
                 {dayTasks.slice(0, 3).map(task => <TaskChip key={task.id} task={task} onSelect={onSelect} />)}
                 {dayTasks.length > 3 && <p className="text-xs text-muted-foreground pl-1">+{dayTasks.length - 3}</p>}
                 {/* Projections récurrentes (fantômes) : occurrences à venir, cliquables */}

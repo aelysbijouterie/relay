@@ -323,7 +323,7 @@ export function AbsencesView() {
                         <div key={a.id} title={`${a.user?.name} · ${a.type}${a.status.includes('attente') ? ' (en attente)' : ''}`}
                           className="text-[0.55rem] leading-tight px-1 py-0.5 rounded truncate text-white font-medium"
                           style={{ backgroundColor: ABSENCE_COLORS[a.type], opacity: a.status.includes('attente') ? 0.5 : 1 }}>
-                          {(a.user?.name ?? '?').split(' ')[0]}
+                          {a.type === 'Alternance' ? `Alternance ${(a.user?.name ?? '?').split(' ')[0]}` : (a.user?.name ?? '?').split(' ')[0]}
                         </div>
                       ))}
                       {items.length > 3 && (

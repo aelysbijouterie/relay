@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isTaskVisibleTo, getUserDepartmentIds } from '@/lib/tasks/visibility'
 import type { Task } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -43,8 +42,9 @@ export async function GET() {
     tags:      ((t.tags as { tag: unknown }[]) ?? []).map(a => a.tag).filter(Boolean),
   })) as unknown as Task[]
 
-  // Visibilité d'équipe (voir route.ts principal pour le contexte)
-  const departmentIds = await getUserDepartmentIds(supabase, userId)
-  const visible = tasks.filter(t => isTaskVisibleTo(t, { userId, departmentIds }))
+  // Visibilité PERSONNELLE stricte (contrairement au Kanban actif qui partage
+  // par service) : chacun ne voit que ses propres archives — créateur ou
+  // assigné — jamais celles de ses collègues, même du même service.
+  const visible = tasks.filter(t => t.created_by === userId || (t.assignees ?? []).some((a: { id: string }) => a.id === userId))
   return NextResponse.json(visible, { headers: { 'Cache-Control': 'no-store' } })
 }
