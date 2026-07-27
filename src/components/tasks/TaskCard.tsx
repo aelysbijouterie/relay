@@ -94,11 +94,13 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
           <AlertCircle className="w-2.5 h-2.5" /> En retard
         </span>
       )}
-      {/* Barre + glow À L'INTÉRIEUR de la carte, décollés du bord (inset), sans
-          jamais toucher un coin arrondi — le style le plus sûr possible. */}
-      <div className="absolute left-2.5 top-3.5 bottom-3.5 w-[3px] rounded-full" style={{ backgroundColor: deptColor }} />
-      <div className="absolute left-2.5 top-3.5 bottom-3.5 w-16 rounded-full pointer-events-none"
-        style={{ background: `linear-gradient(90deg, ${deptColor}30 0%, ${deptColor}10 55%, transparent 100%)` }} />
+      {/* Barre colorée à l'intérieur de la carte, décollée du bord — avec un
+          halo natif (box-shadow flou) qui épouse exactement sa forme réelle,
+          sans passer par un rectangle séparé (qui donnait un effet "pilule"
+          mal formé). Aucun risque de coupure ou de décalage, quel que soit
+          l'état de la carte. */}
+      <div className="absolute left-2.5 top-3.5 bottom-3.5 w-[3px] rounded-full"
+        style={{ backgroundColor: deptColor, boxShadow: `0 0 10px 2px ${deptColor}55` }} />
 
       <div className="pl-2">
         {/* Titre en premier */}
