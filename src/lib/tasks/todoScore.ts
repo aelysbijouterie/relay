@@ -93,32 +93,32 @@ export function focusOfDay(tasks: Task[], limit = 6): Task[] {
     .filter(t => isUrgentBucket(urgencyBucket(effectiveDeadline(t))))
     .sort((a, b) => todoScore(b) - todoScore(a))
 
-  // 3. Le reste (pas d'urgence forte), trié par sous-tâches :
+  // 3. Les échéances lointaines (> 7 jours), triées par sous-tâches :
   //    presque finies d'abord (peu de restantes > 0), puis gros chantiers,
   //    et les tâches sans sous-tâches en dernier.
-  const rest = active
-    .filter(t => !isUrgentBucket(urgencyBucket(effectiveDeadline(t))))
+  const later = active
+    .filter(t => urgencyBucket(effectiveDeadline(t)) === 'plus_tard')
     .sort((a, b) => {
       const ra = remainingSubtasks(a)
       const rb = remainingSubtasks(b)
       const aHas = ra > 0, bHas = rb > 0
       if (aHas && bHas) {
-        // les deux ont des sous-tâches restantes : on les classe par
-        // "presque finies d'abord" → écart au plus petit nombre restant.
-        // Si même nombre, on départage par priorité/score.
-        if (ra !== rb) {
-          // presque finie = petit nombre ; mais on veut presque-finies AVANT
-          // gros chantiers → ascendant sur le restant.
-          // Sauf 1 restante qui est la plus "bouclable" : reste ascendant OK.
-          return ra - rb
-        }
+        if (ra !== rb) return ra - rb
         return todoScore(b) - todoScore(a)
       }
-      if (aHas !== bHas) return aHas ? -1 : 1   // celles avec sous-tâches avant celles sans
-      return todoScore(b) - todoScore(a)         // aucune sous-tâche : par score
+      if (aHas !== bHas) return aHas ? -1 : 1
+      return todoScore(b) - todoScore(a)
     })
 
-  return [...urgent, ...rest].slice(0, limit)
+  // 4. Les tâches SANS échéance du tout : toujours visibles, tout en bas,
+  //    triées par PRIORITÉ (validé : mieux vaut les garder visibles chaque
+  //    jour plutôt que d'attendre que la semaine soit "vide" — sinon elles
+  //    ne remontent quasiment jamais dans une équipe active).
+  const noDate = active
+    .filter(t => urgencyBucket(effectiveDeadline(t)) === 'sans_date')
+    .sort((a, b) => PRIORITY_WEIGHT[b.priority] - PRIORITY_WEIGHT[a.priority] || todoScore(b) - todoScore(a))
+
+  return [...urgent, ...later, ...noDate].slice(0, limit)
 }
 
 // Libellé court d'urgence pour l'affichage.
