@@ -6,27 +6,42 @@ interface VisibilityContext {
 }
 
 /**
- * Visibilité des tâches — modèle d'ESPACE PARTAGÉ + implication personnelle.
+ * Visibilité des tâches — modèle PERSONNEL vs ÉQUIPE.
+ *
+ * Une carte est "personnelle" tant que SEULE sa créatrice est concernée
+ * (aucun autre assigné) : elle reste privée, invisible du reste du service.
+ * Dès qu'on y ajoute quelqu'un d'autre (délégation ou collaboration), elle
+ * devient une carte d'ÉQUIPE, visible par tout le service concerné.
  *
  * Une tâche est visible si :
- *   - elle appartient à l'un des services de l'utilisateur (service principal
- *     ou additionnel), OU
- *   - l'utilisateur en est le créateur (même si elle est classée dans un
- *     AUTRE service — cas d'une délégation inter-services), OU
- *   - l'utilisateur y est assigné (même logique, peu importe le service).
+ *   - l'utilisateur en est le créateur (voit toujours ses propres cartes,
+ *     personnelles ou non), OU
+ *   - l'utilisateur y est assigné (toujours, peu importe le service), OU
+ *   - la carte N'EST PAS personnelle (au moins une autre personne que la
+ *     créatrice y est impliquée) ET elle appartient à l'un des services de
+ *     l'utilisateur (principal ou additionnel).
  *
- * Règle IDENTIQUE pour tous les rôles, y compris admin : pas de vision
- * "toute l'entreprise" par défaut, uniquement ses propres services + ce qui
- * le concerne personnellement.
+ * Règle IDENTIQUE pour tous les rôles, y compris admin.
  *
  * Le calendrier personnel applique un filtre PLUS strict, séparément côté
  * client (uniquement créateur/assigné, sans l'ouverture par service) — ne
  * pas confondre les deux règles.
  */
+
+// Une carte est "personnelle" si personne d'autre que sa créatrice n'y est
+// impliqué (pas d'assigné du tout, ou seulement la créatrice elle-même).
+export function isPersonalCard(task: Task): boolean {
+  const assignees = task.assignees ?? []
+  if (assignees.length === 0) return true
+  if (assignees.length === 1 && assignees[0].id === task.created_by) return true
+  return false
+}
+
 export function isTaskVisibleTo(task: Task, ctx: VisibilityContext): boolean {
-  if (task.department_id && ctx.departmentIds.includes(task.department_id)) return true
   if (task.created_by === ctx.userId) return true
   if ((task.assignees ?? []).some(a => a.id === ctx.userId)) return true
+  if (isPersonalCard(task)) return false // jamais partagée avec le service, même si le service correspond
+  if (task.department_id && ctx.departmentIds.includes(task.department_id)) return true
   return false
 }
 
