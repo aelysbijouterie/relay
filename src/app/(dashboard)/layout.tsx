@@ -149,13 +149,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       department,
     }
 
-    // Visibilité PERSONNEL vs ÉQUIPE (voir src/lib/tasks/visibility.ts pour le
-    // détail) : une carte reste privée tant que seule sa créatrice est
-    // concernée ; dès qu'une autre personne y est assignée, elle devient
-    // visible par le service. Seul le calendrier personnel filtre séparément
-    // côté client (plus strict).
-    const myDeptIds = [profileRow?.department_id, ...extraDeptIds].filter(Boolean) as string[]
-    tasks = tasks.filter(t => isTaskVisibleTo(t as unknown as Task, { userId: userId!, departmentIds: myDeptIds }))
+    // Visibilité STRICTE : chacun ne voit que ce qu'il a créé ou ce qui lui
+    // est assigné, jamais automatiquement le reste du service (voir
+    // src/lib/tasks/visibility.ts). Le calendrier personnel applique le même
+    // principe, indépendamment, côté client.
+    tasks = tasks.filter(t => isTaskVisibleTo(t as unknown as Task, { userId: userId! }))
 
     const { data: memberRows } = await supabase
       .from('profiles')

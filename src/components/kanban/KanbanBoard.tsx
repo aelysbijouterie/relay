@@ -27,7 +27,7 @@ export function KanbanBoard({
 }) {
   const { tasks, refresh }    = useTasks()
   const currentUserId         = useTaskStore(s => s.currentUserId)
-  const [taskFilter, setTaskFilter] = useState<'all' | 'mine' | 'delegated'>('all')
+  const [taskFilter, setTaskFilter] = useState<'all' | 'delegated'>('all')
   const [selectMode, setSelectMode]   = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy]       = useState(false)
@@ -94,7 +94,6 @@ export function KanbanBoard({
       if (!currentUserId) return true // pas encore hydraté
       const isAssignedToMe = (t.assignees ?? []).some(a => a.id === currentUserId)
       const isCreatedByMe = t.created_by === currentUserId
-      if (taskFilter === 'mine') return isAssignedToMe || isCreatedByMe
       // 'delegated' : ce que j'ai créé pour d'autres, sans y être moi-même assignée.
       return isCreatedByMe && !isAssignedToMe
     })
@@ -226,15 +225,8 @@ export function KanbanBoard({
         <div className="inline-flex rounded-lg border border-border overflow-hidden">
           <button
             onClick={() => setTaskFilter('all')}
-            className={cn('text-xs px-2.5 py-1.5 transition-colors',
+            className={cn('inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 transition-colors',
               taskFilter === 'all' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
-          >
-            Tout
-          </button>
-          <button
-            onClick={() => setTaskFilter('mine')}
-            className={cn('inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 transition-colors border-l border-border',
-              taskFilter === 'mine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
           >
             <User className="w-3 h-3" /> Mes tâches
           </button>
