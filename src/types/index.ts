@@ -72,6 +72,15 @@ export interface Task {
   extra_departments?: Department[]
   subtasks?: { status: string; deadline: string | null }[]
   tags?: Tag[]
+  // PAC & Média Kit (Marketing & Web uniquement) — voir types/pacMediaKit.ts
+  op_category?: 'operation_commerciale' | 'media_kit' | null
+  op_date_debut?: string | null
+  op_mecanique?: string | null
+  op_cgv?: string | null
+  op_exclusions?: string | null
+  op_commentaires?: string | null
+  op_montant?: number | null
+  op_references?: string | null
 }
 
 export interface Attachment {

@@ -10,7 +10,10 @@ function getUserId(): string | null {
 }
 
 // Champs simples modifiables et tracés dans l'historique.
-const EDITABLE_FIELDS = ['title', 'description', 'priority', 'deadline', 'status', 'fournisseur_client', 'ref_collection'] as const
+const EDITABLE_FIELDS = [
+  'title', 'description', 'priority', 'deadline', 'status', 'fournisseur_client', 'ref_collection',
+  'op_category', 'op_date_debut', 'op_mecanique', 'op_cgv', 'op_exclusions', 'op_commentaires', 'op_montant', 'op_references',
+] as const
 type EditableField = typeof EDITABLE_FIELDS[number]
 
 // PATCH : modifier une carte (un ou plusieurs champs), avec historique.
@@ -28,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   // État actuel pour comparer (et tracer ancien → nouveau)
   const { data: before } = await supabase
     .from('tasks')
-    .select('title, description, priority, deadline, status, fournisseur_client, ref_collection')
+    .select('title, description, priority, deadline, status, fournisseur_client, ref_collection, op_category, op_date_debut, op_mecanique, op_cgv, op_exclusions, op_commentaires, op_montant, op_references')
     .eq('id', params.id)
     .single()
 

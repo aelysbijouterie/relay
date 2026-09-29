@@ -7,6 +7,8 @@ import { getInitials } from '@/lib/utils'
 import { createTask } from '@/lib/actions/tasks'
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/types'
 import type { Department, Profile } from '@/types'
+import type { OpCategory } from '@/types/pacMediaKit'
+import { OP_CATEGORY_LABELS, canUsePacMediaKit } from '@/types/pacMediaKit'
 
 interface ProfileWithDept extends Profile {
   department?: Department
@@ -40,6 +42,17 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
   const [priority, setPriority]       = useState('Moyenne')
   const [deadline, setDeadline]       = useState('')
   const [deptId, setDeptId]           = useState(currentDepartmentId)
+  // PAC & Média Kit (Marketing & Web uniquement) — tous optionnels.
+  const [opCategory, setOpCategory]   = useState<OpCategory | ''>('')
+  const [opDateDebut, setOpDateDebut] = useState('')
+  const [opMecanique, setOpMecanique] = useState('')
+  const [opCgv, setOpCgv]             = useState('')
+  const [opExclusions, setOpExclusions] = useState('')
+  const [opCommentaires, setOpCommentaires] = useState('')
+  const [opMontant, setOpMontant]     = useState('')
+  const [opReferences, setOpReferences] = useState('')
+  const selectedDept = departments.find(d => d.id === deptId)
+  const showPacMediaKit = canUsePacMediaKit(selectedDept?.slug)
   // Par défaut, la carte est assignée au créateur (c'est sa todo, tant qu'il
   // ne se retire pas volontairement pour la déléguer entièrement à d'autres).
   const [assigneeIds, setAssigneeIds] = useState<string[]>(profile?.id ? [profile.id] : [])
@@ -152,6 +165,14 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
       extra_departments: [],
       fournisseur_client: fournisseur.trim() || null,
       ref_collection:    refCollection.trim() || null,
+      op_category:        opCategory || null,
+      op_date_debut:      opDateDebut || null,
+      op_mecanique:        opCategory === 'operation_commerciale' ? (opMecanique.trim() || null) : null,
+      op_cgv:              opCategory === 'operation_commerciale' ? (opCgv.trim() || null) : null,
+      op_exclusions:       opCategory === 'operation_commerciale' ? (opExclusions.trim() || null) : null,
+      op_commentaires:     opCategory === 'operation_commerciale' ? (opCommentaires.trim() || null) : null,
+      op_montant:          opCategory === 'media_kit' && opMontant ? Number(opMontant) : null,
+      op_references:       opCategory === 'media_kit' ? (opReferences.trim() || null) : null,
     })
 
     if (!result.success) {
@@ -339,6 +360,73 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
               className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
+
+          {/* PAC & Média Kit — uniquement Marketing & Web, entièrement optionnel */}
+          {showPacMediaKit && (
+            <div className="rounded-xl border border-dashed border-border p-3 space-y-3">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Catégorie PAC & Média Kit (optionnel)
+              </label>
+              <select value={opCategory} onChange={e => setOpCategory(e.target.value as OpCategory | '')}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="">— Aucune (carte normale) —</option>
+                {(Object.keys(OP_CATEGORY_LABELS) as OpCategory[]).map(c => <option key={c} value={c}>{OP_CATEGORY_LABELS[c]}</option>)}
+              </select>
+
+              {opCategory && (
+                <>
+                  <div>
+                    <label className="text-xs font-medium block mb-1">Date de début</label>
+                    <input type="date" value={opDateDebut} onChange={e => setOpDateDebut(e.target.value)}
+                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                    <p className="text-[0.65rem] text-muted-foreground mt-1">La date de fin utilise le champ Échéance ci-dessous.</p>
+                  </div>
+
+                  {opCategory === 'operation_commerciale' && (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium block mb-1">Mécanique de l&apos;opération</label>
+                        <textarea value={opMecanique} onChange={e => setOpMecanique(e.target.value)} rows={2}
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1">CGV</label>
+                        <textarea value={opCgv} onChange={e => setOpCgv(e.target.value)} rows={2}
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1">Exclusions</label>
+                        <textarea value={opExclusions} onChange={e => setOpExclusions(e.target.value)} rows={2}
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1">Commentaires</label>
+                        <textarea value={opCommentaires} onChange={e => setOpCommentaires(e.target.value)} rows={2}
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      </div>
+                    </>
+                  )}
+
+                  {opCategory === 'media_kit' && (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium block mb-1">Montant de l&apos;opération</label>
+                        <input type="number" step="0.01" value={opMontant} onChange={e => setOpMontant(e.target.value)}
+                          placeholder="€"
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium block mb-1">Référence(s) de l&apos;opération</label>
+                        <input value={opReferences} onChange={e => setOpReferences(e.target.value)}
+                          placeholder="Ex : REF-2026-08, REF-2026-09"
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Statut + Priorité */}
           <div className="grid grid-cols-2 gap-3">

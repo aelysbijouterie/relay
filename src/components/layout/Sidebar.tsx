@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays } from 'lucide-react'
+import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Briefcase } from 'lucide-react'
 import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
 import { Logo } from '@/components/brand/Logo'
 import type { Profile, Department } from '@/types'
+import { canUsePacMediaKit } from '@/types/pacMediaKit'
 
 const NAV_ITEMS = [
   { href: '/kanban',     label: 'Kanban',       icon: Columns },
@@ -119,7 +120,13 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
 
       {/* Navigation */}
       <nav className="px-3 py-2 space-y-0.5">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {[
+          ...NAV_ITEMS.slice(0, 1), // Kanban en premier
+          ...(canUsePacMediaKit(department?.slug, extraDepartments.map(d => d.slug))
+            ? [{ href: '/pac-media-kit', label: 'PAC & Média Kit', icon: Briefcase }]
+            : []),
+          ...NAV_ITEMS.slice(1), // le reste (Calendrier, Chronologie, etc.)
+        ].map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link

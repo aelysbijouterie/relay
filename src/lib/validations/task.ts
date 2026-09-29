@@ -16,6 +16,16 @@ export const taskSchema = z.object({
   ref_collection:     z.string().optional().nullable(),
   parent_task_id:     idSchema.optional().nullable(),
   assignees:          z.array(idSchema).optional(),
+  // PAC & Média Kit (Marketing & Web uniquement) — tous optionnels, sans
+  // impact sur les cartes normales qui ne les renseignent jamais.
+  op_category:        z.enum(['operation_commerciale', 'media_kit']).optional().nullable(),
+  op_date_debut:      z.string().optional().nullable(),
+  op_mecanique:       z.string().optional().nullable(),
+  op_cgv:             z.string().optional().nullable(),
+  op_exclusions:      z.string().optional().nullable(),
+  op_commentaires:    z.string().optional().nullable(),
+  op_montant:         z.number().optional().nullable(),
+  op_references:      z.string().optional().nullable(),
 })
 
 export type TaskFormValues = z.infer<typeof taskSchema>

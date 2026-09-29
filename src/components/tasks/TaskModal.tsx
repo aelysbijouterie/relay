@@ -13,6 +13,8 @@ import { useTasks } from '@/hooks/useTasks'
 import { useTaskStore } from '@/store/tasks'
 import { updateTaskStatus } from '@/lib/actions/tasks'
 import { PRIORITY_COLORS, STATUS_COLORS, STATUS_LABELS, TASK_STATUSES } from '@/types'
+import type { OpCategory } from '@/types/pacMediaKit'
+import { OP_CATEGORY_LABELS, canUsePacMediaKit } from '@/types/pacMediaKit'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
 
@@ -77,6 +79,16 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
 
   // Édition des détails
   const [editing, setEditing]   = useState(false)
+  // PAC & Média Kit (Marketing & Web uniquement) — tous optionnels.
+  const [editOpCategory, setEditOpCategory] = useState<OpCategory | ''>(task.op_category ?? '')
+  const [editOpDateDebut, setEditOpDateDebut] = useState(task.op_date_debut ?? '')
+  const [editOpMecanique, setEditOpMecanique] = useState(task.op_mecanique ?? '')
+  const [editOpCgv, setEditOpCgv] = useState(task.op_cgv ?? '')
+  const [editOpExclusions, setEditOpExclusions] = useState(task.op_exclusions ?? '')
+  const [editOpCommentaires, setEditOpCommentaires] = useState(task.op_commentaires ?? '')
+  const [editOpMontant, setEditOpMontant] = useState(task.op_montant != null ? String(task.op_montant) : '')
+  const [editOpReferences, setEditOpReferences] = useState(task.op_references ?? '')
+  const showPacMediaKit = canUsePacMediaKit(task.department?.slug)
   const [recurringActive, setRecurringActive] = useState(true)
 
   async function stopRecurring() {
@@ -332,6 +344,14 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
           deadline: editDeadline || null,
           fournisseur_client: editFournisseur.trim() || null,
           ref_collection:     editRefCollection.trim() || null,
+          op_category:     editOpCategory || null,
+          op_date_debut:   editOpDateDebut || null,
+          op_mecanique:    editOpCategory === 'operation_commerciale' ? (editOpMecanique.trim() || null) : null,
+          op_cgv:          editOpCategory === 'operation_commerciale' ? (editOpCgv.trim() || null) : null,
+          op_exclusions:   editOpCategory === 'operation_commerciale' ? (editOpExclusions.trim() || null) : null,
+          op_commentaires: editOpCategory === 'operation_commerciale' ? (editOpCommentaires.trim() || null) : null,
+          op_montant:      editOpCategory === 'media_kit' && editOpMontant ? Number(editOpMontant) : null,
+          op_references:   editOpCategory === 'media_kit' ? (editOpReferences.trim() || null) : null,
         }),
       })
       const data = await res.json()
@@ -796,9 +816,77 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</label>
-                    <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={3}
-                      className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground resize-none" />
+                    <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={8}
+                      className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground resize-y" />
                   </div>
+
+                  {/* PAC & Média Kit — uniquement Marketing & Web, entièrement optionnel */}
+                  {showPacMediaKit && (
+                    <div className="rounded-xl border border-dashed border-border p-3 space-y-3">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Catégorie PAC & Média Kit (optionnel)
+                      </label>
+                      <select value={editOpCategory} onChange={e => setEditOpCategory(e.target.value as OpCategory | '')}
+                        className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                        <option value="">— Aucune (carte normale) —</option>
+                        {(Object.keys(OP_CATEGORY_LABELS) as OpCategory[]).map(c => <option key={c} value={c}>{OP_CATEGORY_LABELS[c]}</option>)}
+                      </select>
+
+                      {editOpCategory && (
+                        <>
+                          <div>
+                            <label className="text-xs font-medium block mb-1">Date de début</label>
+                            <input type="date" value={editOpDateDebut} onChange={e => setEditOpDateDebut(e.target.value)}
+                              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            <p className="text-[0.65rem] text-muted-foreground mt-1">La date de fin utilise le champ Échéance.</p>
+                          </div>
+
+                          {editOpCategory === 'operation_commerciale' && (
+                            <>
+                              <div>
+                                <label className="text-xs font-medium block mb-1">Mécanique de l&apos;opération</label>
+                                <textarea value={editOpMecanique} onChange={e => setEditOpMecanique(e.target.value)} rows={2}
+                                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium block mb-1">CGV</label>
+                                <textarea value={editOpCgv} onChange={e => setEditOpCgv(e.target.value)} rows={2}
+                                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium block mb-1">Exclusions</label>
+                                <textarea value={editOpExclusions} onChange={e => setEditOpExclusions(e.target.value)} rows={2}
+                                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium block mb-1">Commentaires</label>
+                                <textarea value={editOpCommentaires} onChange={e => setEditOpCommentaires(e.target.value)} rows={2}
+                                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              </div>
+                            </>
+                          )}
+
+                          {editOpCategory === 'media_kit' && (
+                            <>
+                              <div>
+                                <label className="text-xs font-medium block mb-1">Montant de l&apos;opération</label>
+                                <input type="number" step="0.01" value={editOpMontant} onChange={e => setEditOpMontant(e.target.value)}
+                                  placeholder="€"
+                                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium block mb-1">Référence(s) de l&apos;opération</label>
+                                <input value={editOpReferences} onChange={e => setEditOpReferences(e.target.value)}
+                                  placeholder="Ex : REF-2026-08, REF-2026-09"
+                                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                              </div>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Priorité</label>
