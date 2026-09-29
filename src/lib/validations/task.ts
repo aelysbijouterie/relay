@@ -20,6 +20,7 @@ export const taskSchema = z.object({
   // impact sur les cartes normales qui ne les renseignent jamais.
   op_category:        z.enum(['operation_commerciale', 'media_kit']).optional().nullable(),
   op_date_debut:      z.string().optional().nullable(),
+  op_date_fin:        z.string().optional().nullable(),
   op_mecanique:       z.string().optional().nullable(),
   op_cgv:             z.string().optional().nullable(),
   op_exclusions:      z.string().optional().nullable(),

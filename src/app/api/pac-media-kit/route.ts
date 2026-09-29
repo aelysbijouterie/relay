@@ -50,7 +50,7 @@ export async function GET() {
     .from('tasks')
     .select(`
       id, title, description, status, priority, deadline, position, recurring_task_id, completed_at,
-      op_category, op_date_debut, op_mecanique, op_cgv, op_exclusions, op_commentaires, op_montant, op_references,
+      op_category, op_date_debut, op_date_fin, op_mecanique, op_cgv, op_exclusions, op_commentaires, op_montant, op_references,
       is_cross_team, fournisseur_client, ref_collection,
       parent_task_id, created_at, updated_at, department_id, created_by,
       department:departments!department_id(id, name, color, slug, icon),

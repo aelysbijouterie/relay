@@ -45,6 +45,7 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
   // PAC & Média Kit (Marketing & Web uniquement) — tous optionnels.
   const [opCategory, setOpCategory]   = useState<OpCategory | ''>('')
   const [opDateDebut, setOpDateDebut] = useState('')
+  const [opDateFin, setOpDateFin]     = useState('')
   const [opMecanique, setOpMecanique] = useState('')
   const [opCgv, setOpCgv]             = useState('')
   const [opExclusions, setOpExclusions] = useState('')
@@ -100,6 +101,7 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
       setDeadline(''); setDeptId(currentDepartmentId); setAssigneeIds([])
       setFournisseur(''); setRefCollection(''); setSearch(''); setShowAssignees(false)
       setChecklist([]); setNewItemTitle(''); setNewItemGroup('Général'); setFiles([])
+      setOpCategory(''); setOpDateDebut(''); setOpDateFin(''); setOpMecanique(''); setOpCgv(''); setOpExclusions(''); setOpCommentaires(''); setOpMontant(''); setOpReferences('')
     }
   }, [open, currentDepartmentId])
 
@@ -167,6 +169,7 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
       ref_collection:    refCollection.trim() || null,
       op_category:        opCategory || null,
       op_date_debut:      opDateDebut || null,
+      op_date_fin:        opDateFin || null,
       op_mecanique:        opCategory === 'operation_commerciale' ? (opMecanique.trim() || null) : null,
       op_cgv:              opCategory === 'operation_commerciale' ? (opCgv.trim() || null) : null,
       op_exclusions:       opCategory === 'operation_commerciale' ? (opExclusions.trim() || null) : null,
@@ -375,12 +378,19 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
 
               {opCategory && (
                 <>
-                  <div>
-                    <label className="text-xs font-medium block mb-1">Date de début</label>
-                    <input type="date" value={opDateDebut} onChange={e => setOpDateDebut(e.target.value)}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                    <p className="text-[0.65rem] text-muted-foreground mt-1">La date de fin utilise le champ Échéance ci-dessous.</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium block mb-1">Date de début</label>
+                      <input type="date" value={opDateDebut} onChange={e => setOpDateDebut(e.target.value)}
+                        className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium block mb-1">Date de fin</label>
+                      <input type="date" value={opDateFin} onChange={e => setOpDateFin(e.target.value)}
+                        className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                    </div>
                   </div>
+                  <p className="text-[0.65rem] text-muted-foreground -mt-2">Distincte de l&apos;échéance de la carte, plus bas dans le formulaire.</p>
 
                   {opCategory === 'operation_commerciale' && (
                     <>

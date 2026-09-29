@@ -14,7 +14,7 @@ import { useTaskStore } from '@/store/tasks'
 import { updateTaskStatus } from '@/lib/actions/tasks'
 import { PRIORITY_COLORS, STATUS_COLORS, STATUS_LABELS, TASK_STATUSES } from '@/types'
 import type { OpCategory } from '@/types/pacMediaKit'
-import { OP_CATEGORY_LABELS, canUsePacMediaKit } from '@/types/pacMediaKit'
+import { OP_CATEGORY_LABELS, OP_CATEGORY_COLORS, canUsePacMediaKit } from '@/types/pacMediaKit'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
 
@@ -82,6 +82,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   // PAC & Média Kit (Marketing & Web uniquement) — tous optionnels.
   const [editOpCategory, setEditOpCategory] = useState<OpCategory | ''>(task.op_category ?? '')
   const [editOpDateDebut, setEditOpDateDebut] = useState(task.op_date_debut ?? '')
+  const [editOpDateFin, setEditOpDateFin] = useState(task.op_date_fin ?? '')
   const [editOpMecanique, setEditOpMecanique] = useState(task.op_mecanique ?? '')
   const [editOpCgv, setEditOpCgv] = useState(task.op_cgv ?? '')
   const [editOpExclusions, setEditOpExclusions] = useState(task.op_exclusions ?? '')
@@ -346,6 +347,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
           ref_collection:     editRefCollection.trim() || null,
           op_category:     editOpCategory || null,
           op_date_debut:   editOpDateDebut || null,
+          op_date_fin:     editOpDateFin || null,
           op_mecanique:    editOpCategory === 'operation_commerciale' ? (editOpMecanique.trim() || null) : null,
           op_cgv:          editOpCategory === 'operation_commerciale' ? (editOpCgv.trim() || null) : null,
           op_exclusions:   editOpCategory === 'operation_commerciale' ? (editOpExclusions.trim() || null) : null,
@@ -834,12 +836,19 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
 
                       {editOpCategory && (
                         <>
-                          <div>
-                            <label className="text-xs font-medium block mb-1">Date de début</label>
-                            <input type="date" value={editOpDateDebut} onChange={e => setEditOpDateDebut(e.target.value)}
-                              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                            <p className="text-[0.65rem] text-muted-foreground mt-1">La date de fin utilise le champ Échéance.</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-medium block mb-1">Date de début</label>
+                              <input type="date" value={editOpDateDebut} onChange={e => setEditOpDateDebut(e.target.value)}
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium block mb-1">Date de fin</label>
+                              <input type="date" value={editOpDateFin} onChange={e => setEditOpDateFin(e.target.value)}
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                            </div>
                           </div>
+                          <p className="text-[0.65rem] text-muted-foreground -mt-2">Distincte de l&apos;échéance de la carte.</p>
 
                           {editOpCategory === 'operation_commerciale' && (
                             <>
@@ -914,7 +923,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end pt-1">
-                    <button onClick={() => { setEditing(false); setEditTitle(task.title); setEditDesc(task.description ?? ''); setEditPriority(task.priority); setEditDeadline(task.deadline ?? ''); setEditFournisseur(task.fournisseur_client ?? ''); setEditRefCollection(task.ref_collection ?? '') }}
+                    <button onClick={() => { setEditing(false); setEditTitle(task.title); setEditDesc(task.description ?? ''); setEditPriority(task.priority); setEditDeadline(task.deadline ?? ''); setEditFournisseur(task.fournisseur_client ?? ''); setEditRefCollection(task.ref_collection ?? ''); setEditOpCategory(task.op_category ?? ''); setEditOpDateDebut(task.op_date_debut ?? ''); setEditOpDateFin(task.op_date_fin ?? ''); setEditOpMecanique(task.op_mecanique ?? ''); setEditOpCgv(task.op_cgv ?? ''); setEditOpExclusions(task.op_exclusions ?? ''); setEditOpCommentaires(task.op_commentaires ?? ''); setEditOpMontant(task.op_montant != null ? String(task.op_montant) : ''); setEditOpReferences(task.op_references ?? '') }}
                       className="px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted transition-colors">Annuler</button>
                     <button onClick={saveEdits} disabled={saving || !editTitle.trim()}
                       className="px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-opacity disabled:opacity-50 flex items-center gap-1.5"
@@ -936,6 +945,38 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                       ? <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">{task.description}</p>
                       : <p className="text-sm italic text-muted-foreground">Aucune description.</p>}
                   </div>
+
+                  {/* PAC & Média Kit — reste affiché en permanence, même hors édition */}
+                  {task.op_category && (
+                    <div className="rounded-xl border border-dashed border-border p-3 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5"
+                        style={{ color: OP_CATEGORY_COLORS[task.op_category] }}>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: OP_CATEGORY_COLORS[task.op_category] }} />
+                        {OP_CATEGORY_LABELS[task.op_category]}
+                      </p>
+                      {(task.op_date_debut || task.op_date_fin) && (
+                        <p className="text-sm text-foreground/80">
+                          {task.op_date_debut ? formatDeadline(task.op_date_debut) : '—'}
+                          {' → '}
+                          {task.op_date_fin ? formatDeadline(task.op_date_fin) : '—'}
+                        </p>
+                      )}
+                      {task.op_category === 'operation_commerciale' && (
+                        <div className="space-y-1.5 text-sm">
+                          {task.op_mecanique && <p><span className="text-muted-foreground">Mécanique :</span> {task.op_mecanique}</p>}
+                          {task.op_cgv && <p><span className="text-muted-foreground">CGV :</span> {task.op_cgv}</p>}
+                          {task.op_exclusions && <p><span className="text-muted-foreground">Exclusions :</span> {task.op_exclusions}</p>}
+                          {task.op_commentaires && <p><span className="text-muted-foreground">Commentaires :</span> {task.op_commentaires}</p>}
+                        </div>
+                      )}
+                      {task.op_category === 'media_kit' && (
+                        <div className="space-y-1.5 text-sm">
+                          {task.op_montant != null && <p><span className="text-muted-foreground">Montant :</span> {task.op_montant} €</p>}
+                          {task.op_references && <p><span className="text-muted-foreground">Référence(s) :</span> {task.op_references}</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Sous-tâches (résumé + progression) sous la description */}
                   <div>

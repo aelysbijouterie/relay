@@ -25,7 +25,7 @@ export interface PacMediaKitTask {
   title: string
   op_category: OpCategory
   op_date_debut: string | null   // date de début
-  deadline: string | null        // sert de "date de fin"
+  op_date_fin: string | null     // date de fin, DISTINCTE de l'échéance de la carte
   op_mecanique: string | null
   op_cgv: string | null
   op_exclusions: string | null

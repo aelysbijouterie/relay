@@ -84,12 +84,14 @@ export function PacMediaKitView() {
     [operations, filter]
   )
 
-  // Opérations actives à une date donnée : date_debut ≤ date ≤ deadline (date fin).
-  // Si pas de date_debut renseignée, on ne compare que sur la date fin (deadline).
+  // Opérations actives à une date donnée : date_debut ≤ date ≤ date_fin.
+  // Ces deux dates sont DÉDIÉES à l'opération, distinctes de l'échéance de
+  // la carte. Si l'une des deux manque, on complète avec l'autre (une
+  // opération ponctuelle sans plage peut n'avoir qu'une seule date remplie).
   function opsOnDay(date: Date): Task[] {
     const ds = localDs(date)
     return visibleOps.filter(o => {
-      const end = o.deadline ? o.deadline.slice(0, 10) : null
+      const end = o.op_date_fin ? o.op_date_fin.slice(0, 10) : (o.op_date_debut ? o.op_date_debut.slice(0, 10) : null)
       const start = o.op_date_debut ? o.op_date_debut.slice(0, 10) : end
       if (!start || !end) return false
       return ds >= start && ds <= end
@@ -163,14 +165,21 @@ export function PacMediaKitView() {
                   {date.getDate()}
                 </div>
                 <div className="space-y-0.5">
-                  {dayOps.slice(0, 3).map(op => (
-                    <button key={op.id} onClick={() => setSelectedTask(op)}
-                      className="w-full text-left text-[0.62rem] leading-tight px-1.5 py-0.5 rounded truncate font-medium text-white hover:opacity-90 transition-opacity"
-                      style={{ backgroundColor: OP_CATEGORY_COLORS[op.op_category as OpCategory] }}
-                      title={op.title}>
-                      {op.title}
-                    </button>
-                  ))}
+                  {dayOps.slice(0, 3).map(op => {
+                    // Info secondaire : mécanique pour une Opé Com, montant pour un Média Kit.
+                    const secondary = op.op_category === 'operation_commerciale'
+                      ? op.op_mecanique
+                      : (op.op_montant != null ? `${op.op_montant} €` : null)
+                    return (
+                      <button key={op.id} onClick={() => setSelectedTask(op)}
+                        className="w-full text-left px-1.5 py-0.5 rounded font-medium text-white hover:opacity-90 transition-opacity overflow-hidden"
+                        style={{ backgroundColor: OP_CATEGORY_COLORS[op.op_category as OpCategory] }}
+                        title={`${op.title}${secondary ? ' — ' + secondary : ''}`}>
+                        <span className="block text-[0.62rem] leading-tight truncate">{op.title}</span>
+                        {secondary && <span className="block text-[0.55rem] leading-tight truncate opacity-80">{secondary}</span>}
+                      </button>
+                    )
+                  })}
                   {dayOps.length > 3 && <p className="text-[0.6rem] text-muted-foreground pl-1">+{dayOps.length - 3}</p>}
                 </div>
               </div>
