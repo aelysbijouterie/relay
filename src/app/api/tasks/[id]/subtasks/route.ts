@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_subtasks')
-    .select('id, title, is_done, group_name, position, deadline, created_at')
+    .select('id, title, is_done, group_name, position, deadline, created_at, parent_subtask_id')
     .eq('task_id', params.id)
     .order('group_name', { ascending: true })
     .order('position', { ascending: true })
@@ -50,13 +50,24 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const body = await request.json()
   const title = (body.title ?? '').trim()
   if (!title) return NextResponse.json({ error: 'Titre requis' }, { status: 400 })
-  const groupName = (body.group_name ?? 'Général').trim() || 'Général'
+  let groupName = (body.group_name ?? 'Général').trim() || 'Général'
 
   const supabase = createAdminClient()
+
+  // Sous-sous-tâche : le parent doit être une sous-tâche de CETTE carte, elle-même de premier niveau.
+  const parentId: string | null = typeof body.parent_subtask_id === 'string' ? body.parent_subtask_id : null
+  if (parentId) {
+    const { data: parent } = await supabase
+      .from('task_subtasks').select('id, group_name, parent_subtask_id').eq('id', parentId).eq('task_id', params.id).single()
+    if (!parent) return NextResponse.json({ error: 'Sous-tâche parente introuvable' }, { status: 404 })
+    if (parent.parent_subtask_id) return NextResponse.json({ error: 'Une sous-sous-tâche ne peut pas avoir de sous-tâche' }, { status: 400 })
+    groupName = parent.group_name ?? groupName
+  }
+
   const { data, error } = await supabase
     .from('task_subtasks')
-    .insert({ task_id: params.id, title, created_by: userId, group_name: groupName })
-    .select('id, title, is_done, group_name, position, deadline, created_at')
+    .insert({ task_id: params.id, title, created_by: userId, group_name: groupName, ...(parentId ? { parent_subtask_id: parentId } : {}) })
+    .select('id, title, is_done, group_name, position, deadline, created_at, parent_subtask_id')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

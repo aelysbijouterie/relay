@@ -13,6 +13,9 @@ export interface CalendarEvent {
   created_by: string | null
   created_at: string
   department?: { id: string; name: string; color: string } | null
+  // Invités nommés (pas forcément tout le service) et droit de modification.
+  attendees?: { id: string; name: string }[]
+  is_mine?: boolean
 }
 
 export const CATEGORY_LABELS: Record<EventCategory, string> = {

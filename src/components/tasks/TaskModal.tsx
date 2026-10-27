@@ -35,6 +35,7 @@ interface DBSubtask {
   deadline?: string | null
   position?: number
   created_at: string
+  parent_subtask_id?: string | null
   assignees?: { id: string; name: string; avatar_url?: string | null }[]
 }
 interface DBAttachment {
@@ -130,6 +131,9 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   const [subtasksLoading, setSubtasksLoading] = useState(false)
   const [newSubtask, setNewSubtask]   = useState('')
   const [addingSubtask, setAddingSubtask] = useState(false)
+  // Sous-sous-tâche : id de la sous-tâche en cours d'ajout + titre saisi.
+  const [addingChildFor, setAddingChildFor] = useState<string | null>(null)
+  const [newChildTitle, setNewChildTitle] = useState('')
 
   // Assignés (carte) — éditables
   const [assignees, setAssignees]   = useState<{ id: string; name: string; avatar_url?: string | null }[]>(task.assignees ?? [])
@@ -210,6 +214,10 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   const deptColor = task.department?.color ?? '#94A3B8'
   const overdue   = isOverdue(task.deadline)
   const doneSub   = subtasks.filter(s => s.is_done).length
+  // Sous-tâches de premier niveau, chacune suivie de ses sous-sous-tâches.
+  const orderedSubtasks = subtasks
+    .filter(s => !s.parent_subtask_id)
+    .flatMap(s => [s, ...subtasks.filter(c => c.parent_subtask_id === s.id)])
 
   // ── Status change ────────────────────────────────────────────────────────
   async function handleStatusChange(status: TaskStatus) {
@@ -530,8 +538,26 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
     }
   }
 
+  async function addChildSubtask(parentId: string) {
+    const title = newChildTitle.trim()
+    if (!title) return
+    try {
+      const res  = await fetch(`/api/tasks/${taskId}/subtasks`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, parent_subtask_id: parentId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSubtasks(prev => [...prev, data])
+      setNewChildTitle('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erreur sous-sous-tâche')
+    }
+  }
+
   async function deleteSubtask(id: string) {
-    setSubtasks(prev => prev.filter(s => s.id !== id))
+    // Supprimer une sous-tâche supprime aussi ses sous-sous-tâches (cascade en base).
+    setSubtasks(prev => prev.filter(s => s.id !== id && s.parent_subtask_id !== id))
     try {
       await fetch(`/api/tasks/${taskId}/subtasks/${id}`, { method: 'DELETE' })
     } catch {
@@ -996,8 +1022,8 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                           </div>
                         </div>
                         <div className="space-y-0.5">
-                          {subtasks.map(sub => (
-                            <div key={sub.id} className="flex items-center gap-2.5 py-1.5 group">
+                          {orderedSubtasks.map(sub => (
+                            <div key={sub.id} className={cn('flex items-center gap-2.5 py-1.5 group', sub.parent_subtask_id && 'ml-6')}>
                               <button onClick={() => toggleSubtask(sub)} className="flex-shrink-0">
                                 {sub.is_done
                                   ? <span className="w-[18px] h-[18px] rounded-md flex items-center justify-center text-white text-[11px]" style={{ backgroundColor: deptColor }}>✓</span>
@@ -1231,14 +1257,15 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                     </div>
                   )}
                   <div className="space-y-2">
-                    {subtasks.map(sub => (
+                    {orderedSubtasks.map(sub => (
                       <div key={sub.id}
-                        draggable
+                        draggable={!sub.parent_subtask_id}
                         onDragStart={() => handleSubDragStart(sub.id)}
                         onDragOver={(e) => handleSubDragOver(e, sub.id)}
                         onDrop={handleSubDrop}
                         onDragEnd={() => setDragSubId(null)}
                         className={cn('bg-card border border-border rounded-xl p-3 group relative transition-opacity',
+                          sub.parent_subtask_id && 'ml-8 border-l-4',
                           dragSubId === sub.id && 'opacity-40')}>
                         <div className="flex items-center gap-2">
                           <span className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0" title="Glisser pour réordonner">
@@ -1289,11 +1316,30 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                             <UserPlus className="w-3.5 h-3.5" />
                           </button>
 
+                          {/* Ajouter une sous-sous-tâche (premier niveau uniquement) */}
+                          {!sub.parent_subtask_id && (
+                            <button onClick={() => { setAddingChildFor(addingChildFor === sub.id ? null : sub.id); setNewChildTitle('') }}
+                              className="flex-shrink-0 p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Ajouter une sous-sous-tâche">
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
                           <button onClick={() => deleteSubtask(sub.id)}
                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
+
+                        {addingChildFor === sub.id && (
+                          <div className="flex gap-2 mt-2 ml-7">
+                            <input autoFocus value={newChildTitle} onChange={e => setNewChildTitle(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') addChildSubtask(sub.id); if (e.key === 'Escape') setAddingChildFor(null) }}
+                              placeholder="Sous-sous-tâche… (Entrée)"
+                              className="flex-1 bg-background border border-border px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-muted-foreground rounded-lg" />
+                            <button onClick={() => addChildSubtask(sub.id)} disabled={!newChildTitle.trim()}
+                              className="px-3 rounded-lg text-white text-xs font-bold disabled:opacity-40" style={{ backgroundColor: deptColor }}>Ajouter</button>
+                          </div>
+                        )}
 
                         {/* Échéance de la sous-tâche */}
                         <div className="flex items-center gap-1.5 mt-2 ml-9">
