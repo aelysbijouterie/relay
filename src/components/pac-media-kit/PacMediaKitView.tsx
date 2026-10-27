@@ -110,7 +110,7 @@ export function PacMediaKitView() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h2 className="font-heading text-2xl font-bold mb-1 flex items-center gap-2">
-            <Briefcase className="w-5 h-5" /> PAC &amp; Média Kit
+            <Briefcase className="w-5 h-5" /> Opérations &amp; Média Kit
           </h2>
           <p className="text-sm text-muted-foreground">
             {isBoutique

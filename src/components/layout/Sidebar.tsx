@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Briefcase } from 'lucide-react'
+import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Briefcase, ClipboardList } from 'lucide-react'
 import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
 import { Logo } from '@/components/brand/Logo'
 import type { Profile, Department } from '@/types'
 import { canUsePacMediaKit } from '@/types/pacMediaKit'
-import { BoutiqueMemberPicker } from '@/components/boutique/BoutiqueMemberPicker'
 
 const NAV_ITEMS = [
   { href: '/kanban',     label: 'Kanban',       icon: Columns },
@@ -28,9 +27,10 @@ interface SidebarProps {
   department: Department
   extraDepartments?: Department[]
   isBoutique?: boolean
+  canValidateBoutiques?: boolean
 }
 
-export function Sidebar({ profile, members, department, extraDepartments = [], isBoutique = false }: SidebarProps) {
+export function Sidebar({ profile, members, department, extraDepartments = [], isBoutique = false, canValidateBoutiques = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -123,12 +123,12 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
       {/* Navigation */}
       <nav className="px-3 py-2 space-y-0.5">
         {(isBoutique
-          // Boutique : uniquement Kanban, PAC & Média Kit (Congés est en bas de la sidebar).
-          ? [NAV_ITEMS[0], { href: '/pac-media-kit', label: 'PAC & Média Kit', icon: Briefcase }]
+          // Boutique : uniquement Kanban, Opérations & Média Kit, puis Congés juste en dessous.
+          ? [NAV_ITEMS[0], { href: '/pac-media-kit', label: 'Opérations & Média Kit', icon: Briefcase }, { href: '/conges', label: 'Congés & absences', icon: CalendarDays }]
           : [
               ...NAV_ITEMS.slice(0, 1), // Kanban en premier
               ...(canUsePacMediaKit(department?.slug, extraDepartments.map(d => d.slug))
-                ? [{ href: '/pac-media-kit', label: 'PAC & Média Kit', icon: Briefcase }]
+                ? [{ href: '/pac-media-kit', label: 'Opérations & Média Kit', icon: Briefcase }]
                 : []),
               ...NAV_ITEMS.slice(1), // le reste (Calendrier, Chronologie, etc.)
             ]
@@ -180,8 +180,6 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
       </div>
       )}
 
-      {/* Boutique : choix du collaborateur (remplace la liste d'équipe) */}
-      {isBoutique && <div className="mt-auto"><BoutiqueMemberPicker /></div>}
 
       {/* Team members */}
       {!isBoutique && (
@@ -213,13 +211,22 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
       )}
 
       {/* Accès Congés & absences — juste au-dessus du profil */}
-      <div className="px-4 py-3 border-t border-border">
+      {!isBoutique && (
+      <div className="px-4 py-3 border-t border-border space-y-0.5">
         <Link href="/conges" onClick={() => setOpen(false)}
           className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
           <CalendarDays className="w-4 h-4 flex-shrink-0" />
           <span>Congés &amp; absences</span>
         </Link>
+        {canValidateBoutiques && (
+          <Link href="/conges/rh" onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+            <ClipboardList className="w-4 h-4 flex-shrink-0" />
+            <span>Gestion RH boutiques</span>
+          </Link>
+        )}
       </div>
+      )}
 
       </div>{/* fin zone défilante */}
 

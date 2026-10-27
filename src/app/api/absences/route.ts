@@ -64,18 +64,24 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient()
 
-  // Boutique : la demande est posée au nom du collaborateur choisi, et
-  // TOUT remonte à la RH (jamais d'auto-validation, alternance comprise).
+  // Boutique : la demande est posée au nom du collaborateur choisi. Les congés
+  // payés remontent TOUS à la RH ; seules les périodes d'alternance sont libres.
   const ctx = await getActingContext(supabase, userId)
   if (ctx.isBoutique && !ctx.actingUserId) {
     return NextResponse.json({ error: 'Choisis d\'abord le collaborateur concerné' }, { status: 400 })
   }
   const requesterId = ctx.actingUserId ?? userId
+  // Boutique : uniquement « Congés payés » (à valider par la RH) et « Alternance » (saisie libre).
+  if (ctx.isBoutique && type !== 'Congés payés' && type !== 'Alternance') {
+    return NextResponse.json({ error: 'Type d\'absence non disponible pour les boutiques' }, { status: 400 })
+  }
 
   // Auto-validation : les managers/admins et le motif "Alternance" ne
   // nécessitent pas de validation (statut "Validé" directement).
   const { data: me } = await supabase.from('profiles').select('role').eq('id', requesterId).single()
-  const autoValidated = !ctx.isBoutique && (me?.role === 'manager' || me?.role === 'admin' || type === 'Alternance')
+  const autoValidated = ctx.isBoutique
+    ? type === 'Alternance'
+    : (me?.role === 'manager' || me?.role === 'admin' || type === 'Alternance')
 
   const { data, error } = await supabase
     .from('absences')

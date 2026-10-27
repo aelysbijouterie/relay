@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 interface BalanceInfo { start: number | null; taken: number; remaining: number | null }
 interface Balances { conges: BalanceInfo; rtt: BalanceInfo }
 
-export function LeaveBalance({ refreshKey }: { refreshKey?: number }) {
+export function LeaveBalance({ refreshKey, onlyConges = false }: { refreshKey?: number; onlyConges?: boolean }) {
   const [bal, setBal] = useState<Balances | null>(null)
   const [editing, setEditing] = useState(false)
   const [conges, setConges] = useState('')
@@ -83,6 +83,7 @@ export function LeaveBalance({ refreshKey }: { refreshKey?: number }) {
         </div>
 
         {/* RTT */}
+        {!onlyConges && (
         <div className="rounded-xl p-3" style={{ backgroundColor: 'rgba(99,102,241,0.08)' }}>
           <p className="text-xs font-semibold" style={{ color: '#6366F1' }}>RTT</p>
           {editing ? (
@@ -95,6 +96,7 @@ export function LeaveBalance({ refreshKey }: { refreshKey?: number }) {
             </>
           ) : <p className="text-sm text-muted-foreground mt-1">—</p>}
         </div>
+        )}
       </div>
       {editing && <p className="text-xs text-muted-foreground mt-3">Indiquez votre solde annuel. Le décompte se fait automatiquement en jours ouvrés à chaque congé validé.</p>}
     </div>

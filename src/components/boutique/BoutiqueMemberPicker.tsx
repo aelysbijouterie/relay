@@ -61,8 +61,8 @@ export function BoutiqueMemberPicker() {
   }
 
   return (
-    <div className="px-4 py-3 border-t border-border">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Collaborateur</p>
+    <div className="px-4 py-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pour quel collaborateur ?</p>
       {loading ? (
         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
       ) : (
@@ -99,7 +99,7 @@ export function BoutiqueMemberPicker() {
             </button>
           )}
           {!current && members.length > 0 && (
-            <p className="mt-2 text-[0.7rem] text-amber-600">Choisissez votre nom pour poser des congés.</p>
+            <p className="mt-2 text-[0.7rem] text-amber-600">Choisissez votre nom pour voir vos compteurs et poser une demande.</p>
           )}
         </>
       )}

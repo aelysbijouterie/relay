@@ -9,6 +9,7 @@ import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
 import { NewAbsenceModal } from './NewAbsenceModal'
 import { ActivityPeriodModal } from './ActivityPeriodModal'
 import { LeaveBalance } from './LeaveBalance'
+import { BoutiqueMemberPicker } from '@/components/boutique/BoutiqueMemberPicker'
 import { OP_CATEGORY_COLORS } from '@/types/pacMediaKit'
 import type { CommercialOperation } from './NewAbsenceModal'
 
@@ -105,12 +106,12 @@ export function AbsencesView() {
         (a.status === 'En attente' || a.status === 'Modif. en attente') && !!a.user?.boutique_id)
     }
     if (!me || !isManager) return []
-    const activeDept = me.active_department_id ?? me.department_id
-    if (!activeDept || !managedDeptIds.has(activeDept)) return []
+    // Un responsable voit les demandes de TOUS ses services (principal + additionnels),
+    // quel que soit le service actif dans la sidebar (ex : Audrey = RH + Administratif + Comptabilité).
     return absences.filter(a =>
       (a.status === 'En attente' || a.status === 'Modif. en attente') &&
       a.user_id !== me.id &&
-      a.user?.department_id === activeDept
+      !!a.user?.department_id && managedDeptIds.has(a.user.department_id)
     )
   }, [absences, me, isManager, managedDeptIds])
 
@@ -229,7 +230,7 @@ export function AbsencesView() {
           )}
           <button onClick={() => { setEditAbsence(null); setShowNew(true) }}
             disabled={needMember}
-            title={needMember ? "Choisissez d'abord le collaborateur dans le menu de gauche" : undefined}
+            title={needMember ? "Choisissez d'abord le collaborateur ci-dessous" : undefined}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold transition-transform hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
             style={{ backgroundColor: 'var(--accent)' }}>
             <Plus className="w-4 h-4" /> Poser une demande
@@ -237,9 +238,9 @@ export function AbsencesView() {
         </div>
       </div>
       <p className="text-sm text-muted-foreground mb-4">Visualisez les absences de l'équipe et posez vos demandes.</p>
-      {needMember && (
-        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-          Choisissez votre nom dans « Collaborateur » (menu de gauche) pour poser une demande.
+      {me?.is_boutique_account && (
+        <div className={`mb-4 rounded-2xl border bg-card max-w-sm ${needMember ? 'border-amber-300' : 'border-border'}`}>
+          <BoutiqueMemberPicker />
         </div>
       )}
       {me?.is_boutique_account && !needMember && (
@@ -385,7 +386,7 @@ export function AbsencesView() {
         )}
 
         <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-border">
-          {Object.entries(ABSENCE_COLORS).map(([type, color]) => (
+          {Object.entries(ABSENCE_COLORS).filter(([type]) => !me?.is_boutique_account || type === 'Congés payés' || type === 'Alternance').map(([type, color]) => (
             <div key={type} className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded" style={{ backgroundColor: color }} />
               <span className="text-xs text-muted-foreground">{type}</span>
@@ -421,7 +422,7 @@ export function AbsencesView() {
         {/* Colonne latérale : compteurs + mes demandes */}
         <aside className="space-y-6 lg:sticky lg:top-4">
           {/* Mes compteurs congés / RTT */}
-          <LeaveBalance refreshKey={absences.length} />
+          {!needMember && <LeaveBalance refreshKey={absences.length} onlyConges={!!me?.is_boutique_account} />}
 
       {/* Mes demandes */}
       {me && (
@@ -454,7 +455,7 @@ export function AbsencesView() {
         </aside>{/* fin colonne latérale */}
       </div>{/* fin grille 2 colonnes */}
 
-      {showNew && <NewAbsenceModal absence={editAbsence} operations={operations} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
+      {showNew && <NewAbsenceModal absence={editAbsence} operations={operations} allowedTypes={me?.is_boutique_account ? ['Congés payés', 'Alternance'] : undefined} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
       {showPeriod && <ActivityPeriodModal periods={periods.filter(p => p.department_id === me?.department_id)} onClose={() => setShowPeriod(false)} onChange={load} />}
 
       {/* Liste complète des absents d'un jour (quand la cellule est trop chargée) */}

@@ -139,15 +139,18 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
   const supabase = createAdminClient()
   const { data: absence } = await supabase
-    .from('absences').select('user_id, status').eq('id', params.id).single()
+    .from('absences').select('user_id, status, type').eq('id', params.id).single()
   if (!absence) return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
   const ctx = await getActingContext(supabase, userId)
   const ownerId = ctx.actingUserId
   if (absence.user_id !== ownerId) return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 })
 
-  // Auto-validés : la modification est appliquée directement (jamais pour une boutique : tout passe par la RH).
+  // Auto-validés : la modification est appliquée directement. Boutique : seule
+  // l'alternance est libre, les congés payés repassent par la RH.
   const { data: me } = await supabase.from('profiles').select('role').eq('id', ownerId).single()
-  const autoValidated = !ctx.isBoutique && (me?.role === 'manager' || me?.role === 'admin')
+  const autoValidated = ctx.isBoutique
+    ? absence.type === 'Alternance'
+    : (me?.role === 'manager' || me?.role === 'admin')
 
   if (autoValidated) {
     const { error } = await supabase.from('absences').update({

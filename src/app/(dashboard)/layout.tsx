@@ -21,6 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let members: Profile[]
   let extraDepartments: Department[] = []
   let isBoutique = false
+  let canValidateBoutiques = false
   let tasks: Task[] = []
 
   if (demoDeptId) {
@@ -69,10 +70,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // Compte de boutique (lecture tolérante : colonne absente = pas une boutique).
     const { data: boutiqueRow } = await supabase
       .from('profiles')
-      .select('is_boutique_account, boutique_id, boutique:boutiques!boutique_id(name)')
+      .select('is_boutique_account, can_validate_boutiques, boutique_id, boutique:boutiques!boutique_id(name)')
       .eq('id', userId!)
       .single()
     isBoutique = boutiqueRow?.is_boutique_account === true
+    canValidateBoutiques = boutiqueRow?.can_validate_boutiques === true
     const boutiqueRel = Array.isArray(boutiqueRow?.boutique) ? boutiqueRow?.boutique[0] : boutiqueRow?.boutique
     const boutiqueName = (boutiqueRel as { name?: string } | null | undefined)?.name
 
@@ -199,7 +201,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <TasksProvider initialTasks={tasks} userId={profile!.id} deptId={department!.id}>
       <AccentProvider color={department!.color}>
         <div className="flex h-screen overflow-hidden bg-background">
-          <Sidebar profile={profile!} members={members!} department={department!} extraDepartments={extraDepartments} isBoutique={isBoutique} />
+          <Sidebar profile={profile!} members={members!} department={department!} extraDepartments={extraDepartments} isBoutique={isBoutique} canValidateBoutiques={canValidateBoutiques} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <Header department={department!} profile={profile!} departments={departments!} members={members!} isDemo={!!demoDeptId} />
             <main className="flex-1 overflow-auto p-6">{children}</main>
