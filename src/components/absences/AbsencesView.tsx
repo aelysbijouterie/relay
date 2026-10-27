@@ -9,11 +9,13 @@ import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
 import { NewAbsenceModal } from './NewAbsenceModal'
 import { ActivityPeriodModal } from './ActivityPeriodModal'
 import { LeaveBalance } from './LeaveBalance'
+import { OP_CATEGORY_COLORS } from '@/types/pacMediaKit'
+import type { CommercialOperation } from './NewAbsenceModal'
 
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
 
-interface Me { id: string; role: string; department_id: string | null; extra_department_ids?: string[]; active_department_id?: string | null; show_holidays?: boolean; show_school_holidays?: boolean }
+interface Me { id: string; role: string; department_id: string | null; extra_department_ids?: string[]; active_department_id?: string | null; show_holidays?: boolean; show_school_holidays?: boolean; is_boutique_account?: boolean; can_validate_boutiques?: boolean; acting_member_id?: string | null }
 interface Dept { id: string; name: string; color: string }
 
 export function AbsencesView() {
@@ -21,6 +23,7 @@ export function AbsencesView() {
   const [periods, setPeriods] = useState<(ActivityPeriod & { department?: Dept })[]>([])
   const [depts, setDepts] = useState<Dept[]>([])
   const [me, setMe] = useState<Me | null>(null)
+  const [operations, setOperations] = useState<CommercialOperation[]>([])
   const [loading, setLoading] = useState(true)
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
   const [showNew, setShowNew] = useState(false)
@@ -36,18 +39,23 @@ export function AbsencesView() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [aRes, mRes, pRes, dRes] = await Promise.all([
+      const [aRes, mRes, pRes, dRes, oRes] = await Promise.all([
         fetch('/api/absences', { cache: 'no-store' }),
         fetch('/api/account', { cache: 'no-store' }),
         fetch('/api/activity-periods', { cache: 'no-store' }),
         fetch('/api/departments', { cache: 'no-store' }),
+        fetch('/api/pac-media-kit', { cache: 'no-store' }),
       ])
       const aData = await aRes.json(); const mData = await mRes.json()
       const pData = await pRes.json(); const dData = await dRes.json()
+      const oData = await oRes.json().catch(() => [])
+      // Opérations commerciales (PAC) : elles indiquent quand il vaut mieux ne pas poser de congés.
+      setOperations((Array.isArray(oData) ? oData : []).filter((o: CommercialOperation & { op_category?: string }) => o.op_category === 'operation_commerciale'))
       setAbsences(Array.isArray(aData) ? aData : [])
       setPeriods(Array.isArray(pData) ? pData : [])
       setDepts(Array.isArray(dData) ? dData : [])
-      setMe(mData?.id ? { id: mData.id, role: mData.role, department_id: mData.department_id, extra_department_ids: mData.extra_department_ids ?? [], active_department_id: mData.active_department_id ?? mData.department_id, show_holidays: mData.show_holidays ?? true, show_school_holidays: mData.show_school_holidays ?? true } : null)
+      // Boutique : on agit au nom du collaborateur choisi (vide tant qu'aucun n'est choisi).
+      setMe(mData?.id ? { id: mData.is_boutique_account ? (mData.acting_member_id ?? '') : mData.id, is_boutique_account: !!mData.is_boutique_account, can_validate_boutiques: !!mData.can_validate_boutiques, acting_member_id: mData.acting_member_id ?? null, role: mData.role, department_id: mData.department_id, extra_department_ids: mData.extra_department_ids ?? [], active_department_id: mData.active_department_id ?? mData.department_id, show_holidays: mData.show_holidays ?? true, show_school_holidays: mData.show_school_holidays ?? true } : null)
       // Vue par défaut du tableau des congés :
       //  - si l'utilisateur a défini des services par défaut dans son profil,
       //    on les utilise ;
@@ -69,6 +77,8 @@ export function AbsencesView() {
   useEffect(() => { load() }, [load])
 
   const isManager = me?.role === 'manager' || me?.role === 'admin'
+  // Compte de boutique sans collaborateur choisi : impossible de poser une demande.
+  const needMember = !!me?.is_boutique_account && !me.acting_member_id
 
   // Filtrage par service
   const visibleAbsences = useMemo(() => {
@@ -89,6 +99,11 @@ export function AbsencesView() {
   // Ainsi Audrey (Compta + resp. RH + Administratif) valide Chloé en switchant
   // sur RH, et Sarah en switchant sur Administratif.
   const toReview = useMemo(() => {
+    // La RH validatrice voit toutes les demandes des boutiques, quel que soit le service actif.
+    if (me?.can_validate_boutiques) {
+      return absences.filter(a =>
+        (a.status === 'En attente' || a.status === 'Modif. en attente') && !!a.user?.boutique_id)
+    }
     if (!me || !isManager) return []
     const activeDept = me.active_department_id ?? me.department_id
     if (!activeDept || !managedDeptIds.has(activeDept)) return []
@@ -143,6 +158,15 @@ export function AbsencesView() {
   function localDs(date: Date): string {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
   }
+  // Opérations commerciales actives un jour donné (plage début → fin).
+  function operationsOn(date: Date): CommercialOperation[] {
+    const ds = localDs(date)
+    return operations.filter(o => {
+      const end = o.op_date_fin ? o.op_date_fin.slice(0, 10) : (o.op_date_debut ? o.op_date_debut.slice(0, 10) : null)
+      const start = o.op_date_debut ? o.op_date_debut.slice(0, 10) : end
+      return !!start && !!end && ds >= start && ds <= end
+    })
+  }
   function absencesOn(date: Date): Absence[] {
     const ds = localDs(date)
     return visibleAbsences.filter(a => a.status !== 'Refusé' && ds >= a.start_date && ds <= a.end_date)
@@ -191,10 +215,12 @@ export function AbsencesView() {
           <h1 className="text-2xl font-extrabold tracking-tight">Congés &amp; absences</h1>
         </div>
         <div className="flex items-center gap-2">
+          {!me?.is_boutique_account && (
           <button onClick={() => setShowFilter(v => !v)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border border-border hover:bg-muted transition-colors">
             <Filter className="w-4 h-4" /> {filterDepts ? `${filterDepts.size} service${filterDepts.size > 1 ? 's' : ''}` : 'Tous'}
           </button>
+          )}
           {isManager && (
             <button onClick={() => setShowPeriod(true)}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border border-border hover:bg-muted transition-colors" title="Définir des périodes d'activité">
@@ -202,13 +228,23 @@ export function AbsencesView() {
             </button>
           )}
           <button onClick={() => { setEditAbsence(null); setShowNew(true) }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold transition-transform hover:scale-[1.02]"
+            disabled={needMember}
+            title={needMember ? "Choisissez d'abord le collaborateur dans le menu de gauche" : undefined}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold transition-transform hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
             style={{ backgroundColor: 'var(--accent)' }}>
             <Plus className="w-4 h-4" /> Poser une demande
           </button>
         </div>
       </div>
       <p className="text-sm text-muted-foreground mb-4">Visualisez les absences de l'équipe et posez vos demandes.</p>
+      {needMember && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          Choisissez votre nom dans « Collaborateur » (menu de gauche) pour poser une demande.
+        </div>
+      )}
+      {me?.is_boutique_account && !needMember && (
+        <p className="text-xs text-muted-foreground -mt-2 mb-4">Toutes les demandes sont validées par la RH (Chloé Estangoy).</p>
+      )}
 
       {/* Disposition 2 colonnes : calendrier à gauche, compteurs + demandes à droite */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
@@ -253,7 +289,7 @@ export function AbsencesView() {
                   style={{ backgroundColor: ABSENCE_COLORS[a.type] }}>{getInitials(a.user?.name ?? '?')}</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">
-                    {a.user?.name} · <span style={{ color: ABSENCE_COLORS[a.type] }}>{a.type}</span>
+                    {a.user?.name}{a.user?.boutique?.name ? <span className="text-muted-foreground font-normal"> ({a.user.boutique.name})</span> : null} · <span style={{ color: ABSENCE_COLORS[a.type] }}>{a.type}</span>
                     {a.status === 'Modif. en attente' && <span className="ml-1 text-[0.65rem] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">modif</span>}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -300,6 +336,7 @@ export function AbsencesView() {
                 const isToday = localDs(date) === todayStr
                 const isWeekend = (date.getDay() === 0 || date.getDay() === 6)
                 const isActivity = activityOn(date)
+                const dayOps = operationsOn(date)
                 const ds = localDs(date)
                 const ferie = (me?.show_holidays ?? true) ? holidayName(ds) : null
                 const vacances = (me?.show_school_holidays ?? true) ? schoolHolidayName(ds) : null
@@ -318,6 +355,13 @@ export function AbsencesView() {
                       style={isToday ? { color: 'var(--accent)' } : ferie ? { color: '#C026D3' } : isActivity ? { color: '#EF4444' } : {}}>{date.getDate()}</div>
                     {ferie && <div className="text-[0.5rem] leading-tight px-1 rounded truncate font-medium" style={{ color: '#C026D3' }} title={ferie}>{ferie}</div>}
                     {isActivity && <div className="text-[0.5rem] leading-tight px-1 rounded truncate font-medium" style={{ color: '#EF4444' }} title={isActivity}>{isActivity}</div>}
+                    {dayOps.slice(0, 1).map(o => (
+                      <div key={o.id} className="text-[0.5rem] leading-tight px-1 rounded truncate font-semibold mb-0.5"
+                        style={{ backgroundColor: `${OP_CATEGORY_COLORS.operation_commerciale}22`, color: OP_CATEGORY_COLORS.operation_commerciale }}
+                        title={`Opération commerciale : ${o.title}${dayOps.length > 1 ? ` (+${dayOps.length - 1})` : ''}`}>
+                        ★ {o.title}
+                      </div>
+                    ))}
                     <div className="space-y-0.5">
                       {items.slice(0, 3).map(a => (
                         <div key={a.id} title={`${a.user?.name} · ${a.type}${a.status.includes('attente') ? ' (en attente)' : ''}`}
@@ -351,6 +395,12 @@ export function AbsencesView() {
             <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.25)' }} />
             <span className="text-xs text-muted-foreground">Période d'activité</span>
           </div>
+          {operations.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded" style={{ backgroundColor: `${OP_CATEGORY_COLORS.operation_commerciale}44` }} />
+              <span className="text-xs text-muted-foreground">★ Opération commerciale (congés déconseillés)</span>
+            </div>
+          )}
           {(me?.show_holidays ?? true) && (
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(217,70,239,0.25)' }} />
@@ -404,7 +454,7 @@ export function AbsencesView() {
         </aside>{/* fin colonne latérale */}
       </div>{/* fin grille 2 colonnes */}
 
-      {showNew && <NewAbsenceModal absence={editAbsence} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
+      {showNew && <NewAbsenceModal absence={editAbsence} operations={operations} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
       {showPeriod && <ActivityPeriodModal periods={periods.filter(p => p.department_id === me?.department_id)} onClose={() => setShowPeriod(false)} onChange={load} />}
 
       {/* Liste complète des absents d'un jour (quand la cellule est trop chargée) */}

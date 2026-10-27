@@ -10,6 +10,7 @@ import { logout } from '@/lib/actions/auth'
 import { Logo } from '@/components/brand/Logo'
 import type { Profile, Department } from '@/types'
 import { canUsePacMediaKit } from '@/types/pacMediaKit'
+import { BoutiqueMemberPicker } from '@/components/boutique/BoutiqueMemberPicker'
 
 const NAV_ITEMS = [
   { href: '/kanban',     label: 'Kanban',       icon: Columns },
@@ -26,9 +27,10 @@ interface SidebarProps {
   members: Profile[]
   department: Department
   extraDepartments?: Department[]
+  isBoutique?: boolean
 }
 
-export function Sidebar({ profile, members, department, extraDepartments = [] }: SidebarProps) {
+export function Sidebar({ profile, members, department, extraDepartments = [], isBoutique = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -120,13 +122,17 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
 
       {/* Navigation */}
       <nav className="px-3 py-2 space-y-0.5">
-        {[
-          ...NAV_ITEMS.slice(0, 1), // Kanban en premier
-          ...(canUsePacMediaKit(department?.slug, extraDepartments.map(d => d.slug))
-            ? [{ href: '/pac-media-kit', label: 'PAC & Média Kit', icon: Briefcase }]
-            : []),
-          ...NAV_ITEMS.slice(1), // le reste (Calendrier, Chronologie, etc.)
-        ].map(({ href, label, icon: Icon }) => {
+        {(isBoutique
+          // Boutique : uniquement Kanban, PAC & Média Kit (Congés est en bas de la sidebar).
+          ? [NAV_ITEMS[0], { href: '/pac-media-kit', label: 'PAC & Média Kit', icon: Briefcase }]
+          : [
+              ...NAV_ITEMS.slice(0, 1), // Kanban en premier
+              ...(canUsePacMediaKit(department?.slug, extraDepartments.map(d => d.slug))
+                ? [{ href: '/pac-media-kit', label: 'PAC & Média Kit', icon: Briefcase }]
+                : []),
+              ...NAV_ITEMS.slice(1), // le reste (Calendrier, Chronologie, etc.)
+            ]
+        ).map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
@@ -159,6 +165,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
       {/* Bouton Focus du jour — mis en avant, style « assistant ».
           mt-auto : pousse ce bloc (Focus + Équipe + Congés) vers le bas quand
           il y a de la place ; si l'écran est trop court, la zone défile. */}
+      {!isBoutique && (
       <div className="px-4 py-3 border-t border-border mt-auto">
         <Link
           href="/ma-todo"
@@ -171,8 +178,13 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
           <span className="absolute right-3 opacity-70 group-hover:translate-x-0.5 transition-transform">→</span>
         </Link>
       </div>
+      )}
+
+      {/* Boutique : choix du collaborateur (remplace la liste d'équipe) */}
+      {isBoutique && <div className="mt-auto"><BoutiqueMemberPicker /></div>}
 
       {/* Team members */}
+      {!isBoutique && (
       <div className="px-4 py-3">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Équipe</p>
         <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -198,6 +210,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
           ))}
         </div>
       </div>
+      )}
 
       {/* Accès Congés & absences — juste au-dessus du profil */}
       <div className="px-4 py-3 border-t border-border">
@@ -214,7 +227,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
       <div className="p-4 border-t border-border flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <Link
-            href="/compte"
+            href={isBoutique ? '/kanban' : '/compte'}
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 min-w-0 flex-1 rounded-lg p-1 -m-1 hover:bg-muted transition-colors"
           >
@@ -229,7 +242,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [] }:
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium truncate">{profile.name}</p>
-              <p className="text-xs text-muted-foreground">{roleLabel(profile.role)}</p>
+              <p className="text-xs text-muted-foreground">{isBoutique ? 'Compte boutique' : roleLabel(profile.role)}</p>
             </div>
           </Link>
           <button

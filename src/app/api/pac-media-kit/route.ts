@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActingContext } from '@/lib/boutique/session'
 import { PAC_MEDIA_KIT_DEPARTMENTS } from '@/types/pacMediaKit'
 
 export const dynamic = 'force-dynamic'
@@ -20,11 +21,13 @@ export async function GET() {
 
   const supabase = createAdminClient()
 
+  const ctx = await getActingContext(supabase, userId)
+
   // Vérifie que l'utilisateur appartient bien à Marketing ou Web (principal
   // ou additionnel) avant de lui donner cette vision élargie.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('department_id, extra_department_ids, department:departments!department_id(slug)')
+    .select('department_id, extra_department_ids, can_validate_boutiques, department:departments!department_id(slug)')
     .eq('id', userId)
     .single()
 
@@ -35,7 +38,9 @@ export async function GET() {
 
   const mySlug = (primaryDept as { slug?: string } | undefined)?.slug
   const myExtraSlugs = (extraDepts ?? []).map((d: { slug: string }) => d.slug)
-  const allowed = PAC_MEDIA_KIT_DEPARTMENTS.includes(mySlug ?? '') || myExtraSlugs.some(s => PAC_MEDIA_KIT_DEPARTMENTS.includes(s))
+  // Les boutiques et la RH validatrice des congés voient aussi le planning (en lecture seule).
+  const allowed = ctx.isBoutique || profile?.can_validate_boutiques === true
+    || PAC_MEDIA_KIT_DEPARTMENTS.includes(mySlug ?? '') || myExtraSlugs.some(s => PAC_MEDIA_KIT_DEPARTMENTS.includes(s))
 
   if (!allowed) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
 
@@ -74,6 +79,19 @@ export async function GET() {
     extra_departments: ((t.extra_departments as { department: unknown }[]) ?? []).map(a => a.department).filter(Boolean),
     tags: ((t.tags as { tag: unknown }[]) ?? []).map(a => a.tag).filter(Boolean),
   }))
+
+  // Boutiques : lecture seule et sans donnée interne (montants, références,
+  // description, équipe). Seul ce qui sert à savoir « quand » et « quoi » est exposé.
+  if (ctx.isBoutique) {
+    const light = (mapped as unknown as Record<string, unknown>[]).map(t => ({
+      id: t.id, title: t.title, status: t.status, priority: t.priority, deadline: t.deadline,
+      op_category: t.op_category, op_date_debut: t.op_date_debut, op_date_fin: t.op_date_fin,
+      op_mecanique: t.op_mecanique, op_cgv: t.op_cgv, op_exclusions: t.op_exclusions, op_commentaires: t.op_commentaires,
+      op_montant: null, op_references: null,
+      department: t.department,
+    }))
+    return NextResponse.json(light, { headers: { 'Cache-Control': 'no-store' } })
+  }
 
   return NextResponse.json(mapped, { headers: { 'Cache-Control': 'no-store' } })
 }

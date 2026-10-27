@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActingContext } from '@/lib/boutique/session'
 import { sendEmail } from '@/lib/email'
 import { baseHtml, button } from '@/emails/baseHtml'
 
@@ -18,9 +19,14 @@ export async function POST(request: NextRequest) {
   const { type, start_date, end_date } = await request.json()
 
   const supabase = createAdminClient()
+  const ctx = await getActingContext(supabase, userId)
+  const requesterId = ctx.actingUserId ?? userId
   const { data: requester } = await supabase
-    .from('profiles').select('name, department_id, department:departments!department_id(name, color)').eq('id', userId).single()
+    .from('profiles').select('name, department_id, boutique_id, boutique:boutiques!boutique_id(name), department:departments!department_id(name, color)').eq('id', requesterId).single()
   if (!requester) return NextResponse.json({ sent: 0 })
+  const boutiqueRel = Array.isArray(requester.boutique) ? requester.boutique[0] : requester.boutique
+  const boutiqueName = (boutiqueRel as { name?: string } | null | undefined)?.name
+  const displayName = boutiqueName ? `${requester.name} (${boutiqueName})` : requester.name
 
   // Responsables (manager/admin) du SERVICE du demandeur : soit ce service est
   // leur service principal, soit il fait partie de leurs services additionnels
@@ -29,13 +35,20 @@ export async function POST(request: NextRequest) {
   const { data: allManagers } = await supabase
     .from('profiles').select('id, name, email, role, department_id, extra_department_ids')
     .in('role', ['manager', 'admin'])
-    .neq('id', userId)
+    .neq('id', requesterId)
 
-  const managers = (allManagers ?? []).filter(m => {
+  // Boutique : seule la RH validatrice est prévenue (can_validate_boutiques).
+  let managers = (allManagers ?? []).filter(m => {
     if (m.department_id === requester.department_id) return true
     const extras: string[] = m.extra_department_ids ?? []
     return extras.includes(requester.department_id as string)
   })
+  if (requester.boutique_id) {
+    const { data: rh } = await supabase
+      .from('profiles').select('id, name, email, role, department_id, extra_department_ids')
+      .eq('can_validate_boutiques', true)
+    managers = rh ?? []
+  }
 
   const dept = Array.isArray(requester.department) ? requester.department[0] : requester.department
   const deptColor = (dept as { color?: string })?.color ?? '#E0596A'
@@ -46,12 +59,12 @@ export async function POST(request: NextRequest) {
     if (!m.email) continue
     const html = baseHtml({
       title: 'Nouvelle demande d\'absence',
-      preheader: `${requester.name} a déposé une demande de ${type}`,
+      preheader: `${displayName} a déposé une demande de ${type}`,
       deptColor,
       content: `
         <h2 style="margin:0 0 10px;font-size:21px;font-weight:700;color:#1C1E26;">Demande d'absence à valider</h2>
         <p style="margin:0 0 18px;color:#5A6072;font-size:14.5px;line-height:1.6;">
-          <strong>${requester.name}</strong> a déposé une demande d'absence :
+          <strong>${displayName}</strong> a déposé une demande d'absence :
         </p>
         <div style="background:#F9FAFB;border-left:4px solid ${deptColor};border-radius:0 10px 10px 0;padding:15px 18px;margin-bottom:18px;">
           <p style="margin:0;font-size:15px;font-weight:600;color:#1C1E26;">${type}</p>
@@ -61,7 +74,7 @@ export async function POST(request: NextRequest) {
       `,
     })
     try {
-      await sendEmail({ to: m.email, subject: `🗓️ Demande d'absence — ${requester.name}`, html })
+      await sendEmail({ to: m.email, subject: `🗓️ Demande d'absence — ${displayName}`, html })
       sent++
     } catch { /* noop */ }
   }

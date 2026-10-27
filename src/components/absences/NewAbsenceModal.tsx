@@ -5,7 +5,16 @@ import { X, Loader2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { ABSENCE_TYPES, ABSENCE_COLORS, type AbsenceType, type AbsencePeriod, type Absence } from '@/types/absences'
 
-export function NewAbsenceModal({ absence, onClose, onCreated }: { absence?: Absence | null; onClose: () => void; onCreated: () => void }) {
+// Opération commerciale (planning PAC) : sert à prévenir quand on pose des congés dessus.
+export interface CommercialOperation {
+  id: string
+  title: string
+  op_date_debut: string | null
+  op_date_fin: string | null
+  op_mecanique?: string | null
+}
+
+export function NewAbsenceModal({ absence, operations = [], onClose, onCreated }: { absence?: Absence | null; operations?: CommercialOperation[]; onClose: () => void; onCreated: () => void }) {
   const editing = !!absence
   const [type, setType] = useState<AbsenceType>(absence?.type ?? 'Congés payés')
   const [startDate, setStartDate] = useState(absence?.start_date ?? '')
@@ -31,6 +40,15 @@ export function NewAbsenceModal({ absence, onClose, onCreated }: { absence?: Abs
   }, [startDate, endDate])
 
   const sameDay = startDate && endDate && startDate === endDate
+
+  // Opérations commerciales qui chevauchent la période demandée.
+  const opConflicts = (startDate && endDate)
+    ? operations.filter(o => {
+        const end = o.op_date_fin ? o.op_date_fin.slice(0, 10) : (o.op_date_debut ? o.op_date_debut.slice(0, 10) : null)
+        const start = o.op_date_debut ? o.op_date_debut.slice(0, 10) : end
+        return !!start && !!end && start <= endDate && end >= startDate
+      })
+    : []
 
   async function submit() {
     if (!startDate || !endDate) { toast.error('Indique les dates'); return }
@@ -137,6 +155,23 @@ export function NewAbsenceModal({ absence, onClose, onCreated }: { absence?: Abs
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
                 className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground resize-none"
                 placeholder="Une précision si besoin…" />
+            </div>
+          )}
+
+          {opConflicts.length > 0 && (
+            <div className="rounded-lg p-3 border" style={{ backgroundColor: 'rgba(224,89,106,0.08)', borderColor: 'rgba(224,89,106,0.35)' }}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#E0596A' }} />
+                <p className="text-sm font-semibold" style={{ color: '#BE3F50' }}>
+                  {opConflicts.length > 1 ? 'Opérations commerciales' : 'Opération commerciale'} sur ces dates
+                </p>
+              </div>
+              <ul className="text-xs text-muted-foreground space-y-0.5 ml-6">
+                {opConflicts.slice(0, 4).map(o => (
+                  <li key={o.id}>★ {o.title}{o.op_mecanique ? ` — ${o.op_mecanique}` : ''}</li>
+                ))}
+              </ul>
+              <p className="text-xs mt-2 ml-6" style={{ color: '#BE3F50' }}>Les congés sont déconseillés pendant une opération. Tu peux quand même poser ta demande, la RH décidera.</p>
             </div>
           )}
 

@@ -21,7 +21,7 @@ export interface Absence {
   pending_start_period?: AbsencePeriod | null
   pending_end_period?: AbsencePeriod | null
   // Jointures
-  user?: { id: string; name: string; avatar_url: string | null; department_id: string | null; department?: { name: string; color: string } | null }
+  user?: { id: string; name: string; avatar_url: string | null; department_id: string | null; boutique_id?: string | null; boutique?: { name: string } | null; department?: { name: string; color: string } | null }
 }
 
 export const ABSENCE_TYPES: AbsenceType[] = ['Congés payés', 'RTT', 'Maladie', 'Télétravail', 'Alternance', 'Autre']

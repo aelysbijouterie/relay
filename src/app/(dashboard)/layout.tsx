@@ -20,6 +20,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let departments: Department[]
   let members: Profile[]
   let extraDepartments: Department[] = []
+  let isBoutique = false
   let tasks: Task[] = []
 
   if (demoDeptId) {
@@ -64,6 +65,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
       .single()
 
     const extraDeptIds: string[] = extraRow?.extra_department_ids ?? []
+
+    // Compte de boutique (lecture tolérante : colonne absente = pas une boutique).
+    const { data: boutiqueRow } = await supabase
+      .from('profiles')
+      .select('is_boutique_account, boutique_id, boutique:boutiques!boutique_id(name)')
+      .eq('id', userId!)
+      .single()
+    isBoutique = boutiqueRow?.is_boutique_account === true
+    const boutiqueRel = Array.isArray(boutiqueRow?.boutique) ? boutiqueRow?.boutique[0] : boutiqueRow?.boutique
+    const boutiqueName = (boutiqueRel as { name?: string } | null | undefined)?.name
 
     const [deptResult, tasksResult] = await Promise.all([
       supabase
@@ -130,16 +141,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
     department = departments.find(d => d.id === deptId) ?? departments[0]
 
+    // Boutique : un seul service possible (« Boutiques »), affiché sous le nom du magasin.
+    if (isBoutique) {
+      const shopDept = departments.find(d => d.slug === 'boutiques') ?? department
+      department  = { ...shopDept, name: boutiqueName ?? shopDept.name }
+      departments = [shopDept]
+    }
+
     // Tous les services de l'utilisateur = principal + supplémentaires.
     // Les "autres services" cliquables dans la sidebar = tous sauf l'actif.
     // (Avant, on n'incluait que les extras, donc le département principal
     //  disparaissait dès qu'on le quittait et n'était plus cliquable.)
     const allDeptIds = [primaryDeptId, ...extraDeptIds].filter(Boolean) as string[]
-    extraDepartments = departments.filter(d => allDeptIds.includes(d.id) && d.id !== deptId)
+    extraDepartments = isBoutique ? [] : departments.filter(d => allDeptIds.includes(d.id) && d.id !== deptId)
 
     profile = {
       id:            profileRow?.id ?? userId!,
-      name:          profileRow?.name ?? userEmail!.split('@')[0],
+      name:          isBoutique ? (boutiqueName ?? profileRow?.name ?? 'Boutique') : (profileRow?.name ?? userEmail!.split('@')[0]),
       email:         profileRow?.email ?? userEmail!,
       role:          (profileRow?.role ?? 'collaborateur') as Profile['role'],
       department_id: deptId,
@@ -155,11 +173,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // principe, indépendamment, côté client.
     tasks = tasks.filter(t => isTaskVisibleTo(t as unknown as Task, { userId: userId! }))
 
-    const { data: memberRows } = await supabase
-      .from('profiles')
-      .select('id, name, email, role, department_id, avatar_url')
-      .eq('department_id', department.id)
-      .eq('is_active', true)
+    // Boutique : pas de liste d'équipe (le sélecteur de collaborateur la remplace).
+    const { data: memberRows } = isBoutique
+      ? { data: [] as { id: string; name: string; email: string | null; role: string; department_id: string | null; avatar_url: string | null }[] }
+      : await supabase
+          .from('profiles')
+          .select('id, name, email, role, department_id, avatar_url')
+          .eq('department_id', department.id)
+          .eq('is_active', true)
 
     members = (memberRows ?? []).map(m => ({
       id:            m.id,
@@ -178,7 +199,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <TasksProvider initialTasks={tasks} userId={profile!.id} deptId={department!.id}>
       <AccentProvider color={department!.color}>
         <div className="flex h-screen overflow-hidden bg-background">
-          <Sidebar profile={profile!} members={members!} department={department!} extraDepartments={extraDepartments} />
+          <Sidebar profile={profile!} members={members!} department={department!} extraDepartments={extraDepartments} isBoutique={isBoutique} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <Header department={department!} profile={profile!} departments={departments!} members={members!} isDemo={!!demoDeptId} />
             <main className="flex-1 overflow-auto p-6">{children}</main>

@@ -8,5 +8,7 @@ export async function logout() {
   cookieStore.delete('relays-session')
   cookieStore.delete('relays-demo')
   cookieStore.delete('relays-active-dept')
+  cookieStore.delete('relays-boutique')
+  cookieStore.delete('relays-member')
   redirect('/login')
 }

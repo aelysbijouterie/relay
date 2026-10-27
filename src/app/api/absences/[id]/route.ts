@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActingContext } from '@/lib/boutique/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,21 +31,30 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   // L'absence + le service du demandeur
   const { data: absence } = await supabase
     .from('absences')
-    .select('id, user_id, user:profiles!user_id(department_id)')
+    .select('id, user_id, user:profiles!user_id(department_id, boutique_id)')
     .eq('id', params.id).single()
   if (!absence) return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 })
 
-  const requesterDept = Array.isArray(absence.user)
-    ? (absence.user[0] as { department_id: string | null })?.department_id
-    : (absence.user as { department_id: string | null })?.department_id
+  const requester = (Array.isArray(absence.user) ? absence.user[0] : absence.user) as
+    { department_id: string | null; boutique_id: string | null } | undefined
+  const requesterDept = requester?.department_id
 
   // Contrôle de droits
   // Un responsable (manager OU admin) valide les demandes de SES services :
   // son service principal ou l'un de ses services additionnels
   // (extra_department_ids) — cohérent avec le routage des notifications.
+  // Exception : les demandes des boutiques ne sont validées QUE par la RH
+  // (profil can_validate_boutiques), personne d'autre.
   const reviewerDepts = [reviewer.department_id, ...((reviewer.extra_department_ids as string[] | null) ?? [])].filter(Boolean)
-  const canReview = (reviewer.role === 'manager' || reviewer.role === 'admin')
-    && requesterDept != null && reviewerDepts.includes(requesterDept)
+  let canReview: boolean
+  if (requester?.boutique_id) {
+    const { data: rh } = await supabase
+      .from('profiles').select('can_validate_boutiques').eq('id', userId).single()
+    canReview = rh?.can_validate_boutiques === true
+  } else {
+    canReview = (reviewer.role === 'manager' || reviewer.role === 'admin')
+      && requesterDept != null && reviewerDepts.includes(requesterDept)
+  }
   if (!canReview) {
     return NextResponse.json({ error: 'Seul un responsable du service peut valider' }, { status: 403 })
   }
@@ -96,6 +106,17 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const { data: absence } = await supabase.from('absences').select('user_id').eq('id', params.id).single()
   if (!absence) return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
 
+  const ctx = await getActingContext(supabase, userId)
+  // Boutique : on ne supprime que les demandes de son propre collaborateur actif.
+  if (ctx.isBoutique) {
+    if (!ctx.actingUserId || absence.user_id !== ctx.actingUserId) {
+      return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 })
+    }
+    const { error } = await supabase.from('absences').delete().eq('id', params.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
   const { data: me } = await supabase.from('profiles').select('role').eq('id', userId).single()
   if (absence.user_id !== userId && me?.role !== 'admin') {
     return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 })
@@ -120,11 +141,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const { data: absence } = await supabase
     .from('absences').select('user_id, status').eq('id', params.id).single()
   if (!absence) return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
-  if (absence.user_id !== userId) return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 })
+  const ctx = await getActingContext(supabase, userId)
+  const ownerId = ctx.actingUserId
+  if (absence.user_id !== ownerId) return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 })
 
-  // Auto-validés : la modification est appliquée directement.
-  const { data: me } = await supabase.from('profiles').select('role').eq('id', userId).single()
-  const autoValidated = me?.role === 'manager' || me?.role === 'admin'
+  // Auto-validés : la modification est appliquée directement (jamais pour une boutique : tout passe par la RH).
+  const { data: me } = await supabase.from('profiles').select('role').eq('id', ownerId).single()
+  const autoValidated = !ctx.isBoutique && (me?.role === 'manager' || me?.role === 'admin')
 
   if (autoValidated) {
     const { error } = await supabase.from('absences').update({

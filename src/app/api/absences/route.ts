@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActingContext } from '@/lib/boutique/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,12 +17,16 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get('from')
   const to   = searchParams.get('to')
 
+  // Une boutique ne voit que les absences de SA boutique.
+  const sessionUserId = getUserId()
+  const ctx = sessionUserId ? await getActingContext(supabase, sessionUserId) : null
+
   let query = supabase
     .from('absences')
     .select(`
       id, user_id, type, start_date, end_date, start_period, end_period,
       reason, status, reviewed_by, reviewed_at, review_note, created_at,
-      user:profiles!user_id(id, name, avatar_url, department_id, department:departments!department_id(name, color))
+      user:profiles!user_id(id, name, avatar_url, department_id, boutique_id, boutique:boutiques!boutique_id(name), department:departments!department_id(name, color))
     `)
     .order('start_date', { ascending: true })
 
@@ -31,10 +36,14 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
 
-  const mapped = (data ?? []).map((a: Record<string, unknown>) => ({
-    ...a,
-    user: Array.isArray(a.user) ? a.user[0] : a.user,
-  }))
+  let mapped = (data ?? []).map((a: Record<string, unknown>) => {
+    const user = (Array.isArray(a.user) ? a.user[0] : a.user) as Record<string, unknown> | undefined
+    const boutique = user ? (Array.isArray(user.boutique) ? user.boutique[0] : user.boutique) : undefined
+    return { ...a, user: user ? { ...user, boutique } : user }
+  })
+  if (ctx?.isBoutique) {
+    mapped = mapped.filter(a => (a.user as { boutique_id?: string } | undefined)?.boutique_id === ctx.boutiqueId)
+  }
   return NextResponse.json(mapped, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -55,15 +64,23 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient()
 
+  // Boutique : la demande est posée au nom du collaborateur choisi, et
+  // TOUT remonte à la RH (jamais d'auto-validation, alternance comprise).
+  const ctx = await getActingContext(supabase, userId)
+  if (ctx.isBoutique && !ctx.actingUserId) {
+    return NextResponse.json({ error: 'Choisis d\'abord le collaborateur concerné' }, { status: 400 })
+  }
+  const requesterId = ctx.actingUserId ?? userId
+
   // Auto-validation : les managers/admins et le motif "Alternance" ne
   // nécessitent pas de validation (statut "Validé" directement).
-  const { data: me } = await supabase.from('profiles').select('role').eq('id', userId).single()
-  const autoValidated = me?.role === 'manager' || me?.role === 'admin' || type === 'Alternance'
+  const { data: me } = await supabase.from('profiles').select('role').eq('id', requesterId).single()
+  const autoValidated = !ctx.isBoutique && (me?.role === 'manager' || me?.role === 'admin' || type === 'Alternance')
 
   const { data, error } = await supabase
     .from('absences')
     .insert({
-      user_id: userId,
+      user_id: requesterId,
       type,
       start_date,
       end_date,
@@ -71,7 +88,7 @@ export async function POST(request: NextRequest) {
       end_period: end_period ?? 'full',
       reason: reason?.trim() || null,
       status: autoValidated ? 'Validé' : 'En attente',
-      reviewed_by: autoValidated ? userId : null,
+      reviewed_by: autoValidated ? requesterId : null,
       reviewed_at: autoValidated ? new Date().toISOString() : null,
     })
     .select('id')

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActingContext } from '@/lib/boutique/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,25 +19,28 @@ export async function GET(request: NextRequest) {
   if (!from || !to) return NextResponse.json({ conflicts: [] })
 
   const supabase = createAdminClient()
-  const { data: me } = await supabase.from('profiles').select('department_id').eq('id', userId).single()
+  const ctx = await getActingContext(supabase, userId)
+  const actorId = ctx.actingUserId ?? userId
+  const { data: me } = await supabase.from('profiles').select('department_id').eq('id', actorId).single()
   if (!me?.department_id) return NextResponse.json({ conflicts: [] })
 
   // Absences non refusées qui chevauchent la période, hors soi-même,
   // pour les gens du même service.
   const { data } = await supabase
     .from('absences')
-    .select('id, type, start_date, end_date, status, user:profiles!user_id(name, department_id)')
-    .neq('user_id', userId).neq('status', 'Refusé')
+    .select('id, type, start_date, end_date, status, user:profiles!user_id(name, department_id, boutique_id)')
+    .neq('user_id', actorId).neq('status', 'Refusé')
     .lte('start_date', to).gte('end_date', from)
 
-  type Row = { id: string; type: string; start_date: string; end_date: string; status: string; user?: { name?: string; department_id?: string } }
+  type Row = { id: string; type: string; start_date: string; end_date: string; status: string; user?: { name?: string; department_id?: string; boutique_id?: string | null } }
   const rows: Row[] = (data ?? []).map((a: Record<string, unknown>) => ({
     id: a.id as string, type: a.type as string,
     start_date: a.start_date as string, end_date: a.end_date as string, status: a.status as string,
     user: Array.isArray(a.user) ? a.user[0] : a.user,
   }))
   const conflicts = rows
-    .filter(a => a.user?.department_id === me.department_id)
+    // Boutique : on ne compare qu'avec les collègues de la MÊME boutique.
+    .filter(a => ctx.isBoutique ? a.user?.boutique_id === ctx.boutiqueId : a.user?.department_id === me.department_id)
     .map(a => ({ name: a.user?.name ?? '?', type: a.type, start_date: a.start_date, end_date: a.end_date, status: a.status }))
 
   return NextResponse.json({ conflicts })

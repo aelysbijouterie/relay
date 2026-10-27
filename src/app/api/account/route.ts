@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getActingContext } from '@/lib/boutique/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,8 @@ function getUserId(): string | null {
 const COLUMNS =
   'id, name, email, avatar_url, role, department_id, extra_department_ids, conges_default_dept_ids, ' +
   'notify_email_assigned, notify_email_status, notify_email_deadlines, notify_email_weekly, notify_email_mentions, ' +
-  'show_holidays, show_school_holidays, show_absences_calendar'
+  'show_holidays, show_school_holidays, show_absences_calendar, ' +
+  'is_boutique_account, boutique_id, can_validate_boutiques'
 
 export async function GET() {
   const userId = getUserId()
@@ -34,7 +36,11 @@ export async function GET() {
   const cookieDept = cookies().get('relays-active-dept')?.value
   const active_department_id = cookieDept && allowed.includes(cookieDept) ? cookieDept : (row?.department_id as string | null) ?? null
 
-  return NextResponse.json({ ...row, active_department_id }, { headers: { 'Cache-Control': 'no-store' } })
+  // Compte de boutique : collaborateur actif (celui au nom duquel on pose les congés).
+  const ctx = await getActingContext(supabase, userId)
+  const acting_member_id: string | null = ctx.isBoutique ? ctx.actingUserId : null
+
+  return NextResponse.json({ ...row, active_department_id, acting_member_id }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function PATCH(request: NextRequest) {

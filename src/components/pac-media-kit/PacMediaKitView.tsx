@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Briefcase } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Briefcase, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TaskModal } from '@/components/tasks/TaskModal'
 import { NewTaskModal } from '@/components/tasks/NewTaskModal'
@@ -26,6 +26,8 @@ export function PacMediaKitView() {
   const [showNew, setShowNew] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [departments, setDepartments] = useState<Department[]>([])
+  // Compte boutique : planning en lecture seule (pas de création, pas de carte complète).
+  const isBoutique = (profile as unknown as { is_boutique_account?: boolean } | null)?.is_boutique_account === true
 
   async function load() {
     setLoading(true)
@@ -111,14 +113,18 @@ export function PacMediaKitView() {
             <Briefcase className="w-5 h-5" /> PAC &amp; Média Kit
           </h2>
           <p className="text-sm text-muted-foreground">
-            Planning des opérations commerciales et média kit — Marketing &amp; Web
+            {isBoutique
+              ? 'Planning des opérations commerciales et média kit — pour savoir quand poser (ou non) vos congés'
+              : 'Planning des opérations commerciales et média kit — Marketing & Web'}
           </p>
         </div>
+        {!isBoutique && (
         <button onClick={() => setShowNew(true)}
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl text-white transition-transform hover:scale-[1.02]"
           style={{ backgroundColor: 'var(--accent)' }}>
           <Plus className="w-4 h-4" /> Ajouter une opération
         </button>
+        )}
       </div>
 
       {/* Filtre catégorie */}
@@ -195,7 +201,34 @@ export function PacMediaKitView() {
         </p>
       )}
 
-      {selectedTask && (
+      {selectedTask && isBoutique && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setSelectedTask(null)}>
+          <div className="bg-card rounded-2xl w-full max-w-md p-6 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}
+            style={{ boxShadow: '0 30px 80px rgba(20,30,40,0.2)' }}>
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <h2 className="text-lg font-extrabold tracking-tight">{selectedTask.title}</h2>
+              <button onClick={() => setSelectedTask(null)} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-xs font-semibold mb-4" style={{ color: OP_CATEGORY_COLORS[selectedTask.op_category as OpCategory] }}>
+              {OP_CATEGORY_LABELS[selectedTask.op_category as OpCategory]}
+              {selectedTask.op_date_debut && <> · du {new Date(selectedTask.op_date_debut).toLocaleDateString('fr-FR')}</>}
+              {selectedTask.op_date_fin && <> au {new Date(selectedTask.op_date_fin).toLocaleDateString('fr-FR')}</>}
+            </p>
+            <dl className="space-y-3 text-sm">
+              {([['Mécanique', selectedTask.op_mecanique], ['CGV', selectedTask.op_cgv], ['Exclusions', selectedTask.op_exclusions], ['Commentaires', selectedTask.op_commentaires]] as [string, string | null | undefined][])
+                .filter(([, v]) => !!v)
+                .map(([label, v]) => (
+                  <div key={label}>
+                    <dt className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</dt>
+                    <dd className="whitespace-pre-wrap">{v}</dd>
+                  </div>
+                ))}
+            </dl>
+          </div>
+        </div>
+      )}
+
+      {selectedTask && !isBoutique && (
         <TaskModal
           task={selectedTask}
           open={!!selectedTask}

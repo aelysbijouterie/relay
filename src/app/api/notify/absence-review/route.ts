@@ -12,12 +12,22 @@ export async function POST(request: NextRequest) {
 
   const { data: absence } = await supabase
     .from('absences')
-    .select('type, start_date, end_date, user:profiles!user_id(name, email, department:departments!department_id(color))')
+    .select('type, start_date, end_date, user:profiles!user_id(name, email, boutique_id, department:departments!department_id(color))')
     .eq('id', absenceId).single()
   if (!absence) return NextResponse.json({ sent: 0 })
 
-  const user = Array.isArray(absence.user) ? absence.user[0] : absence.user as { name: string; email: string; department: unknown }
+  const user = (Array.isArray(absence.user) ? absence.user[0] : absence.user) as
+    { name: string; email: string; boutique_id: string | null; department: unknown }
   if (!user?.email) return NextResponse.json({ sent: 0 })
+
+  // Collaborateur de boutique : adresse technique (.invalid) → on écrit à la boutique.
+  let recipient = user.email
+  if (user.email.endsWith('.invalid') && user.boutique_id) {
+    const { data: shop } = await supabase
+      .from('profiles').select('email').eq('boutique_id', user.boutique_id).eq('is_boutique_account', true).single()
+    if (!shop?.email) return NextResponse.json({ sent: 0 })
+    recipient = shop.email
+  }
 
   const dept = Array.isArray(user.department) ? user.department[0] : user.department
   const deptColor = (dept as { color?: string })?.color ?? '#E0596A'
@@ -44,7 +54,7 @@ export async function POST(request: NextRequest) {
     `,
   })
   try {
-    await sendEmail({ to: user.email, subject: `${validated ? '✅' : '❌'} Demande d'absence ${status.toLowerCase()}e`, html })
+    await sendEmail({ to: recipient, subject: `${validated ? '✅' : '❌'} Demande d'absence ${status.toLowerCase()}e`, html })
     return NextResponse.json({ sent: 1 })
   } catch { return NextResponse.json({ sent: 0 }) }
 }

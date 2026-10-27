@@ -17,6 +17,13 @@ export function middleware(request: NextRequest) {
                     || pathname.startsWith('/reinitialiser-mot-de-passe')
 
   if (!isAuth && !isLogin) return NextResponse.redirect(new URL('/login', request.url))
+
+  // Compte de boutique : seules 3 vues sont accessibles (Kanban, PAC & Média Kit, Congés).
+  const isBoutique = !!request.cookies.get('relays-boutique')?.value
+  const boutiqueAllowed = ['/kanban', '/pac-media-kit', '/conges']
+  if (isBoutique && isSession && !isLogin && !boutiqueAllowed.some(p => pathname === p || pathname.startsWith(p + '/'))) {
+    return NextResponse.redirect(new URL('/kanban', request.url))
+  }
   // Pages publiques de réinitialisation : accessibles même connecté (lien e-mail).
   const isReset = pathname.startsWith('/mot-de-passe-oublie') || pathname.startsWith('/reinitialiser-mot-de-passe')
   if (isAuth && isLogin && !isReset) return NextResponse.redirect(new URL('/kanban', request.url))
