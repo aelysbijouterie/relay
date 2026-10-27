@@ -1316,14 +1316,6 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                             <UserPlus className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Ajouter une sous-sous-tâche (premier niveau uniquement) */}
-                          {!sub.parent_subtask_id && (
-                            <button onClick={() => { setAddingChildFor(addingChildFor === sub.id ? null : sub.id); setNewChildTitle('') }}
-                              className="flex-shrink-0 p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Ajouter une sous-sous-tâche">
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-
                           <button onClick={() => deleteSubtask(sub.id)}
                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive">
                             <Trash2 className="w-3 h-3" />
@@ -1351,6 +1343,14 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                           />
                           {sub.deadline && isOverdue(sub.deadline) && !sub.is_done && (
                             <span className="text-[0.65rem] px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 font-semibold">En retard</span>
+                          )}
+                          {/* Ajouter une sous-sous-tâche : bouton texte bien visible (premier niveau uniquement) */}
+                          {!sub.parent_subtask_id && (
+                            <button onClick={() => { setAddingChildFor(addingChildFor === sub.id ? null : sub.id); setNewChildTitle('') }}
+                              className="ml-auto inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg border border-border hover:bg-muted transition-colors"
+                              style={{ color: deptColor }}>
+                              <Plus className="w-3 h-3" /> Sous-sous-tâche
+                            </button>
                           )}
                         </div>
 
