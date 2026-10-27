@@ -711,3 +711,12 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
   passe dans `Documents\relays-comptes-boutiques.csv` (hors dépôt).
 - Migrations 022 et 023 sont maintenant versionnées dans `supabase/migrations/`.
 - ⚠ Les routes de sous-ressources de cartes (§8.4) ne vérifient toujours pas la visibilité : à durcir.
+
+### Annexe C bis — Verrou e-mails boutiques et routines liées
+- **Verrou** : `lib/email.ts` (`removeBoutiqueRecipients`) retire TOUT destinataire boutique (comptes, collaborateurs,
+  adresses des magasins) tant que la variable Vercel `BOUTIQUES_EMAILS_ENABLED` n'est pas `true`. À passer à `true`
+  le jour du lancement de l'outil aux magasins. Ne couvre pas les e-mails d'authentification Supabase (mot de passe oublié).
+- **Routines** : `notify/absence-request` (demande → RH validatrice ; alternance saisie → information RH ; Audrey reçoit
+  ceux de ses 3 services), `notify/absence-review` (décision → boutique, bloqué par le verrou), `cron/leave-reminder`
+  (jours ouvrés 08:15 : récap des demandes en attente à la RH), invitations d'événements (`lib/calendar/notifyAttendees.ts`).
+- Migration 025 : `task_subtasks.parent_subtask_id` (sous-sous-tâches) et `calendar_event_attendees` (invités).

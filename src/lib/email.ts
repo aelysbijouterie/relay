@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { createAdminClient } from '@/lib/supabase/server'
 
 // ── Envoi d'emails via SMTP OVH ──────────────────────────────────────────────
 // On utilise la messagerie OVH d'Aelys (@aelys.fr) plutôt qu'un service tiers,
@@ -35,6 +36,34 @@ function getTransporter(): nodemailer.Transporter | null {
   return transporter
 }
 
+// ── Verrou « boutiques » ─────────────────────────────────────────────────────
+// Tant que BOUTIQUES_EMAILS_ENABLED n'est pas « true » (Vercel), AUCUN e-mail
+// n'est envoyé aux boutiques : ni aux comptes de magasin, ni à leurs
+// collaborateurs, ni aux adresses des magasins. Ce filtre est appliqué ici,
+// au point de passage unique, donc il couvre les crons, les assignations de
+// cartes, les congés et les invitations. En cas de doute (erreur de lecture),
+// on n'envoie PAS.
+// Ne couvre pas les e-mails d'authentification envoyés par Supabase (réinitialisation de mot de passe).
+async function removeBoutiqueRecipients(recipients: string[]): Promise<string[]> {
+  if (process.env.BOUTIQUES_EMAILS_ENABLED === 'true') return recipients
+  try {
+    const supabase = createAdminClient()
+    const [profiles, shops] = await Promise.all([
+      supabase.from('profiles').select('email').not('boutique_id', 'is', null),
+      supabase.from('boutiques').select('email'),
+    ])
+    if (profiles.error || shops.error) throw new Error('lecture boutiques impossible')
+    const blocked = new Set([...(profiles.data ?? []), ...(shops.data ?? [])]
+      .map(r => (r.email as string | null)?.trim().toLowerCase()).filter((e): e is string => !!e))
+    const kept = recipients.filter(r => !blocked.has(r.trim().toLowerCase()) && !r.trim().toLowerCase().endsWith('.invalid'))
+    if (kept.length < recipients.length) console.log('[email] destinataires boutiques ignorés (verrou actif)')
+    return kept
+  } catch (err) {
+    console.error('[email] verrou boutiques : envoi annulé par prudence', err)
+    return []
+  }
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -50,11 +79,15 @@ export async function sendEmail({
     return
   }
 
+  // Les boutiques sont filtrées AVANT toute redirection de test.
+  const allowed = await removeBoutiqueRecipients(Array.isArray(to) ? to : [to])
+  if (allowed.length === 0) return
+
   // Redirection de test : si SMTP_TEST_EMAIL est défini, tout part vers cette
   // adresse au lieu des vrais destinataires.
   const destination = process.env.SMTP_TEST_EMAIL
     ? [process.env.SMTP_TEST_EMAIL]
-    : Array.isArray(to) ? to : [to]
+    : allowed
 
   try {
     await tx.sendMail({ from: FROM, to: destination, subject, html })

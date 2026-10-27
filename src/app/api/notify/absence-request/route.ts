@@ -16,7 +16,7 @@ function getUserId(): string | null {
 export async function POST(request: NextRequest) {
   const userId = getUserId()
   if (!userId) return NextResponse.json({ sent: 0 })
-  const { type, start_date, end_date } = await request.json()
+  const { type, start_date, end_date, info } = await request.json()
 
   const supabase = createAdminClient()
   const ctx = await getActingContext(supabase, userId)
@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
       .from('profiles').select('id, name, email, role, department_id, extra_department_ids')
       .eq('can_validate_boutiques', true)
     managers = rh ?? []
+  } else if (info) {
+    // L'information « alternance saisie » ne concerne que la RH des boutiques.
+    return NextResponse.json({ sent: 0 })
   }
 
   const dept = Array.isArray(requester.department) ? requester.department[0] : requester.department
@@ -58,13 +61,13 @@ export async function POST(request: NextRequest) {
   for (const m of managers ?? []) {
     if (!m.email) continue
     const html = baseHtml({
-      title: 'Nouvelle demande d\'absence',
+      title: info ? 'Période d\'alternance enregistrée' : 'Nouvelle demande d\'absence',
       preheader: `${displayName} a déposé une demande de ${type}`,
       deptColor,
       content: `
-        <h2 style="margin:0 0 10px;font-size:21px;font-weight:700;color:#1C1E26;">Demande d'absence à valider</h2>
+        <h2 style="margin:0 0 10px;font-size:21px;font-weight:700;color:#1C1E26;">${info ? 'Alternance enregistrée' : 'Demande d\'absence à valider'}</h2>
         <p style="margin:0 0 18px;color:#5A6072;font-size:14.5px;line-height:1.6;">
-          <strong>${displayName}</strong> a déposé une demande d'absence :
+          <strong>${displayName}</strong> ${info ? 'a enregistré une période (aucune validation nécessaire, pour information) :' : 'a déposé une demande d\'absence :'}
         </p>
         <div style="background:#F9FAFB;border-left:4px solid ${deptColor};border-radius:0 10px 10px 0;padding:15px 18px;margin-bottom:18px;">
           <p style="margin:0;font-size:15px;font-weight:600;color:#1C1E26;">${type}</p>
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
       `,
     })
     try {
-      await sendEmail({ to: m.email, subject: `🗓️ Demande d'absence — ${displayName}`, html })
+      await sendEmail({ to: m.email, subject: info ? `🎓 Alternance enregistrée — ${displayName}` : `🗓️ Demande d'absence — ${displayName}`, html })
       sent++
     } catch { /* noop */ }
   }

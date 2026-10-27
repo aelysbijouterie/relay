@@ -86,6 +86,13 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
           }).catch(() => {})
           toast.success('Demande envoyée')
         } else {
+          // Alternance saisie librement : pas de validation, mais la RH est informée.
+          if (type === 'Alternance') {
+            fetch('/api/notify/absence-request', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type, start_date: startDate, end_date: endDate, info: true }),
+            }).catch(() => {})
+          }
           toast.success(type === 'Alternance' ? 'Période enregistrée' : 'Absence enregistrée (validée)')
         }
       }
