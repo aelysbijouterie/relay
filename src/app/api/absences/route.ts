@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     .select(`
       id, user_id, type, start_date, end_date, start_period, end_period,
       reason, status, reviewed_by, reviewed_at, review_note, created_at,
-      user:profiles!user_id(id, name, avatar_url, department_id, boutique_id, boutique:boutiques!boutique_id(name), department:departments!department_id(name, color))
+      user:profiles!user_id(id, name, avatar_url, department_id, boutique_id, boutique:boutiques!boutique_id(name, code), department:departments!department_id(name, color))
     `)
     .order('start_date', { ascending: true })
 
@@ -75,9 +75,9 @@ export async function POST(request: NextRequest) {
 
   // Boutique, congés payés : certaines périodes sont refusées d'office (soldes, Saint-Valentin,
   // fête des mères, Black Friday → soldes de janvier, changement de merch, apprenti·e à l'école…).
-  if (ctx.isBoutique && ctx.boutiqueId && type === 'Congés payés') {
+  if (ctx.isBoutique && ctx.boutiqueId && (type === 'Congés payés' || type === 'RTT')) {
     const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, start_date, end_date, {
-      memberId: requesterId, startPeriod: start_period ?? 'full', endPeriod: end_period ?? 'full',
+      memberId: requesterId, startPeriod: start_period ?? 'full', endPeriod: end_period ?? 'full', applyCap: type === 'Congés payés',
     })
     if (evaluation.blocks.length > 0) {
       return NextResponse.json({ error: `Demande impossible sur ces dates : ${evaluation.blocks.join(' ; ')}`, blocks: evaluation.blocks }, { status: 422 })
@@ -85,7 +85,13 @@ export async function POST(request: NextRequest) {
   }
   // Boutique : uniquement « Congés payés » (à valider par la RH) et « Alternance » (saisie libre).
   if (ctx.isBoutique && type !== 'Congés payés' && type !== 'Alternance') {
-    return NextResponse.json({ error: 'Type d\'absence non disponible pour les boutiques' }, { status: 400 })
+    // Les RTT ne sont ouverts qu'aux cadres (profil is_cadre).
+    let okRtt = false
+    if (type === 'RTT') {
+      const { data: who } = await supabase.from('profiles').select('is_cadre').eq('id', requesterId).single()
+      okRtt = who?.is_cadre === true
+    }
+    if (!okRtt) return NextResponse.json({ error: 'Type d\'absence non disponible pour ce collaborateur' }, { status: 400 })
   }
 
   // Auto-validation : les managers/admins et le motif "Alternance" ne

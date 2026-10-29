@@ -28,10 +28,10 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
   // Règles boutique : blocks = demande impossible, warnings = déconseillé (voir /api/absences/rules).
   const [rules, setRules] = useState<{ blocks: string[]; warnings: string[] }>({ blocks: [], warnings: [] })
   // Solde de congés payés du collaborateur (jours restants, jours déjà en attente de validation).
-  const [balance, setBalance] = useState<{ remaining: number | null; pending: number } | null>(null)
+  const [balance, setBalance] = useState<{ remaining: number | null; pending: number; rttRemaining: number | null; pendingRtt: number } | null>(null)
   useEffect(() => {
     fetch('/api/absences/balance', { cache: 'no-store' }).then(r => r.json())
-      .then(d => setBalance(d?.conges ? { remaining: d.conges.remaining ?? null, pending: Number(d.pending ?? 0) } : null))
+      .then(d => setBalance(d?.conges ? { remaining: d.conges.remaining ?? null, pending: Number(d.pending ?? 0), rttRemaining: d.rtt?.remaining ?? null, pendingRtt: Number(d.pendingRtt ?? 0) } : null))
       .catch(() => {})
   }, [])
 
@@ -58,13 +58,17 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
   // Décompte des jours ouvrés demandés (fériés et week-ends exclus) et solde après la demande.
   const requestedDays = startDate && endDate && endDate >= startDate
     ? countWorkdays(startDate, endDate, startPeriod, startDate === endDate ? startPeriod : endPeriod) : 0
-  const isConges = (editing ? absence?.type : type) === 'Congés payés'
+  const effectiveType = editing ? absence?.type : type
+  const isConges = effectiveType === 'Congés payés' || effectiveType === 'RTT'
+  const isRtt = effectiveType === 'RTT'
   // En modification d'un congé déjà validé, ses jours sont déjà déduits du solde : on les rend d'abord.
-  const alreadyCounted = editing && absence && absence.type === 'Congés payés' && absence.status === 'Validé'
+  const alreadyCounted = editing && absence && absence.type === effectiveType && absence.status === 'Validé'
     ? countWorkdays(absence.start_date, absence.end_date, absence.start_period, absence.end_period) : 0
-  const remainingAfter = balance?.remaining != null ? balance.remaining + alreadyCounted - balance.pending - requestedDays : null
+  const baseRemaining = balance ? (isRtt ? balance.rttRemaining : balance.remaining) : null
+  const basePending = balance ? (isRtt ? balance.pendingRtt : balance.pending) : 0
+  const remainingAfter = baseRemaining != null ? baseRemaining + alreadyCounted - basePending - requestedDays : null
   // Les règles ne s'appliquent qu'aux congés payés d'une boutique (l'alternance reste libre).
-  const blocked = (editing ? absence?.type : type) === 'Congés payés' && rules.blocks.length > 0
+  const blocked = ((editing ? absence?.type : type) === 'Congés payés' || (editing ? absence?.type : type) === 'RTT') && rules.blocks.length > 0
 
   // Opérations commerciales qui chevauchent la période demandée.
   const opConflicts = (startDate && endDate)
@@ -199,8 +203,8 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
               {remainingAfter != null && balance && (
                 <>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Reste à poser : {String(Math.round((balance.remaining! + alreadyCounted) * 100) / 100).replace('.', ',')} j
-                    {balance.pending > 0 && <> · dont {String(balance.pending).replace('.', ',')} j déjà en attente de validation</>}
+                    {isRtt ? 'RTT restants' : 'Reste à poser'} : {String(Math.round((baseRemaining! + alreadyCounted) * 100) / 100).replace('.', ',')} j
+                    {basePending > 0 && <> · dont {String(basePending).replace('.', ',')} j déjà en attente de validation</>}
                   </p>
                   <p className="text-sm font-bold mt-1" style={{ color: remainingAfter < 0 ? '#DC2626' : '#1F9D57' }}>
                     Il vous restera {String(Math.round(remainingAfter * 100) / 100).replace('.', ',')} j

@@ -16,7 +16,7 @@ import type { CommercialOperation } from './NewAbsenceModal'
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 const DAYS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
 
-interface Me { id: string; role: string; department_id: string | null; extra_department_ids?: string[]; active_department_id?: string | null; show_holidays?: boolean; show_school_holidays?: boolean; is_boutique_account?: boolean; can_validate_boutiques?: boolean; acting_member_id?: string | null }
+interface Me { id: string; role: string; department_id: string | null; extra_department_ids?: string[]; active_department_id?: string | null; show_holidays?: boolean; show_school_holidays?: boolean; is_boutique_account?: boolean; can_validate_boutiques?: boolean; acting_member_id?: string | null; acting_is_cadre?: boolean }
 interface Dept { id: string; name: string; color: string }
 
 export function AbsencesView() {
@@ -56,7 +56,7 @@ export function AbsencesView() {
       setPeriods(Array.isArray(pData) ? pData : [])
       setDepts(Array.isArray(dData) ? dData : [])
       // Boutique : on agit au nom du collaborateur choisi (vide tant qu'aucun n'est choisi).
-      setMe(mData?.id ? { id: mData.is_boutique_account ? (mData.acting_member_id ?? '') : mData.id, is_boutique_account: !!mData.is_boutique_account, can_validate_boutiques: !!mData.can_validate_boutiques, acting_member_id: mData.acting_member_id ?? null, role: mData.role, department_id: mData.department_id, extra_department_ids: mData.extra_department_ids ?? [], active_department_id: mData.active_department_id ?? mData.department_id, show_holidays: mData.show_holidays ?? true, show_school_holidays: mData.show_school_holidays ?? true } : null)
+      setMe(mData?.id ? { id: mData.is_boutique_account ? (mData.acting_member_id ?? '') : mData.id, is_boutique_account: !!mData.is_boutique_account, can_validate_boutiques: !!mData.can_validate_boutiques, acting_member_id: mData.acting_member_id ?? null, acting_is_cadre: !!mData.acting_is_cadre, role: mData.role, department_id: mData.department_id, extra_department_ids: mData.extra_department_ids ?? [], active_department_id: mData.active_department_id ?? mData.department_id, show_holidays: mData.show_holidays ?? true, show_school_holidays: mData.show_school_holidays ?? true } : null)
       // Vue par défaut du tableau des congés :
       //  - si l'utilisateur a défini des services par défaut dans son profil,
       //    on les utilise ;
@@ -365,10 +365,10 @@ export function AbsencesView() {
                     ))}
                     <div className="space-y-0.5">
                       {items.slice(0, 3).map(a => (
-                        <div key={a.id} title={`${a.user?.name} · ${a.type}${a.status.includes('attente') ? ' (en attente)' : ''}`}
+                        <div key={a.id} title={`${a.user?.boutique ? `${a.user.boutique.code ?? ''} · ` : ''}${a.user?.name} · ${a.type}${a.status.includes('attente') ? ' (en attente)' : ''}`}
                           className="text-[0.55rem] leading-tight px-1 py-0.5 rounded truncate text-white font-medium"
                           style={{ backgroundColor: ABSENCE_COLORS[a.type], opacity: a.status.includes('attente') ? 0.5 : 1 }}>
-                          {a.type === 'Alternance' ? `Alternance ${(a.user?.name ?? '?').split(' ')[0]}` : (a.user?.name ?? '?').split(' ')[0]}
+                          {a.user?.boutique ? `${a.user.boutique.code ?? ''} · ${a.user.name}` : a.type === 'Alternance' ? `Alternance ${(a.user?.name ?? '?').split(' ')[0]}` : (a.user?.name ?? '?').split(' ')[0]}
                         </div>
                       ))}
                       {items.length > 3 && (
@@ -386,7 +386,7 @@ export function AbsencesView() {
         )}
 
         <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-border">
-          {Object.entries(ABSENCE_COLORS).filter(([type]) => !me?.is_boutique_account || type === 'Congés payés' || type === 'Alternance').map(([type, color]) => (
+          {Object.entries(ABSENCE_COLORS).filter(([type]) => !me?.is_boutique_account || type === 'Congés payés' || type === 'Alternance' || (type === 'RTT' && me?.acting_is_cadre)).map(([type, color]) => (
             <div key={type} className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded" style={{ backgroundColor: color }} />
               <span className="text-xs text-muted-foreground">{type}</span>
@@ -443,7 +443,7 @@ export function AbsencesView() {
                 </div>
                 <span className="text-xs px-2 py-1 rounded-md font-semibold text-white" style={{ backgroundColor: ABSENCE_STATUS_COLORS[a.status] }}>{a.status}</span>
                 {/* Modifier une absence validée */}
-                {a.status === 'Validé' && (
+                {(a.status === 'Validé' || a.status === 'En attente') && (
                   <button onClick={() => { setEditAbsence(a); setShowNew(true) }}
                     className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title="Modifier les dates"><Pencil className="w-4 h-4" /></button>
                 )}
@@ -458,7 +458,7 @@ export function AbsencesView() {
         </aside>{/* fin colonne latérale */}
       </div>{/* fin grille 2 colonnes */}
 
-      {showNew && <NewAbsenceModal absence={editAbsence} operations={operations} allowedTypes={me?.is_boutique_account ? ['Congés payés', 'Alternance'] : undefined} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
+      {showNew && <NewAbsenceModal absence={editAbsence} operations={operations} allowedTypes={me?.is_boutique_account ? (me.acting_is_cadre ? ['Congés payés', 'RTT', 'Alternance'] : ['Congés payés', 'Alternance']) : undefined} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
       {showPeriod && <ActivityPeriodModal periods={periods.filter(p => p.department_id === me?.department_id)} onClose={() => setShowPeriod(false)} onChange={load} />}
 
       {/* Liste complète des absents d'un jour (quand la cellule est trop chargée) */}
@@ -472,7 +472,7 @@ export function AbsencesView() {
             <div className="space-y-2">
               {absencesOn(dayDetail).map(a => (
                 <div key={a.id} className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-muted/40">
-                  <span className="text-sm font-medium">{a.user?.name ?? '?'}</span>
+                  <span className="text-sm font-medium">{a.user?.boutique ? `${a.user.boutique.code ?? ''} · ${a.user.name}` : (a.user?.name ?? '?')}</span>
                   <span className="text-xs px-2 py-0.5 rounded-md font-medium text-white" style={{ backgroundColor: ABSENCE_COLORS[a.type], opacity: a.status.includes('attente') ? 0.6 : 1 }}>
                     {a.type}{a.status.includes('attente') ? ' (en attente)' : ''}
                   </span>

@@ -22,7 +22,7 @@ export async function GET() {
   if (!targetId) return NextResponse.json({ conges: { start: null, taken: 0, remaining: null }, rtt: { start: null, taken: 0, remaining: null } })
 
   const { data: profile } = await supabase
-    .from('profiles').select('leave_balance_conges, leave_balance_rtt, leave_balance_since, leave_acquiring').eq('id', targetId).single()
+    .from('profiles').select('leave_balance_conges, leave_balance_rtt, leave_balance_since, leave_acquiring, leave_split_days, is_cadre').eq('id', targetId).single()
 
   // Absences validées de l'utilisateur pour l'année en cours
   const year = new Date().getFullYear()
@@ -47,13 +47,23 @@ export async function GET() {
     .select('start_date, end_date, start_period, end_period')
     .eq('user_id', targetId).eq('type', 'Congés payés').in('status', ['En attente', 'Modif. en attente'])
   const pending = (pendingRows ?? []).reduce((s, a) => s + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period), 0)
+  const { data: pendingRttRows } = await supabase
+    .from('absences')
+    .select('start_date, end_date, start_period, end_period')
+    .eq('user_id', targetId).eq('type', 'RTT').in('status', ['En attente', 'Modif. en attente'])
+  const pendingRtt = (pendingRttRows ?? []).reduce((s, a) => s + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period), 0)
+  // Jours de fractionnement (ajoutés à la main par la RH) : ils s'ajoutent aux jours acquis.
+  const split = Number(profile?.leave_split_days ?? 0)
 
   const startConges = profile?.leave_balance_conges
   const startRtt = profile?.leave_balance_rtt
   return NextResponse.json({
-    conges: { start: startConges, taken: takenConges, remaining: startConges != null ? startConges - takenConges : null },
+    conges: { start: startConges, taken: takenConges, remaining: startConges != null ? startConges + split - takenConges : null },
     rtt:    { start: startRtt,    taken: takenRtt,    remaining: startRtt != null ? startRtt - takenRtt : null },
     pending,                                              // jours de CP en attente de validation
+    pendingRtt,                                           // jours de RTT en attente de validation
+    split,                                                // dont jours de fractionnement
+    is_cadre: profile?.is_cadre === true,                 // accès aux RTT
     acquiring: Number(profile?.leave_acquiring ?? 0),     // jours en cours d'acquisition
   }, { headers: { 'Cache-Control': 'no-store' } })
 }

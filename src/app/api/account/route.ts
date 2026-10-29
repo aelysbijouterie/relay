@@ -39,8 +39,13 @@ export async function GET() {
   // Compte de boutique : collaborateur actif (celui au nom duquel on pose les congés).
   const ctx = await getActingContext(supabase, userId)
   const acting_member_id: string | null = ctx.isBoutique ? ctx.actingUserId : null
+  let acting_is_cadre = false
+  if (acting_member_id) {
+    const { data: m } = await supabase.from('profiles').select('is_cadre').eq('id', acting_member_id).single()
+    acting_is_cadre = m?.is_cadre === true
+  }
 
-  return NextResponse.json({ ...row, active_department_id, acting_member_id }, { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json({ ...row, active_department_id, acting_member_id, acting_is_cadre }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function PATCH(request: NextRequest) {

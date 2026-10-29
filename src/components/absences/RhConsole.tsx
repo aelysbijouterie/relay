@@ -1,16 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, X, Download, Loader2, ClipboardList, Search, Store, Wallet, ListChecks, CalendarOff, Trash2, Plus } from 'lucide-react'
+import { Check, X, Download, Loader2, ClipboardList, Search, Store, Wallet, ListChecks, CalendarOff, Trash2, Plus, CalendarDays, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type AbsencePeriod, type AbsenceStatus, type AbsenceType } from '@/types/absences'
 import { countWorkdays } from '@/lib/absences/workdays'
 import { OP_CATEGORY_COLORS } from '@/types/pacMediaKit'
 import { RefuseDialog } from './RefuseDialog'
+import { RhShopCalendar } from './RhShopCalendar'
+import { RhMembers } from './RhMembers'
 import { automaticBlockedPeriods } from '@/lib/absences/leaveRules'
 
 interface Boutique { id: string; code: number; name: string; city: string | null; responsable: string | null }
-interface Member { id: string; name: string; boutique_id: string; leave_balance_conges: number | null; leave_balance_since: string | null; contract_type: string | null; leave_acquiring: number | null }
+interface Member { id: string; name: string; boutique_id: string; leave_balance_conges: number | null; leave_balance_since: string | null; contract_type: string | null; leave_acquiring: number | null; leave_split_days: number | null; leave_balance_rtt: number | null; hire_date: string | null; is_cadre: boolean }
 interface CustomPeriodRow { id: string; label: string; start_date: string; end_date: string; kind: 'block' | 'warning'; boutique_id: string | null }
 interface RhAbsence {
   id: string; user_id: string; type: AbsenceType
@@ -22,7 +24,7 @@ interface RhAbsence {
 }
 interface Operation { id: string; title: string; op_date_debut: string | null; op_date_fin: string | null; op_category?: string }
 
-type Tab = 'demandes' | 'soldes' | 'boutiques' | 'periodes'
+type Tab = 'demandes' | 'soldes' | 'boutiques' | 'periodes' | 'calendrier' | 'collaborateurs'
 type StatusFilter = 'todo' | 'all' | 'Validé' | 'Refusé'
 
 const isPending = (a: RhAbsence) => a.status === 'En attente' || a.status === 'Modif. en attente'
@@ -83,6 +85,13 @@ export function RhConsole() {
     finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
+  // Rafraîchissement automatique : une demande supprimée ou ajoutée en boutique apparaît ici sans recharger la page.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') load() }
+    const timer = setInterval(refresh, 30000)
+    window.addEventListener('focus', refresh)
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh) }
+  }, [load])
 
   const boutiqueById = useMemo(() => new Map(boutiques.map(b => [b.id, b])), [boutiques])
 
@@ -189,16 +198,17 @@ export function RhConsole() {
       .filter((p, i, arr) => arr.findIndex(q => q.label === p.label && q.start === p.start) === i)
   }, [year])
 
-  async function saveBalance(userId: string, field: 'conges' | 'acquiring', value: string) {
+  async function saveBalance(userId: string, field: 'conges' | 'acquiring' | 'split' | 'rtt', value: string) {
     const m0 = members.find(m => m.id === userId)
-    const current = field === 'conges' ? m0?.leave_balance_conges : m0?.leave_acquiring
+    const current = field === 'conges' ? m0?.leave_balance_conges : field === 'acquiring' ? m0?.leave_acquiring : field === 'split' ? m0?.leave_split_days : m0?.leave_balance_rtt
     if ((value === '' ? null : Number(value)) === current) return
     const r = await fetch('/api/rh/overview', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, [field]: value }),
     })
     if (!r.ok) { const e = await r.json().catch(() => ({})); toast.error(e.error ?? 'Enregistrement impossible'); return }
     const n = value === '' ? null : Number(value)
-    setMembers(prev => prev.map(m => m.id === userId ? (field === 'conges' ? { ...m, leave_balance_conges: n } : { ...m, leave_acquiring: n }) : m))
+    const col = { conges: 'leave_balance_conges', acquiring: 'leave_acquiring', split: 'leave_split_days', rtt: 'leave_balance_rtt' }[field]
+    setMembers(prev => prev.map(m => m.id === userId ? { ...m, [col]: n } : m))
     toast.success('Solde enregistré')
   }
 
@@ -241,6 +251,8 @@ export function RhConsole() {
     { id: 'soldes', label: 'Soldes de CP', icon: Wallet },
     { id: 'boutiques', label: 'Vue par boutique', icon: Store },
     { id: 'periodes', label: 'Périodes sans congés', icon: CalendarOff },
+    { id: 'calendrier', label: 'Calendrier boutiques', icon: CalendarDays },
+    { id: 'collaborateurs', label: 'Collaborateurs', icon: Users },
   ]
 
   return (
@@ -385,25 +397,25 @@ export function RhConsole() {
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b border-border">
                   <th className="p-3">Boutique</th><th className="p-3">Collaborateur</th>
-                  <th className="p-3">Contrat</th><th className="p-3 text-right">Jours acquis au départ (j)</th><th className="p-3 text-right">Pris depuis</th><th className="p-3 text-right">Restant acquis</th><th className="p-3 text-right">En cours d&apos;acquisition (j)</th>
+                  <th className="p-3">Contrat</th><th className="p-3 text-right">Jours acquis au départ (j)</th><th className="p-3 text-right">Pris depuis</th><th className="p-3 text-right">Restant acquis</th><th className="p-3 text-right">Fractionnement (j)</th><th className="p-3 text-right">En cours d&apos;acquisition (j)</th><th className="p-3 text-right">RTT (cadres)</th>
                 </tr>
               </thead>
               <tbody>
                 {members.filter(m => !boutiqueFilter || m.boutique_id === boutiqueFilter).length === 0 && (
-                  <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Aucun collaborateur pour l&apos;instant. Ils apparaissent dès que les boutiques les ajoutent.</td></tr>
+                  <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">Aucun collaborateur pour l&apos;instant. Ils apparaissent dès que les boutiques les ajoutent.</td></tr>
                 )}
                 {members.filter(m => !boutiqueFilter || m.boutique_id === boutiqueFilter)
                   .sort((a, b) => (boutiqueById.get(a.boutique_id)?.code ?? 0) - (boutiqueById.get(b.boutique_id)?.code ?? 0) || a.name.localeCompare(b.name))
                   .map(m => {
                     const taken = takenByMember.get(m.id) ?? 0
-                    const remaining = m.leave_balance_conges != null ? m.leave_balance_conges - taken : null
+                    const remaining = m.leave_balance_conges != null ? m.leave_balance_conges + (m.leave_split_days ?? 0) - taken : null
                     return (
                       <tr key={m.id} className="border-b border-border last:border-0">
                         <td className="p-3 whitespace-nowrap">{boutiqueById.get(m.boutique_id)?.name ?? '—'}</td>
                         <td className="p-3 font-medium">{m.name}</td>
                         <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">{m.contract_type ?? '—'}</td>
                         <td className="p-3 text-right">
-                          <input type="number" step="0.5" min="0" defaultValue={m.leave_balance_conges ?? ''}
+                          <input type="number" step="0.5" defaultValue={m.leave_balance_conges ?? ''}
                             key={`${m.id}-${m.leave_balance_conges ?? ''}`}
                             onBlur={e => saveBalance(m.id, 'conges', e.target.value)}
                             className="w-24 px-2 py-1 rounded-lg bg-background border border-border text-sm text-right focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
@@ -414,10 +426,24 @@ export function RhConsole() {
                           {remaining != null && remaining < 0 && <span className="block text-[0.65rem] font-semibold">anticipé</span>}
                         </td>
                         <td className="p-3 text-right">
+                          <input type="number" step="0.5" min="0" defaultValue={m.leave_split_days ?? 0}
+                            key={`split-${m.id}-${m.leave_split_days ?? 0}`}
+                            onBlur={e => saveBalance(m.id, 'split', e.target.value)}
+                            className="w-20 px-2 py-1 rounded-lg bg-background border border-border text-sm text-right focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
+                        </td>
+                        <td className="p-3 text-right">
                           <input type="number" step="0.01" min="0" defaultValue={m.leave_acquiring ?? 0}
                             key={`acq-${m.id}-${m.leave_acquiring ?? 0}`}
                             onBlur={e => saveBalance(m.id, 'acquiring', e.target.value)}
                             className="w-24 px-2 py-1 rounded-lg bg-background border border-border text-sm text-right focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
+                        </td>
+                        <td className="p-3 text-right">
+                          {m.is_cadre ? (
+                            <input type="number" step="0.5" defaultValue={m.leave_balance_rtt ?? ''}
+                              key={`rtt-${m.id}-${m.leave_balance_rtt ?? ''}`}
+                              onBlur={e => saveBalance(m.id, 'rtt', e.target.value)}
+                              className="w-20 px-2 py-1 rounded-lg bg-background border border-border text-sm text-right focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
                         </td>
                       </tr>
                     )
@@ -429,6 +455,10 @@ export function RhConsole() {
           <p className="text-xs text-muted-foreground">« Pris depuis » = congés payés validés dans RELAYS depuis la date d&apos;import du solde (ou depuis le 1er janvier {year} si aucun import), en jours ouvrés (fériés exclus).</p>
         </div>
       )}
+
+      {tab === 'calendrier' && <RhShopCalendar boutiques={boutiques} absences={absences} />}
+
+      {tab === 'collaborateurs' && <RhMembers boutiques={boutiques} members={members} onChanged={load} />}
 
       {tab === 'periodes' && (
         <div className="space-y-6">

@@ -21,7 +21,7 @@ export interface Absence {
   pending_start_period?: AbsencePeriod | null
   pending_end_period?: AbsencePeriod | null
   // Jointures
-  user?: { id: string; name: string; avatar_url: string | null; department_id: string | null; boutique_id?: string | null; boutique?: { name: string } | null; department?: { name: string; color: string } | null }
+  user?: { id: string; name: string; avatar_url: string | null; department_id: string | null; boutique_id?: string | null; boutique?: { name: string; code?: number } | null; department?: { name: string; color: string } | null }
 }
 
 // Motifs de refus proposés à la RH (liste déroulante) ; « Autre » impose un commentaire libre.

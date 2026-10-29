@@ -5,7 +5,7 @@ import { Wallet, Pencil, Check, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface BalanceInfo { start: number | null; taken: number; remaining: number | null }
-interface Balances { conges: BalanceInfo; rtt: BalanceInfo; pending?: number; acquiring?: number }
+interface Balances { conges: BalanceInfo; rtt: BalanceInfo; pending?: number; pendingRtt?: number; acquiring?: number; split?: number; is_cadre?: boolean }
 
 export function LeaveBalance({ refreshKey, onlyConges = false }: { refreshKey?: number; onlyConges?: boolean }) {
   const [bal, setBal] = useState<Balances | null>(null)
@@ -62,8 +62,18 @@ export function LeaveBalance({ refreshKey, onlyConges = false }: { refreshKey?: 
             </p>
             {negative && <p className="text-xs font-semibold" style={{ color: '#DC2626' }}>Négatif : jours pris par anticipation</p>}
             {bal && bal.conges.start != null && <p className="text-xs text-muted-foreground">{fmt(bal.conges.taken)} pris dans RELAYS depuis l&apos;import</p>}
+            {(bal?.split ?? 0) > 0 && <p className="text-xs text-muted-foreground">dont {fmt(bal!.split!)} j de fractionnement</p>}
             {(bal?.pending ?? 0) > 0 && <p className="text-xs text-muted-foreground">{fmt(bal!.pending!)} j en attente de validation</p>}
           </div>
+          {bal?.is_cadre && (
+            <div className="rounded-xl p-3" style={{ backgroundColor: 'rgba(99,102,241,0.08)' }}>
+              <p className="text-xs font-semibold" style={{ color: '#6366F1' }}>RTT (cadre)</p>
+              <p className="text-2xl font-extrabold mt-0.5" style={(bal.rtt.remaining ?? 0) < 0 ? { color: '#DC2626' } : undefined}>
+                {fmt(bal.rtt.remaining)}<span className="text-sm font-medium text-muted-foreground"> j</span>
+              </p>
+              {(bal.pendingRtt ?? 0) > 0 && <p className="text-xs text-muted-foreground">{fmt(bal.pendingRtt!)} j en attente de validation</p>}
+            </div>
+          )}
           <div className="rounded-xl p-3 bg-muted/40">
             <p className="text-xs font-semibold text-muted-foreground">En cours d&apos;acquisition</p>
             <p className="text-2xl font-extrabold mt-0.5">{fmt(bal?.acquiring ?? 0)}<span className="text-sm font-medium text-muted-foreground"> j</span></p>

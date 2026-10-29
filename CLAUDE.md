@@ -744,3 +744,14 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
 - La demande de CP affiche les jours ouvrés demandés et le solde après demande (rouge si négatif, possible en anticipé).
 - **Bouton RH** « Gestion des congés boutiques » (dégradé, bas de sidebar) + pastille rouge `api/rh/pending-count`.
   Le service technique « Boutiques » n'apparaît plus dans les services de la RH validatrice.
+
+### Annexe C quinquies — Entrants, fractionnement, RTT cadres, calendrier boutiques (migration 028)
+- `profiles.hire_date` : l'acquisition (2,08 j/mois) démarre au mois d'entrée INCLUS (`accruedMonths`, validé sur les 103 lignes du classeur) ;
+  le cron `leave-accrual` n'ajoute le mois écoulé que si la personne était déjà entrée. La RH crée les entrants (`POST /api/rh/members`,
+  onglet « Collaborateurs ») : rattachement au magasin, contrat, date d'entrée, cadre ; les CP en acquisition sont calculés à la création.
+- `profiles.leave_split_days` : jours de fractionnement saisis par la RH, ajoutés aux jours acquis (remis à 0 à la bascule du 1er juin).
+- `profiles.is_cadre` : option RTT dans la demande (Elodie GROS, Caroline THOMAS, Marie LE ROUX) ; RTT soumis aux mêmes périodes interdites,
+  sans le plafond des 25 jours ; solde `leave_balance_rtt` saisi par la RH.
+- Demande en attente modifiable (dates corrigées, reste « En attente ») ; suppression par la boutique = disparition côté RH
+  (la RH est prévenue par e-mail si la demande était déjà validée) ; la console RH se rafraîchit toutes les 30 s.
+- Onglet RH « Calendrier boutiques » : case par magasin, chaque absence = « n° magasin · nom complet ».

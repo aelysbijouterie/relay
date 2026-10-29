@@ -18,7 +18,7 @@ type Admin = ReturnType<typeof createAdminClient>
  */
 export async function evaluateForBoutique(
   supabase: Admin, boutiqueId: string, start: string, end: string,
-  opts: { memberId?: string | null; startPeriod?: AbsencePeriod; endPeriod?: AbsencePeriod; excludeAbsenceId?: string | null } = {},
+  opts: { memberId?: string | null; startPeriod?: AbsencePeriod; endPeriod?: AbsencePeriod; excludeAbsenceId?: string | null; applyCap?: boolean } = {},
 ): Promise<LeaveEvaluation> {
   const { data: periods } = await supabase
     .from('leave_blocked_periods').select('label, start_date, end_date, kind')
@@ -46,7 +46,7 @@ export async function evaluateForBoutique(
 
   // Plafond de 5 semaines sur la période du 1er juin au 31 mai
   let cap: { limit: number; used: number; requested: number } | undefined
-  if (opts.memberId) {
+  if (opts.memberId && opts.applyCap !== false) { // plafond de 5 semaines : congés payés seulement (pas les RTT)
     const period = leavePeriod(start)
     const requested = countWorkdays(start, end, opts.startPeriod ?? 'full', opts.endPeriod ?? 'full')
     let q = supabase

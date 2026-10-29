@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   const { data: members, error } = await supabase
     .from('profiles')
-    .select('id, leave_balance_conges, leave_acquiring')
+    .select('id, leave_balance_conges, leave_acquiring, leave_split_days, hire_date')
     .eq('is_boutique_account', false).not('boutique_id', 'is', null)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -52,16 +52,22 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Le mois qui vient de s'écouler n'est acquis que si le collaborateur était déjà entré (mois d'entrée compté).
+  const prevMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)).toISOString().slice(0, 10)
+
   let updated = 0
   for (const m of members ?? []) {
-    let acquiring = Math.min(YEAR_TOTAL, round2(Number(m.leave_acquiring ?? 0) + MONTHLY_ACCRUAL))
+    const entered = !m.hire_date || (m.hire_date as string) <= prevMonthEnd
+    let acquiring = entered ? Math.min(YEAR_TOTAL, round2(Number(m.leave_acquiring ?? 0) + MONTHLY_ACCRUAL)) : Number(m.leave_acquiring ?? 0)
     const update: Record<string, unknown> = {}
     if (isJune) {
       const gained = acquiring >= 24.9 ? YEAR_TOTAL : acquiring // 12 × 2,08 = 24,96 → 25 jours pleins
-      const remaining = Number(m.leave_balance_conges ?? 0) - (takenBeforeJune.get(m.id as string) ?? 0)
+      // Les jours de fractionnement de la période qui se termine font partie du solde restant.
+      const remaining = Number(m.leave_balance_conges ?? 0) + Number(m.leave_split_days ?? 0) - (takenBeforeJune.get(m.id as string) ?? 0)
       update.leave_balance_conges = round2(remaining + gained)
       update.leave_balance_since = juneFirst
       update.leave_taken_period = 0
+      update.leave_split_days = 0
       acquiring = 0
     }
     update.leave_acquiring = acquiring

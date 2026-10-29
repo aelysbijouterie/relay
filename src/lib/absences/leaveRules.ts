@@ -87,6 +87,22 @@ export function leavePeriod(ds: string): { start: string; end: string } {
   return { start: `${startYear}-06-01`, end: `${startYear + 1}-05-31` }
 }
 
+/** Jours de congés acquis par mois (25 jours / 12, valeur utilisée dans le classeur des compteurs). */
+export const MONTHLY_ACCRUAL = 2.08
+
+/**
+ * Jours « en cours d'acquisition » d'un collaborateur à une date : 2,08 j par mois ÉCOULÉ de la période
+ * en cours (1er juin → aujourd'hui), à partir du mois d'entrée INCLUS (un mois d'entrée compte en entier,
+ * comme dans le classeur : entrée le 22/08 → août compte). Le mois en cours n'est ajouté que le 1er du mois suivant.
+ */
+export function accruedMonths(hireDate: string | null, today: string): number {
+  const { start } = leavePeriod(today)
+  const from = hireDate && hireDate > start ? hireDate : start
+  const fromIdx = Number(from.slice(0, 4)) * 12 + Number(from.slice(5, 7)) - 1
+  const todayIdx = Number(today.slice(0, 4)) * 12 + Number(today.slice(5, 7)) - 1
+  return Math.max(0, Math.min(12, todayIdx - fromIdx)) // mois écoulés, mois en cours exclu
+}
+
 /** Plafond de congés payés posés sur une période : 5 semaines = 25 jours ouvrés. */
 export const LEAVE_PERIOD_CAP_DAYS = 25
 

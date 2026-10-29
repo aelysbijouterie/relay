@@ -55,7 +55,7 @@ for (const p of people) {
   const match = mine.find(e => norm(e.name) === full) ?? mine.find(e => norm(e.name) === first)
 
   const fields = onlyNewFields
-    ? { leave_acquiring: p.acquiring ?? 0, leave_taken_period: p.taken ?? 0 }
+    ? { leave_acquiring: p.acquiring ?? 0, leave_taken_period: p.taken ?? 0, hire_date: p.entree ?? null }
     : {
         name: displayName,
         contract_type: p.contrat,
@@ -63,6 +63,7 @@ for (const p of people) {
         leave_balance_since: today,
         leave_acquiring: p.acquiring ?? 0,
         leave_taken_period: p.taken ?? 0,
+        hire_date: p.entree ?? null,
       }
 
   if (match) {

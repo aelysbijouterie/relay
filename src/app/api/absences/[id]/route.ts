@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
 import { evaluateForBoutique } from '@/lib/absences/leaveRulesServer'
+import { notifyRhCancellation } from '@/lib/absences/notifyRh'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,7 +111,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const supabase = createAdminClient()
-  const { data: absence } = await supabase.from('absences').select('user_id').eq('id', params.id).single()
+  const { data: absence } = await supabase.from('absences').select('user_id, type, start_date, end_date, status').eq('id', params.id).single()
   if (!absence) return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
 
   const ctx = await getActingContext(supabase, userId)
@@ -121,6 +122,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     }
     const { error } = await supabase.from('absences').delete().eq('id', params.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // La demande disparaît de la liste de la RH ; si elle était déjà validée, la RH en est informée.
+    await notifyRhCancellation(supabase, { userId: absence.user_id as string, type: absence.type as string, start_date: absence.start_date as string, end_date: absence.end_date as string, status: absence.status as string })
     return NextResponse.json({ success: true })
   }
 
@@ -153,13 +156,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   if (absence.user_id !== ownerId) return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 })
 
   // Boutique, congés payés : les nouvelles dates sont soumises aux mêmes règles que la demande initiale.
-  if (ctx.isBoutique && ctx.boutiqueId && absence.type === 'Congés payés') {
+  if (ctx.isBoutique && ctx.boutiqueId && (absence.type === 'Congés payés' || absence.type === 'RTT')) {
     const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, start_date, end_date, {
       memberId: ownerId, startPeriod: start_period ?? 'full', endPeriod: end_period ?? 'full', excludeAbsenceId: params.id,
+      applyCap: absence.type === 'Congés payés',
     })
     if (evaluation.blocks.length > 0) {
       return NextResponse.json({ error: `Modification impossible sur ces dates : ${evaluation.blocks.join(' ; ')}`, blocks: evaluation.blocks }, { status: 422 })
     }
+  }
+
+  // Demande pas encore traitée : on corrige simplement les dates, elle reste « En attente ».
+  if (absence.status === 'En attente') {
+    const { error } = await supabase.from('absences').update({
+      start_date, end_date, start_period: start_period ?? 'full', end_period: end_period ?? 'full',
+    }).eq('id', params.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true, autoValidated: false, edited: true })
   }
 
   // Auto-validés : la modification est appliquée directement. Boutique : seule
