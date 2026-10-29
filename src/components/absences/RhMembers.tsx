@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { UserPlus, Loader2 } from 'lucide-react'
+import { UserPlus, Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Shop { id: string; code: number; name: string }
@@ -13,7 +13,7 @@ export interface RhMember {
 const CONTRACTS = ['CDI', 'CDD', 'Apprentissage', 'CDD+6', 'Apprentissage+1']
 
 /** Nouveaux entrants (création + attribution à un magasin + date d'entrée) et fiches des collaborateurs. */
-export function RhMembers({ boutiques, members, onChanged }: { boutiques: Shop[]; members: RhMember[]; onChanged: () => void }) {
+export function RhMembers({ boutiques, members, absenceCounts, onChanged }: { boutiques: Shop[]; members: RhMember[]; absenceCounts: Record<string, number>; onChanged: () => void }) {
   const [form, setForm] = useState({ first_name: '', last_name: '', boutique_id: '', contract_type: 'CDI', hire_date: '', is_cadre: false })
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState('')
@@ -36,6 +36,26 @@ export function RhMembers({ boutiques, members, onChanged }: { boutiques: Shop[]
     const r = await fetch('/api/rh/members', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...body }) })
     if (!r.ok) { const d = await r.json().catch(() => ({})); toast.error(d.error ?? 'Modification impossible'); return }
     toast.success('Enregistré')
+    onChanged()
+  }
+
+  async function remove(m: RhMember) {
+    const n = absenceCounts[m.id] ?? 0
+    const shop = boutiques.find(b => b.id === m.boutique_id)
+    const lines = [
+      `Supprimer ${m.name}${shop ? ` (${shop.name})` : ''} ?`,
+      '',
+      n > 0
+        ? `Ses ${n} demande${n > 1 ? 's' : ''} de congés (validées, en attente ou refusées) seront aussi supprimée${n > 1 ? 's' : ''}.`
+        : "Aucune demande de congés n'est liée à ce collaborateur.",
+      'Cette action est définitive.',
+    ]
+    const msg = lines.join('\n')
+    if (!confirm(msg)) return
+    const r = await fetch(`/api/rh/members?id=${m.id}`, { method: 'DELETE' })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) { toast.error(d.error ?? 'Suppression impossible'); return }
+    toast.success(`${m.name} supprimé(e)`)
     onChanged()
   }
 
@@ -89,7 +109,7 @@ export function RhMembers({ boutiques, members, onChanged }: { boutiques: Shop[]
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                <th className="p-3">Collaborateur</th><th className="p-3">Magasin</th><th className="p-3">Contrat</th><th className="p-3">Date d&apos;entrée</th><th className="p-3 text-center">Cadre</th>
+                <th className="p-3">Collaborateur</th><th className="p-3">Magasin</th><th className="p-3">Contrat</th><th className="p-3">Date d&apos;entrée</th><th className="p-3 text-center">Cadre</th><th className="p-3 w-12" />
               </tr>
             </thead>
             <tbody>
@@ -111,9 +131,13 @@ export function RhMembers({ boutiques, members, onChanged }: { boutiques: Shop[]
                   <td className="p-3 text-center">
                     <input type="checkbox" checked={m.is_cadre} onChange={e => patch(m.id, { is_cadre: e.target.checked })} className="w-4 h-4 rounded" />
                   </td>
+                  <td className="p-3 text-right">
+                    <button onClick={() => remove(m)} title={`Supprimer ${m.name}`}
+                      className="p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  </td>
                 </tr>
               ))}
-              {shown.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">Aucun collaborateur.</td></tr>}
+              {shown.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Aucun collaborateur.</td></tr>}
             </tbody>
           </table>
         </div>

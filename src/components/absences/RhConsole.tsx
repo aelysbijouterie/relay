@@ -458,7 +458,8 @@ export function RhConsole() {
 
       {tab === 'calendrier' && <RhShopCalendar boutiques={boutiques} absences={absences} />}
 
-      {tab === 'collaborateurs' && <RhMembers boutiques={boutiques} members={members} onChanged={load} />}
+      {tab === 'collaborateurs' && <RhMembers boutiques={boutiques} members={members} onChanged={load}
+        absenceCounts={absences.reduce<Record<string, number>>((acc, a) => { acc[a.user_id] = (acc[a.user_id] ?? 0) + 1; return acc }, {})} />}
 
       {tab === 'periodes' && (
         <div className="space-y-6">

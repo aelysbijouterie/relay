@@ -92,3 +92,26 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }
+
+// DELETE ?id=… : supprime un collaborateur de boutique (départ, erreur de saisie…).
+// Son compte technique et TOUTES ses demandes de congés sont supprimés (elles disparaissent aussi des listes de la RH).
+// Un collaborateur qui a créé des cartes Kanban ne peut pas être supprimé (on garde l'historique).
+export async function DELETE(request: NextRequest) {
+  const supabase = createAdminClient()
+  if (!(await requireHr(supabase))) return NextResponse.json({ error: 'Accès réservé à la RH' }, { status: 403 })
+
+  const id = new URL(request.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'Collaborateur requis' }, { status: 400 })
+  const { data: target } = await supabase.from('profiles').select('id, name, boutique_id, is_boutique_account').eq('id', id).single()
+  // Jamais un compte de boutique, jamais une personne du siège : uniquement les collaborateurs de boutique.
+  if (!target?.boutique_id || target.is_boutique_account) return NextResponse.json({ error: 'Collaborateur inconnu' }, { status: 404 })
+
+  const { data: cards } = await supabase.from('tasks').select('id').eq('created_by', id).limit(1)
+  if ((cards ?? []).length > 0) {
+    return NextResponse.json({ error: 'Ce collaborateur a créé des cartes Kanban : suppression impossible' }, { status: 409 })
+  }
+
+  const { error } = await supabase.auth.admin.deleteUser(id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true, name: target.name })
+}
