@@ -732,3 +732,15 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
   visible dans « Mes demandes » et dans l'e-mail de décision.
 - Import des collaborateurs : `node scripts/import-boutique-members.mjs <json> [--dry-run]` ; `leave_balance_conges` = « reste à poser »,
   `leave_balance_since` = date d'import (seuls les congés validés depuis cette date sont déduits).
+
+### Annexe C quater — Acquisition des congés, périodes par magasin, bouton RH (migration 027)
+- **Jours acquis vs en cours d'acquisition** : `profiles.leave_balance_conges` = jours acquis à poser (négatif = pris par anticipation, affiché
+  en rouge) ; `profiles.leave_acquiring` = en cours d'acquisition. Cron `api/cron/leave-accrual` (1er du mois, 03:00 UTC) : +2,08 j
+  (plafond 25) ; le **1er juin** : bascule — acquis += acquisition (25 pour une année pleine), acquisition remise à 0, nouvelle période
+  (`leave_balance_since` = 1er juin, `leave_taken_period` = 0). Garde-fou anti double exécution : table `leave_accrual_runs`.
+- **Plafond de 5 semaines** : 25 jours ouvrés de congés payés par période du 1er juin au 31 mai (pris avant RELAYS =
+  `leave_taken_period`, + demandes RELAYS non refusées + demande en cours) — `leaveRulesServer.ts`.
+- **Périodes interdites par magasin** : `leave_blocked_periods.boutique_id` (NULL = toutes les boutiques).
+- La demande de CP affiche les jours ouvrés demandés et le solde après demande (rouge si négatif, possible en anticipé).
+- **Bouton RH** « Gestion des congés boutiques » (dégradé, bas de sidebar) + pastille rouge `api/rh/pending-count`.
+  Le service technique « Boutiques » n'apparaît plus dans les services de la RH validatrice.

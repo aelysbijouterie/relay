@@ -80,6 +80,16 @@ export function automaticBlockedPeriods(year: number): RulePeriod[] {
   return out
 }
 
+/** Période de congés (du 1er juin au 31 mai) qui contient la date. */
+export function leavePeriod(ds: string): { start: string; end: string } {
+  const y = Number(ds.slice(0, 4))
+  const startYear = Number(ds.slice(5, 7)) >= 6 ? y : y - 1
+  return { start: `${startYear}-06-01`, end: `${startYear + 1}-05-31` }
+}
+
+/** Plafond de congés payés posés sur une période : 5 semaines = 25 jours ouvrés. */
+export const LEAVE_PERIOD_CAP_DAYS = 25
+
 export interface CustomPeriod extends RulePeriod { kind: 'block' | 'warning' }
 
 export interface Apprentice { id: string; name: string }
@@ -103,6 +113,8 @@ export function evaluateLeaveRequest(input: {
   apprentices: Apprentice[]
   school: SchoolEntry[]
   isHoliday?: (ds: string) => boolean
+  /** Plafond de la période : jours déjà pris/posés + jours demandés ne doivent pas dépasser `limit`. */
+  cap?: { limit: number; used: number; requested: number }
 }): LeaveEvaluation {
   const { start, end } = input
   const blocks: string[] = []
@@ -135,6 +147,10 @@ export function evaluateLeaveRequest(input: {
         if (!blocks.includes(label)) blocks.push(label)
       }
     }
+  }
+  if (input.cap && input.cap.used + input.cap.requested > input.cap.limit) {
+    const fmt = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',')
+    blocks.push(`Maximum 5 semaines (${input.cap.limit} jours) de congés payés par période du 1er juin au 31 mai : ${fmt(input.cap.used)} j déjà pris ou posés + ${fmt(input.cap.requested)} j demandés`)
   }
   return { blocks, warnings }
 }

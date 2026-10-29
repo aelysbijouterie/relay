@@ -41,6 +41,14 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
   )
   const unreadCount = activityData?.unread ?? 0
 
+  // RH validatrice : nombre de demandes de congés des boutiques à traiter (pastille rouge).
+  const { data: pendingData } = useSWR<{ count: number }>(
+    canValidateBoutiques ? '/api/rh/pending-count' : null,
+    (url: string) => fetch(url, { cache: 'no-store' }).then(r => r.json()),
+    { refreshInterval: 30000, revalidateOnFocus: true }
+  )
+  const pendingLeaves = pendingData?.count ?? 0
+
   useEffect(() => {
     const handler = () => refreshActivity()
     window.addEventListener('activity-seen', handler)
@@ -218,14 +226,27 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
           <CalendarDays className="w-4 h-4 flex-shrink-0" />
           <span>Congés &amp; absences</span>
         </Link>
-        {canValidateBoutiques && (
-          <Link href="/conges/rh" onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-            <ClipboardList className="w-4 h-4 flex-shrink-0" />
-            <span>Gestion RH boutiques</span>
-          </Link>
-        )}
       </div>
+      )}
+
+      {/* RH validatrice : bouton bien visible, dégradé, avec pastille rouge des demandes à traiter */}
+      {!isBoutique && canValidateBoutiques && (
+        <div className="px-4 pb-3">
+          <Link href="/conges/rh" onClick={() => setOpen(false)}
+            className="group relative flex items-center gap-2 w-full pl-3 pr-9 py-2.5 rounded-xl text-white text-sm font-bold overflow-hidden transition-transform hover:scale-[1.02] active:scale-[0.99]"
+            style={{ backgroundImage: 'linear-gradient(135deg, #0E7C86, #3E8FCC 55%, #7E6FB0)', boxShadow: '0 8px 22px rgba(62,143,204,0.35)' }}>
+            <ClipboardList className="w-4 h-4 flex-shrink-0" />
+            <span className="leading-tight">Gestion des congés boutiques</span>
+            {pendingLeaves > 0 ? (
+              <span className="absolute right-2.5 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[0.7rem] font-bold ring-2 ring-white/80 animate-pulse"
+                title={`${pendingLeaves} demande${pendingLeaves > 1 ? 's' : ''} à traiter`}>
+                {pendingLeaves > 99 ? '99+' : pendingLeaves}
+              </span>
+            ) : (
+              <span className="absolute right-3 opacity-70 group-hover:translate-x-0.5 transition-transform">→</span>
+            )}
+          </Link>
+        </div>
       )}
 
       </div>{/* fin zone défilante */}

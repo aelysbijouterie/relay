@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Loader2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
+import { countWorkdays } from '@/lib/absences/workdays'
 import { ABSENCE_TYPES, ABSENCE_COLORS, type AbsenceType, type AbsencePeriod, type Absence } from '@/types/absences'
 
 // Opération commerciale (planning PAC) : sert à prévenir quand on pose des congés dessus.
@@ -26,6 +27,13 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
   const [conflicts, setConflicts] = useState<{ name: string; type: string; start_date: string; end_date: string; status: string }[]>([])
   // Règles boutique : blocks = demande impossible, warnings = déconseillé (voir /api/absences/rules).
   const [rules, setRules] = useState<{ blocks: string[]; warnings: string[] }>({ blocks: [], warnings: [] })
+  // Solde de congés payés du collaborateur (jours restants, jours déjà en attente de validation).
+  const [balance, setBalance] = useState<{ remaining: number | null; pending: number } | null>(null)
+  useEffect(() => {
+    fetch('/api/absences/balance', { cache: 'no-store' }).then(r => r.json())
+      .then(d => setBalance(d?.conges ? { remaining: d.conges.remaining ?? null, pending: Number(d.pending ?? 0) } : null))
+      .catch(() => {})
+  }, [])
 
   // Détection de chevauchement dans le même service quand les dates changent.
   useEffect(() => {
@@ -38,15 +46,23 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
         setConflicts(Array.isArray(d.conflicts) ? d.conflicts : [])
       } catch { /* noop */ }
       try {
-        const r = await fetch(`/api/absences/rules?from=${startDate}&to=${endDate}`, { signal: ctrl.signal })
+        const r = await fetch(`/api/absences/rules?from=${startDate}&to=${endDate}&sp=${startPeriod}&ep=${startDate === endDate ? startPeriod : endPeriod}${absence ? `&exclude=${absence.id}` : ''}`, { signal: ctrl.signal })
         const d = await r.json()
         setRules({ blocks: Array.isArray(d.blocks) ? d.blocks : [], warnings: Array.isArray(d.warnings) ? d.warnings : [] })
       } catch { /* noop */ }
     }, 300)
     return () => { clearTimeout(t); ctrl.abort() }
-  }, [startDate, endDate])
+  }, [startDate, endDate, startPeriod, endPeriod, absence])
 
   const sameDay = startDate && endDate && startDate === endDate
+  // Décompte des jours ouvrés demandés (fériés et week-ends exclus) et solde après la demande.
+  const requestedDays = startDate && endDate && endDate >= startDate
+    ? countWorkdays(startDate, endDate, startPeriod, startDate === endDate ? startPeriod : endPeriod) : 0
+  const isConges = (editing ? absence?.type : type) === 'Congés payés'
+  // En modification d'un congé déjà validé, ses jours sont déjà déduits du solde : on les rend d'abord.
+  const alreadyCounted = editing && absence && absence.type === 'Congés payés' && absence.status === 'Validé'
+    ? countWorkdays(absence.start_date, absence.end_date, absence.start_period, absence.end_period) : 0
+  const remainingAfter = balance?.remaining != null ? balance.remaining + alreadyCounted - balance.pending - requestedDays : null
   // Les règles ne s'appliquent qu'aux congés payés d'une boutique (l'alternance reste libre).
   const blocked = (editing ? absence?.type : type) === 'Congés payés' && rules.blocks.length > 0
 
@@ -172,6 +188,30 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
                 className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground resize-none"
                 placeholder="Une précision si besoin…" />
+            </div>
+          )}
+
+          {isConges && requestedDays > 0 && (
+            <div className="rounded-lg p-3 border border-border bg-muted/30">
+              <p className="text-sm">
+                <span className="font-bold">{String(requestedDays).replace('.', ',')} jour{requestedDays > 1 ? 's' : ''} ouvré{requestedDays > 1 ? 's' : ''}</span> demandé{requestedDays > 1 ? 's' : ''}
+              </p>
+              {remainingAfter != null && balance && (
+                <>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Reste à poser : {String(Math.round((balance.remaining! + alreadyCounted) * 100) / 100).replace('.', ',')} j
+                    {balance.pending > 0 && <> · dont {String(balance.pending).replace('.', ',')} j déjà en attente de validation</>}
+                  </p>
+                  <p className="text-sm font-bold mt-1" style={{ color: remainingAfter < 0 ? '#DC2626' : '#1F9D57' }}>
+                    Il vous restera {String(Math.round(remainingAfter * 100) / 100).replace('.', ',')} j
+                  </p>
+                  {remainingAfter < 0 && (
+                    <p className="text-xs font-semibold mt-0.5" style={{ color: '#DC2626' }}>
+                      Solde négatif : ces jours sont pris par anticipation (possible, mais à valider par la RH).
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           )}
 

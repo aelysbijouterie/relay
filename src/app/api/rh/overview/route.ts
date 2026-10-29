@@ -22,7 +22,7 @@ export async function GET() {
 
   const [{ data: boutiques }, { data: members }, { data: absences }] = await Promise.all([
     supabase.from('boutiques').select('id, code, name, city, responsable').eq('is_active', true).order('code'),
-    supabase.from('profiles').select('id, name, boutique_id, leave_balance_conges, leave_balance_since, contract_type')
+    supabase.from('profiles').select('id, name, boutique_id, leave_balance_conges, leave_balance_since, contract_type, leave_acquiring')
       .eq('is_boutique_account', false).not('boutique_id', 'is', null).order('name'),
     supabase.from('absences').select(`
       id, user_id, type, start_date, end_date, start_period, end_period, reason, status,
@@ -47,11 +47,17 @@ export async function PUT(request: NextRequest) {
   const supabase = createAdminClient()
   if (!(await requireHr(supabase, getUserId()))) return NextResponse.json({ error: 'Accès réservé à la RH' }, { status: 403 })
 
-  const { user_id, conges } = await request.json().catch(() => ({}))
+  const { user_id, conges, acquiring } = await request.json().catch(() => ({}))
   if (typeof user_id !== 'string') return NextResponse.json({ error: 'Collaborateur requis' }, { status: 400 })
-  const value = conges === '' || conges === null || conges === undefined ? null : Number(conges)
-  if (value !== null && (!Number.isFinite(value) || value < 0 || value > 100)) {
+  // « conges » = jours acquis à poser (peut être négatif : pris par anticipation) ; « acquiring » = en cours d'acquisition.
+  const field = acquiring !== undefined ? 'leave_acquiring' : 'leave_balance_conges'
+  const raw = acquiring !== undefined ? acquiring : conges
+  const value = raw === '' || raw === null || raw === undefined ? null : Number(raw)
+  if (value !== null && (!Number.isFinite(value) || value < -100 || value > 100)) {
     return NextResponse.json({ error: 'Solde invalide' }, { status: 400 })
+  }
+  if (field === 'leave_acquiring' && (value === null || value < 0)) {
+    return NextResponse.json({ error: 'Les jours en acquisition ne peuvent pas être négatifs' }, { status: 400 })
   }
 
   // Seuls les collaborateurs de boutique sont concernés.
@@ -59,7 +65,7 @@ export async function PUT(request: NextRequest) {
     .from('profiles').select('id, boutique_id, is_boutique_account').eq('id', user_id).single()
   if (!target?.boutique_id || target.is_boutique_account) return NextResponse.json({ error: 'Collaborateur inconnu' }, { status: 404 })
 
-  const { error } = await supabase.from('profiles').update({ leave_balance_conges: value }).eq('id', user_id)
+  const { error } = await supabase.from('profiles').update({ [field]: value }).eq('id', user_id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }

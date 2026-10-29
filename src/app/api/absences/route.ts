@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
   // Boutique, congés payés : certaines périodes sont refusées d'office (soldes, Saint-Valentin,
   // fête des mères, Black Friday → soldes de janvier, changement de merch, apprenti·e à l'école…).
   if (ctx.isBoutique && ctx.boutiqueId && type === 'Congés payés') {
-    const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, start_date, end_date)
+    const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, start_date, end_date, {
+      memberId: requesterId, startPeriod: start_period ?? 'full', endPeriod: end_period ?? 'full',
+    })
     if (evaluation.blocks.length > 0) {
       return NextResponse.json({ error: `Demande impossible sur ces dates : ${evaluation.blocks.join(' ; ')}`, blocks: evaluation.blocks }, { status: 422 })
     }

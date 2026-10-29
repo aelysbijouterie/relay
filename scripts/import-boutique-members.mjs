@@ -1,6 +1,8 @@
 // Importe les collaborateurs des boutiques (et leur reste de congés à poser) depuis un fichier JSON
 // produit à partir du classeur « Compteur jours ».
-// Usage : node scripts/import-boutique-members.mjs <fichier.json> [--dry-run]
+// Usage : node scripts/import-boutique-members.mjs <fichier.json> [--dry-run] [--new-fields-only]
+//   --new-fields-only : ne met à jour QUE leave_acquiring et leave_taken_period (migration 027) des collaborateurs
+//   déjà présents, sans toucher au solde ni créer personne (pour ne pas écraser les corrections de la RH).
 // À lancer APRÈS la migration 026. Idempotent : un collaborateur déjà présent est mis à jour, pas dupliqué.
 //  - le responsable déjà créé avec son seul prénom est complété (« Audrey » → « Audrey HOF »)
 //  - reste à poser = colonne « Congés restant » ; leave_balance_since = aujourd'hui (les congés
@@ -11,6 +13,7 @@ import { randomUUID } from 'node:crypto'
 
 const file = process.argv[2]
 const dry = process.argv.includes('--dry-run')
+const onlyNewFields = process.argv.includes('--new-fields-only')
 if (!file) throw new Error('Usage : node scripts/import-boutique-members.mjs <fichier.json> [--dry-run]')
 
 const env = Object.fromEntries(
@@ -51,12 +54,16 @@ for (const p of people) {
   // 1) même nom complet ; 2) responsable créé avec son seul prénom
   const match = mine.find(e => norm(e.name) === full) ?? mine.find(e => norm(e.name) === first)
 
-  const fields = {
-    name: displayName,
-    contract_type: p.contrat,
-    leave_balance_conges: p.restant,
-    leave_balance_since: today,
-  }
+  const fields = onlyNewFields
+    ? { leave_acquiring: p.acquiring ?? 0, leave_taken_period: p.taken ?? 0 }
+    : {
+        name: displayName,
+        contract_type: p.contrat,
+        leave_balance_conges: p.restant,
+        leave_balance_since: today,
+        leave_acquiring: p.acquiring ?? 0,
+        leave_taken_period: p.taken ?? 0,
+      }
 
   if (match) {
     if (dry) { console.log(`~ ${b.name} : ${match.name} → ${displayName} (reste ${p.restant})`); updated++; continue }
@@ -66,6 +73,7 @@ for (const p of people) {
     continue
   }
 
+  if (onlyNewFields) { console.log(`! ${displayName} (${b.name}) introuvable — ignoré`); failed++; continue }
   if (dry) { console.log(`+ ${b.name} : ${displayName} (reste ${p.restant})`); created++; continue }
   const email = `membre-${randomUUID().slice(0, 8)}@boutiques.aelys.invalid`
   const auth = await fetch(`${URL_}/auth/v1/admin/users`, {

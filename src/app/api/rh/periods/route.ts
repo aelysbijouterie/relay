@@ -22,7 +22,7 @@ export async function GET() {
   const supabase = createAdminClient()
   if (!(await requireHr(supabase))) return NextResponse.json({ error: 'Accès réservé à la RH' }, { status: 403 })
   const { data, error } = await supabase
-    .from('leave_blocked_periods').select('id, label, start_date, end_date, kind').order('start_date', { ascending: true })
+    .from('leave_blocked_periods').select('id, label, start_date, end_date, kind, boutique_id').order('start_date', { ascending: true })
   if (error) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
   return NextResponse.json(data ?? [], { headers: { 'Cache-Control': 'no-store' } })
 }
@@ -40,10 +40,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Libellé et dates valides requis' }, { status: 400 })
   }
   const kind = b.kind === 'warning' ? 'warning' : 'block'
+  // boutique_id vide = toutes les boutiques ; sinon la période ne concerne que ce magasin.
+  let boutiqueId: string | null = null
+  if (typeof b.boutique_id === 'string' && b.boutique_id) {
+    const { data: shop } = await supabase.from('boutiques').select('id').eq('id', b.boutique_id).single()
+    if (!shop) return NextResponse.json({ error: 'Boutique inconnue' }, { status: 400 })
+    boutiqueId = shop.id as string
+  }
   const { data, error } = await supabase
     .from('leave_blocked_periods')
-    .insert({ label, start_date: b.start_date, end_date: b.end_date, kind, created_by: userId })
-    .select('id, label, start_date, end_date, kind').single()
+    .insert({ label, start_date: b.start_date, end_date: b.end_date, kind, created_by: userId, boutique_id: boutiqueId })
+    .select('id, label, start_date, end_date, kind, boutique_id').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }

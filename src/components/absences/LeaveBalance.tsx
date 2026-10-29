@@ -5,7 +5,7 @@ import { Wallet, Pencil, Check, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface BalanceInfo { start: number | null; taken: number; remaining: number | null }
-interface Balances { conges: BalanceInfo; rtt: BalanceInfo }
+interface Balances { conges: BalanceInfo; rtt: BalanceInfo; pending?: number; acquiring?: number }
 
 export function LeaveBalance({ refreshKey, onlyConges = false }: { refreshKey?: number; onlyConges?: boolean }) {
   const [bal, setBal] = useState<Balances | null>(null)
@@ -43,6 +43,36 @@ export function LeaveBalance({ refreshKey, onlyConges = false }: { refreshKey?: 
   }
 
   const fmt = (n: number | null) => n == null ? '—' : (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','))
+
+  // Boutique : jours ACQUIS (posables) distingués des jours EN COURS D'ACQUISITION ; solde géré par la RH.
+  if (onlyConges) {
+    const remaining = bal?.conges.remaining ?? null
+    const negative = remaining != null && remaining < 0
+    return (
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Wallet className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-bold">Mes compteurs</h2>
+        </div>
+        <div className="space-y-3">
+          <div className="rounded-xl p-3" style={{ backgroundColor: negative ? 'rgba(220,38,38,0.08)' : 'rgba(14,165,165,0.08)' }}>
+            <p className="text-xs font-semibold" style={{ color: negative ? '#DC2626' : '#0EA5A5' }}>Jours acquis (à poser)</p>
+            <p className="text-2xl font-extrabold mt-0.5" style={negative ? { color: '#DC2626' } : undefined}>
+              {fmt(remaining)}<span className="text-sm font-medium text-muted-foreground"> j</span>
+            </p>
+            {negative && <p className="text-xs font-semibold" style={{ color: '#DC2626' }}>Négatif : jours pris par anticipation</p>}
+            {bal && bal.conges.start != null && <p className="text-xs text-muted-foreground">{fmt(bal.conges.taken)} pris dans RELAYS depuis l&apos;import</p>}
+            {(bal?.pending ?? 0) > 0 && <p className="text-xs text-muted-foreground">{fmt(bal!.pending!)} j en attente de validation</p>}
+          </div>
+          <div className="rounded-xl p-3 bg-muted/40">
+            <p className="text-xs font-semibold text-muted-foreground">En cours d&apos;acquisition</p>
+            <p className="text-2xl font-extrabold mt-0.5">{fmt(bal?.acquiring ?? 0)}<span className="text-sm font-medium text-muted-foreground"> j</span></p>
+            <p className="text-xs text-muted-foreground">+2,08 j par mois, ajoutés aux jours acquis au 1er juin</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-card border border-border rounded-2xl p-4">

@@ -22,7 +22,7 @@ export async function GET() {
   if (!targetId) return NextResponse.json({ conges: { start: null, taken: 0, remaining: null }, rtt: { start: null, taken: 0, remaining: null } })
 
   const { data: profile } = await supabase
-    .from('profiles').select('leave_balance_conges, leave_balance_rtt, leave_balance_since').eq('id', targetId).single()
+    .from('profiles').select('leave_balance_conges, leave_balance_rtt, leave_balance_since, leave_acquiring').eq('id', targetId).single()
 
   // Absences validées de l'utilisateur pour l'année en cours
   const year = new Date().getFullYear()
@@ -41,11 +41,20 @@ export async function GET() {
     if (key === 'conges') takenConges += d; else takenRtt += d
   }
 
+  // Congés payés demandés mais pas encore validés (comptés pour savoir ce qu'il restera vraiment).
+  const { data: pendingRows } = await supabase
+    .from('absences')
+    .select('start_date, end_date, start_period, end_period')
+    .eq('user_id', targetId).eq('type', 'Congés payés').in('status', ['En attente', 'Modif. en attente'])
+  const pending = (pendingRows ?? []).reduce((s, a) => s + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period), 0)
+
   const startConges = profile?.leave_balance_conges
   const startRtt = profile?.leave_balance_rtt
   return NextResponse.json({
     conges: { start: startConges, taken: takenConges, remaining: startConges != null ? startConges - takenConges : null },
     rtt:    { start: startRtt,    taken: takenRtt,    remaining: startRtt != null ? startRtt - takenRtt : null },
+    pending,                                              // jours de CP en attente de validation
+    acquiring: Number(profile?.leave_acquiring ?? 0),     // jours en cours d'acquisition
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -61,6 +70,8 @@ export async function POST(request: NextRequest) {
   if (rtt !== undefined)    updates.leave_balance_rtt    = rtt === '' || rtt === null ? null : Number(rtt)
 
   const ctx = await getActingContext(supabase, userId)
+  // Les soldes d'une boutique sont gérés par la RH uniquement.
+  if (ctx.isBoutique) return NextResponse.json({ error: 'Les soldes sont gérés par la RH' }, { status: 403 })
   if (!ctx.actingUserId) return NextResponse.json({ error: "Choisis d'abord le collaborateur concerné" }, { status: 400 })
   const { error } = await supabase.from('profiles').update(updates).eq('id', ctx.actingUserId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

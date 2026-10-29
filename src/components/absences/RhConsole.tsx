@@ -10,8 +10,8 @@ import { RefuseDialog } from './RefuseDialog'
 import { automaticBlockedPeriods } from '@/lib/absences/leaveRules'
 
 interface Boutique { id: string; code: number; name: string; city: string | null; responsable: string | null }
-interface Member { id: string; name: string; boutique_id: string; leave_balance_conges: number | null; leave_balance_since: string | null; contract_type: string | null }
-interface CustomPeriodRow { id: string; label: string; start_date: string; end_date: string; kind: 'block' | 'warning' }
+interface Member { id: string; name: string; boutique_id: string; leave_balance_conges: number | null; leave_balance_since: string | null; contract_type: string | null; leave_acquiring: number | null }
+interface CustomPeriodRow { id: string; label: string; start_date: string; end_date: string; kind: 'block' | 'warning'; boutique_id: string | null }
 interface RhAbsence {
   id: string; user_id: string; type: AbsenceType
   start_date: string; end_date: string; start_period: AbsencePeriod; end_period: AbsencePeriod
@@ -52,7 +52,7 @@ export function RhConsole() {
   const [absences, setAbsences] = useState<RhAbsence[]>([])
   const [operations, setOperations] = useState<Operation[]>([])
   const [customPeriods, setCustomPeriods] = useState<CustomPeriodRow[]>([])
-  const [newPeriod, setNewPeriod] = useState({ label: '', start_date: '', end_date: '', kind: 'block' as 'block' | 'warning' })
+  const [newPeriod, setNewPeriod] = useState({ label: '', start_date: '', end_date: '', kind: 'block' as 'block' | 'warning', boutique_id: '' })
   const [loading, setLoading] = useState(true)
   const [denied, setDenied] = useState(false)
   const [tab, setTab] = useState<Tab>('demandes')
@@ -170,7 +170,7 @@ export function RhConsole() {
     const d = await r.json().catch(() => ({}))
     if (!r.ok) { toast.error(d.error ?? 'Ajout impossible'); return }
     setCustomPeriods(prev => [...prev, d].sort((a, b) => a.start_date.localeCompare(b.start_date)))
-    setNewPeriod({ label: '', start_date: '', end_date: '', kind: 'block' })
+    setNewPeriod({ label: '', start_date: '', end_date: '', kind: 'block', boutique_id: '' })
     toast.success('Période ajoutée')
   }
   async function removePeriod(id: string) {
@@ -189,14 +189,16 @@ export function RhConsole() {
       .filter((p, i, arr) => arr.findIndex(q => q.label === p.label && q.start === p.start) === i)
   }, [year])
 
-  async function saveBalance(userId: string, value: string) {
-    const current = members.find(m => m.id === userId)?.leave_balance_conges
+  async function saveBalance(userId: string, field: 'conges' | 'acquiring', value: string) {
+    const m0 = members.find(m => m.id === userId)
+    const current = field === 'conges' ? m0?.leave_balance_conges : m0?.leave_acquiring
     if ((value === '' ? null : Number(value)) === current) return
     const r = await fetch('/api/rh/overview', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, conges: value }),
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, [field]: value }),
     })
-    if (!r.ok) { toast.error('Enregistrement impossible'); return }
-    setMembers(prev => prev.map(m => m.id === userId ? { ...m, leave_balance_conges: value === '' ? null : Number(value) } : m))
+    if (!r.ok) { const e = await r.json().catch(() => ({})); toast.error(e.error ?? 'Enregistrement impossible'); return }
+    const n = value === '' ? null : Number(value)
+    setMembers(prev => prev.map(m => m.id === userId ? (field === 'conges' ? { ...m, leave_balance_conges: n } : { ...m, leave_acquiring: n }) : m))
     toast.success('Solde enregistré')
   }
 
@@ -383,12 +385,12 @@ export function RhConsole() {
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b border-border">
                   <th className="p-3">Boutique</th><th className="p-3">Collaborateur</th>
-                  <th className="p-3">Contrat</th><th className="p-3 text-right">Reste à poser au départ (j)</th><th className="p-3 text-right">Pris depuis</th><th className="p-3 text-right">Restant</th>
+                  <th className="p-3">Contrat</th><th className="p-3 text-right">Jours acquis au départ (j)</th><th className="p-3 text-right">Pris depuis</th><th className="p-3 text-right">Restant acquis</th><th className="p-3 text-right">En cours d&apos;acquisition (j)</th>
                 </tr>
               </thead>
               <tbody>
                 {members.filter(m => !boutiqueFilter || m.boutique_id === boutiqueFilter).length === 0 && (
-                  <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Aucun collaborateur pour l&apos;instant. Ils apparaissent dès que les boutiques les ajoutent.</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">Aucun collaborateur pour l&apos;instant. Ils apparaissent dès que les boutiques les ajoutent.</td></tr>
                 )}
                 {members.filter(m => !boutiqueFilter || m.boutique_id === boutiqueFilter)
                   .sort((a, b) => (boutiqueById.get(a.boutique_id)?.code ?? 0) - (boutiqueById.get(b.boutique_id)?.code ?? 0) || a.name.localeCompare(b.name))
@@ -403,12 +405,19 @@ export function RhConsole() {
                         <td className="p-3 text-right">
                           <input type="number" step="0.5" min="0" defaultValue={m.leave_balance_conges ?? ''}
                             key={`${m.id}-${m.leave_balance_conges ?? ''}`}
-                            onBlur={e => saveBalance(m.id, e.target.value)}
+                            onBlur={e => saveBalance(m.id, 'conges', e.target.value)}
                             className="w-24 px-2 py-1 rounded-lg bg-background border border-border text-sm text-right focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
                         </td>
                         <td className="p-3 text-right tabular-nums">{String(taken).replace('.', ',')}</td>
                         <td className={`p-3 text-right tabular-nums font-semibold ${remaining != null && remaining < 0 ? 'text-red-600' : ''}`}>
                           {remaining == null ? '—' : String(remaining).replace('.', ',')}
+                          {remaining != null && remaining < 0 && <span className="block text-[0.65rem] font-semibold">anticipé</span>}
+                        </td>
+                        <td className="p-3 text-right">
+                          <input type="number" step="0.01" min="0" defaultValue={m.leave_acquiring ?? 0}
+                            key={`acq-${m.id}-${m.leave_acquiring ?? 0}`}
+                            onBlur={e => saveBalance(m.id, 'acquiring', e.target.value)}
+                            className="w-24 px-2 py-1 rounded-lg bg-background border border-border text-sm text-right focus:outline-none focus:ring-1 focus:ring-muted-foreground" />
                         </td>
                       </tr>
                     )
@@ -416,6 +425,7 @@ export function RhConsole() {
               </tbody>
             </table>
           </div>
+          <p className="text-xs text-muted-foreground mb-1">« En cours d&apos;acquisition » augmente de 2,08 j chaque 1er du mois et s&apos;ajoute aux jours acquis le 1er juin (remis à 0 ensuite). Un solde négatif (en rouge) = jours pris par anticipation.</p>
           <p className="text-xs text-muted-foreground">« Pris depuis » = congés payés validés dans RELAYS depuis la date d&apos;import du solde (ou depuis le 1er janvier {year} si aucun import), en jours ouvrés (fériés exclus).</p>
         </div>
       )}
@@ -442,6 +452,14 @@ export function RhConsole() {
                   className="block mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm" />
               </div>
               <div>
+                <label className="text-xs font-semibold text-muted-foreground">Magasin</label>
+                <select value={newPeriod.boutique_id} onChange={e => setNewPeriod(p => ({ ...p, boutique_id: e.target.value }))}
+                  className="block mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm max-w-[13rem]">
+                  <option value="">Toutes les boutiques</option>
+                  {boutiques.map(b => <option key={b.id} value={b.id}>{b.code} · {b.name}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="text-xs font-semibold text-muted-foreground">Effet</label>
                 <select value={newPeriod.kind} onChange={e => setNewPeriod(p => ({ ...p, kind: e.target.value as 'block' | 'warning' }))}
                   className="block mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm">
@@ -463,7 +481,7 @@ export function RhConsole() {
                   <span className="text-xs px-2 py-1 rounded-md font-semibold text-white" style={{ backgroundColor: p.kind === 'block' ? '#EF4444' : '#F59E0B' }}>{p.kind === 'block' ? 'Impossible' : 'Déconseillé'}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{p.label}</p>
-                    <p className="text-xs text-muted-foreground">Du {fmtDay(p.start_date)} au {fmtDay(p.end_date)}</p>
+                    <p className="text-xs text-muted-foreground">Du {fmtDay(p.start_date)} au {fmtDay(p.end_date)} · {p.boutique_id ? (boutiqueById.get(p.boutique_id)?.name ?? 'Une boutique') : 'Toutes les boutiques'}</p>
                   </div>
                   <button onClick={() => removePeriod(p.id)} className="p-2 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500" title="Supprimer"><Trash2 className="w-4 h-4" /></button>
                 </div>

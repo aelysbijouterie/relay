@@ -154,7 +154,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
   // Boutique, congés payés : les nouvelles dates sont soumises aux mêmes règles que la demande initiale.
   if (ctx.isBoutique && ctx.boutiqueId && absence.type === 'Congés payés') {
-    const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, start_date, end_date)
+    const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, start_date, end_date, {
+      memberId: ownerId, startPeriod: start_period ?? 'full', endPeriod: end_period ?? 'full', excludeAbsenceId: params.id,
+    })
     if (evaluation.blocks.length > 0) {
       return NextResponse.json({ error: `Modification impossible sur ces dates : ${evaluation.blocks.join(' ; ')}`, blocks: evaluation.blocks }, { status: 422 })
     }

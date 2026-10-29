@@ -23,5 +23,10 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminClient()
   const ctx = await getActingContext(supabase, userId)
   if (!ctx.isBoutique || !ctx.boutiqueId) return NextResponse.json(empty)
-  return NextResponse.json(await evaluateForBoutique(supabase, ctx.boutiqueId, from, to), { headers: { 'Cache-Control': 'no-store' } })
+  const asPeriod = (v: string | null) => (v === 'am' || v === 'pm' ? v : 'full')
+  const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, from, to, {
+    memberId: ctx.actingUserId, startPeriod: asPeriod(searchParams.get('sp')), endPeriod: asPeriod(searchParams.get('ep')),
+    excludeAbsenceId: searchParams.get('exclude'),
+  })
+  return NextResponse.json(evaluation, { headers: { 'Cache-Control': 'no-store' } })
 }
