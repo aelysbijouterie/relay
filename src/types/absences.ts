@@ -24,6 +24,22 @@ export interface Absence {
   user?: { id: string; name: string; avatar_url: string | null; department_id: string | null; boutique_id?: string | null; boutique?: { name: string } | null; department?: { name: string; color: string } | null }
 }
 
+// Motifs de refus proposés à la RH (liste déroulante) ; « Autre » impose un commentaire libre.
+export const REFUSAL_REASONS = [
+  "Manque d'effectif",
+  'Temps fort commercial',
+  'Opération commerciale en cours',
+  'Semaine de pastillage',
+  'Semaine de changement de merch',
+  'Période de Noël',
+  'Période de soldes',
+  'Black Friday',
+  'Saint-Valentin',
+  'Fête des mères',
+  "Apprenti·e à l'école (plus de 3 jours)",
+  'Autre',
+] as const
+
 export const ABSENCE_TYPES: AbsenceType[] = ['Congés payés', 'RTT', 'Maladie', 'Télétravail', 'Alternance', 'Autre']
 
 // Couleur par type d'absence (distincte de la palette des espaces).

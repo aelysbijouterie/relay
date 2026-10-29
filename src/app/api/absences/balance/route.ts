@@ -22,7 +22,7 @@ export async function GET() {
   if (!targetId) return NextResponse.json({ conges: { start: null, taken: 0, remaining: null }, rtt: { start: null, taken: 0, remaining: null } })
 
   const { data: profile } = await supabase
-    .from('profiles').select('leave_balance_conges, leave_balance_rtt').eq('id', targetId).single()
+    .from('profiles').select('leave_balance_conges, leave_balance_rtt, leave_balance_since').eq('id', targetId).single()
 
   // Absences validées de l'utilisateur pour l'année en cours
   const year = new Date().getFullYear()
@@ -30,7 +30,8 @@ export async function GET() {
     .from('absences')
     .select('type, start_date, end_date, start_period, end_period')
     .eq('user_id', targetId).eq('status', 'Validé')
-    .gte('start_date', `${year}-01-01`).lte('start_date', `${year}-12-31`)
+    .gte('start_date', profile?.leave_balance_since ?? `${year}-01-01`)
+    .lte('start_date', profile?.leave_balance_since ? '9999-12-31' : `${year}-12-31`)
 
   let takenConges = 0, takenRtt = 0
   for (const a of absences ?? []) {

@@ -437,6 +437,9 @@ export function AbsencesView() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold">{a.type}</p>
                   <p className="text-xs text-muted-foreground">{fmtRange(a)}</p>
+                  {a.status === 'Refusé' && a.review_note && (
+                    <p className="text-xs mt-1 font-medium" style={{ color: '#B91C1C' }}>Motif : {a.review_note}</p>
+                  )}
                 </div>
                 <span className="text-xs px-2 py-1 rounded-md font-semibold text-white" style={{ backgroundColor: ABSENCE_STATUS_COLORS[a.status] }}>{a.status}</span>
                 {/* Modifier une absence validée */}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
+import { evaluateForBoutique } from '@/lib/absences/leaveRulesServer'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ error: 'Seul un responsable du service peut valider' }, { status: 403 })
   }
 
+  // Une demande de boutique ne peut être refusée qu'avec un motif (transmis au collaborateur).
+  const reviewNote: string | null = typeof body.review_note === 'string' ? body.review_note.trim().slice(0, 500) || null : null
+  if (requester?.boutique_id && newStatus === 'Refusé' && !reviewNote) {
+    return NextResponse.json({ error: 'Indique le motif du refus' }, { status: 400 })
+  }
+
   // Si la demande était une modification en attente et qu'on valide,
   // on applique les dates "pending" ; si on refuse, on les efface.
   const { data: cur } = await supabase
@@ -70,7 +77,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     status: newStatus,
     reviewed_by: userId,
     reviewed_at: new Date().toISOString(),
-    review_note: body.review_note?.trim() || null,
+    review_note: reviewNote,
   }
   if (cur?.status === 'Modif. en attente') {
     if (newStatus === 'Validé' && cur.pending_start_date) {
@@ -144,6 +151,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const ctx = await getActingContext(supabase, userId)
   const ownerId = ctx.actingUserId
   if (absence.user_id !== ownerId) return NextResponse.json({ error: 'Action non autorisée' }, { status: 403 })
+
+  // Boutique, congés payés : les nouvelles dates sont soumises aux mêmes règles que la demande initiale.
+  if (ctx.isBoutique && ctx.boutiqueId && absence.type === 'Congés payés') {
+    const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, start_date, end_date)
+    if (evaluation.blocks.length > 0) {
+      return NextResponse.json({ error: `Modification impossible sur ces dates : ${evaluation.blocks.join(' ; ')}`, blocks: evaluation.blocks }, { status: 422 })
+    }
+  }
 
   // Auto-validés : la modification est appliquée directement. Boutique : seule
   // l'alternance est libre, les congés payés repassent par la RH.

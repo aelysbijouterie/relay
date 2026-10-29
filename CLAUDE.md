@@ -720,3 +720,15 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
   ceux de ses 3 services), `notify/absence-review` (décision → boutique, bloqué par le verrou), `cron/leave-reminder`
   (jours ouvrés 08:15 : récap des demandes en attente à la RH), invitations d'événements (`lib/calendar/notifyAttendees.ts`).
 - Migration 025 : `task_subtasks.parent_subtask_id` (sous-sous-tâches) et `calendar_event_attendees` (invités).
+
+### Annexe C ter — Règles de congés des boutiques (migration 026)
+- `lib/absences/leaveRules.ts` (logique pure, testée) : refus d'office des congés payés sur — semaine de la Saint-Valentin,
+  semaine de la fête des mères, 1re semaine des soldes (hiver/été, dates calculées selon la loi), du Black Friday jusqu'à la
+  fin de la 1re semaine des soldes de janvier (Noël compris), semaines saisies par la RH (`leave_blocked_periods`, onglet
+  « Périodes sans congés » de `/conges/rh`), et semaine où un·e apprenti·e (`profiles.contract_type` ilike `apprenti%`) a plus de 3 jours
+  ouvrés d'« Alternance ». Contrôle serveur dans `POST /api/absences` et `PUT /api/absences/[id]` (422), alerte en direct via
+  `GET /api/absences/rules`. Les opérations commerciales restent un simple avertissement.
+- Refus d'une demande de boutique : motif obligatoire (`REFUSAL_REASONS` + « Autre » avec commentaire), stocké dans `absences.review_note`,
+  visible dans « Mes demandes » et dans l'e-mail de décision.
+- Import des collaborateurs : `node scripts/import-boutique-members.mjs <json> [--dry-run]` ; `leave_balance_conges` = « reste à poser »,
+  `leave_balance_since` = date d'import (seuls les congés validés depuis cette date sont déduits).

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
+import { evaluateForBoutique } from '@/lib/absences/leaveRulesServer'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,6 +72,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Choisis d\'abord le collaborateur concerné' }, { status: 400 })
   }
   const requesterId = ctx.actingUserId ?? userId
+
+  // Boutique, congés payés : certaines périodes sont refusées d'office (soldes, Saint-Valentin,
+  // fête des mères, Black Friday → soldes de janvier, changement de merch, apprenti·e à l'école…).
+  if (ctx.isBoutique && ctx.boutiqueId && type === 'Congés payés') {
+    const evaluation = await evaluateForBoutique(supabase, ctx.boutiqueId, start_date, end_date)
+    if (evaluation.blocks.length > 0) {
+      return NextResponse.json({ error: `Demande impossible sur ces dates : ${evaluation.blocks.join(' ; ')}`, blocks: evaluation.blocks }, { status: 422 })
+    }
+  }
   // Boutique : uniquement « Congés payés » (à valider par la RH) et « Alternance » (saisie libre).
   if (ctx.isBoutique && type !== 'Congés payés' && type !== 'Alternance') {
     return NextResponse.json({ error: 'Type d\'absence non disponible pour les boutiques' }, { status: 400 })

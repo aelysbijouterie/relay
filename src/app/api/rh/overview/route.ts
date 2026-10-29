@@ -22,7 +22,7 @@ export async function GET() {
 
   const [{ data: boutiques }, { data: members }, { data: absences }] = await Promise.all([
     supabase.from('boutiques').select('id, code, name, city, responsable').eq('is_active', true).order('code'),
-    supabase.from('profiles').select('id, name, boutique_id, leave_balance_conges')
+    supabase.from('profiles').select('id, name, boutique_id, leave_balance_conges, leave_balance_since, contract_type')
       .eq('is_boutique_account', false).not('boutique_id', 'is', null).order('name'),
     supabase.from('absences').select(`
       id, user_id, type, start_date, end_date, start_period, end_period, reason, status,

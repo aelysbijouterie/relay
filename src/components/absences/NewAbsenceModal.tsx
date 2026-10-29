@@ -24,10 +24,12 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
   const [reason, setReason] = useState(absence?.reason ?? '')
   const [saving, setSaving] = useState(false)
   const [conflicts, setConflicts] = useState<{ name: string; type: string; start_date: string; end_date: string; status: string }[]>([])
+  // Règles boutique : blocks = demande impossible, warnings = déconseillé (voir /api/absences/rules).
+  const [rules, setRules] = useState<{ blocks: string[]; warnings: string[] }>({ blocks: [], warnings: [] })
 
   // Détection de chevauchement dans le même service quand les dates changent.
   useEffect(() => {
-    if (!startDate || !endDate) { setConflicts([]); return }
+    if (!startDate || !endDate) { setConflicts([]); setRules({ blocks: [], warnings: [] }); return }
     const ctrl = new AbortController()
     const t = setTimeout(async () => {
       try {
@@ -35,11 +37,18 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
         const d = await r.json()
         setConflicts(Array.isArray(d.conflicts) ? d.conflicts : [])
       } catch { /* noop */ }
+      try {
+        const r = await fetch(`/api/absences/rules?from=${startDate}&to=${endDate}`, { signal: ctrl.signal })
+        const d = await r.json()
+        setRules({ blocks: Array.isArray(d.blocks) ? d.blocks : [], warnings: Array.isArray(d.warnings) ? d.warnings : [] })
+      } catch { /* noop */ }
     }, 300)
     return () => { clearTimeout(t); ctrl.abort() }
   }, [startDate, endDate])
 
   const sameDay = startDate && endDate && startDate === endDate
+  // Les règles ne s'appliquent qu'aux congés payés d'une boutique (l'alternance reste libre).
+  const blocked = (editing ? absence?.type : type) === 'Congés payés' && rules.blocks.length > 0
 
   // Opérations commerciales qui chevauchent la période demandée.
   const opConflicts = (startDate && endDate)
@@ -61,7 +70,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ start_date: startDate, end_date: endDate, start_period: startPeriod, end_period: sameDay ? startPeriod : endPeriod }),
         })
-        if (!r.ok) throw new Error()
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error ?? 'Envoi impossible') }
         const res = await r.json()
         if (!res.autoValidated) {
           fetch('/api/notify/absence-request', {
@@ -77,7 +86,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type, start_date: startDate, end_date: endDate, start_period: startPeriod, end_period: sameDay ? startPeriod : endPeriod, reason }),
         })
-        if (!r.ok) throw new Error()
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error ?? 'Envoi impossible') }
         const res = await r.json()
         if (!res.autoValidated) {
           fetch('/api/notify/absence-request', {
@@ -97,7 +106,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
         }
       }
       onCreated()
-    } catch { toast.error('Envoi impossible'); setSaving(false) }
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Envoi impossible'); setSaving(false) }
   }
 
   return (
@@ -166,6 +175,30 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
             </div>
           )}
 
+          {blocked && (
+            <div className="rounded-lg p-3 border" style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.4)' }}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#DC2626' }} />
+                <p className="text-sm font-semibold" style={{ color: '#B91C1C' }}>Demande impossible sur ces dates</p>
+              </div>
+              <ul className="text-xs space-y-0.5 ml-6" style={{ color: '#B91C1C' }}>
+                {rules.blocks.map(b => <li key={b}>• {b}</li>)}
+              </ul>
+              <p className="text-xs mt-2 ml-6 text-muted-foreground">Choisis d&apos;autres dates, ou contacte la RH.</p>
+            </div>
+          )}
+          {rules.warnings.length > 0 && !blocked && (
+            <div className="rounded-lg p-3 border" style={{ backgroundColor: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.3)' }}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#D97706' }} />
+                <p className="text-sm font-semibold" style={{ color: '#B45309' }}>Période déconseillée</p>
+              </div>
+              <ul className="text-xs text-muted-foreground space-y-0.5 ml-6">
+                {rules.warnings.map(w => <li key={w}>• {w}</li>)}
+              </ul>
+            </div>
+          )}
+
           {opConflicts.length > 0 && (
             <div className="rounded-lg p-3 border" style={{ backgroundColor: 'rgba(224,89,106,0.08)', borderColor: 'rgba(224,89,106,0.35)' }}>
               <div className="flex items-center gap-2 mb-1.5">
@@ -201,7 +234,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
             </div>
           )}
 
-          <button onClick={submit} disabled={saving}
+          <button onClick={submit} disabled={saving || blocked}
             className="w-full py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 transition-transform hover:scale-[1.01]"
             style={{ backgroundColor: 'var(--accent)' }}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : editing ? 'Envoyer la modification' : 'Envoyer la demande'}
