@@ -28,57 +28,10 @@ export async function GET() {
   )
 }
 
-// POST { name } : ajoute un collaborateur à la boutique (profil sans connexion).
-export async function POST(request: NextRequest) {
-  const userId = getUserId()
-  if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-  const supabase = createAdminClient()
-  const ctx = await getActingContext(supabase, userId)
-  if (!ctx.isBoutique || !ctx.boutiqueId) return NextResponse.json({ error: 'Réservé aux boutiques' }, { status: 403 })
-
-  const body = await request.json().catch(() => ({}))
-  const name = typeof body.name === 'string' ? body.name.trim().replace(/\s+/g, ' ') : ''
-  if (name.length < 2 || name.length > 60) {
-    return NextResponse.json({ error: 'Nom invalide (2 à 60 caractères)' }, { status: 400 })
-  }
-
-  const { data: existing } = await supabase
-    .from('profiles').select('id').eq('boutique_id', ctx.boutiqueId).ilike('name', name)
-  if ((existing ?? []).length > 0) return NextResponse.json({ error: 'Ce collaborateur existe déjà' }, { status: 409 })
-
-  const { data: dept } = await supabase.from('departments').select('id').eq('slug', 'boutiques').single()
-  if (!dept) return NextResponse.json({ error: 'Service Boutiques introuvable' }, { status: 500 })
-
-  // profiles.id référence auth.users : on crée un utilisateur technique, sans
-  // adresse réelle et avec un mot de passe aléatoire que personne ne connaît
-  // (le collaborateur ne se connecte jamais, il est choisi dans la boutique).
-  const slug = crypto.randomUUID().slice(0, 8)
-  const email = `membre-${slug}@boutiques.aelys.invalid`
-  const { data: created, error: authErr } = await supabase.auth.admin.createUser({
-    email,
-    password: `${crypto.randomUUID()}${crypto.randomUUID()}`,
-    email_confirm: true,
-    user_metadata: { name },
-  })
-  if (authErr || !created.user) return NextResponse.json({ error: authErr?.message ?? 'Création impossible' }, { status: 500 })
-
-  const { error: profErr } = await supabase.from('profiles').upsert({
-    id: created.user.id,
-    name,
-    email,
-    department_id: dept.id,
-    role: 'collaborateur',
-    is_active: false, // jamais proposé dans les listes d'assignation du siège
-    boutique_id: ctx.boutiqueId,
-    is_boutique_account: false,
-    notify_email_assigned: false, notify_email_status: false, notify_email_deadlines: false,
-    notify_email_weekly: false, notify_email_mentions: false,
-  })
-  if (profErr) {
-    await supabase.auth.admin.deleteUser(created.user.id)
-    return NextResponse.json({ error: profErr.message }, { status: 500 })
-  }
-  return NextResponse.json({ success: true, id: created.user.id, name })
+// POST : désactivé. Les nouveaux collaborateurs sont créés par la RH (onglet « Collaborateurs » de
+// la gestion des congés boutiques), avec leur date d'entrée et leur contrat, pour que leurs congés soient calculés.
+export async function POST() {
+  return NextResponse.json({ error: 'Les nouveaux collaborateurs sont ajoutés par la RH' }, { status: 403 })
 }
 
 // PUT { member_id | null } : choisit le collaborateur actif (cookie de session).

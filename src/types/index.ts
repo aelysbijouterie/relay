@@ -134,10 +134,10 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
 }
 
 // Libellé AFFICHÉ à l'écran — distinct de la valeur technique stockée en base
-// (TaskStatus). Seul 'A revoir' a un libellé différent ("À valider") ; tous
-// les autres statuts affichent leur valeur technique telle quelle.
+// (TaskStatus). 'A Faire' s'affiche « À faire » et 'A revoir' « À valider » ; les
+// autres statuts affichent leur valeur technique. Ne jamais renommer la valeur en base.
 export const STATUS_LABELS: Record<TaskStatus, string> = {
-  'A Faire':  'A Faire',
+  'A Faire':  'À faire',
   'En cours': 'En cours',
   'Bloqué':   'Bloqué',
   'A revoir': 'À valider',

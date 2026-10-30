@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { UserRound, Plus, Loader2 } from 'lucide-react'
+import { UserRound, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Member { id: string; name: string }
@@ -10,13 +10,13 @@ interface MembersResponse { isBoutique: boolean; members?: Member[]; current?: s
 /**
  * Sélecteur du collaborateur actif d'une boutique. Le compte est partagé par
  * la boutique ; ce choix détermine au nom de qui sont posés les congés.
+ * Les nouveaux collaborateurs sont ajoutés par la RH (onglet « Collaborateurs »),
+ * avec leur date d'entrée, pour que leurs congés soient calculés correctement.
  */
 export function BoutiqueMemberPicker() {
   const [members, setMembers] = useState<Member[]>([])
   const [current, setCurrent] = useState<string>('')
   const [loading, setLoading] = useState(true)
-  const [adding, setAdding] = useState(false)
-  const [newName, setNewName] = useState('')
   const [busy, setBusy] = useState(false)
 
   async function load() {
@@ -43,23 +43,6 @@ export function BoutiqueMemberPicker() {
     } catch { toast.error('Sélection impossible'); setBusy(false) }
   }
 
-  async function add() {
-    if (newName.trim().length < 2) return
-    setBusy(true)
-    try {
-      const r = await fetch('/api/boutique/members', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName }),
-      })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.error ?? 'Ajout impossible')
-      await choose(d.id)
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Ajout impossible')
-      setBusy(false)
-    }
-  }
-
   return (
     <div className="px-4 py-3">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pour quel collaborateur ?</p>
@@ -79,24 +62,8 @@ export function BoutiqueMemberPicker() {
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
-
-          {adding ? (
-            <div className="mt-2 flex gap-1.5">
-              <input
-                autoFocus value={newName} onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') add() }}
-                placeholder="Prénom Nom"
-                className="min-w-0 flex-1 px-2.5 py-1.5 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground"
-              />
-              <button onClick={add} disabled={busy || newName.trim().length < 2}
-                className="px-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50"
-                style={{ backgroundColor: 'var(--accent)' }}>OK</button>
-            </div>
-          ) : (
-            <button onClick={() => setAdding(true)}
-              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-              <Plus className="w-3.5 h-3.5" /> Ajouter un collaborateur
-            </button>
+          {members.length === 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">Aucun collaborateur n&apos;est encore rattaché à votre magasin : contactez la RH.</p>
           )}
           {!current && members.length > 0 && (
             <p className="mt-2 text-[0.7rem] text-amber-600">Choisissez votre nom pour voir vos compteurs et poser une demande.</p>

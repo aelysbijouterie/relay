@@ -212,6 +212,8 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   if (!open) return null
 
   const deptColor = task.department?.color ?? '#94A3B8'
+  // « Boutiques » est un service technique : on n'affiche pas son nom aux magasins.
+  const hideDept = task.department?.slug === 'boutiques'
   const overdue   = isOverdue(task.deadline)
   const doneSub   = subtasks.filter(s => s.is_done).length
   // Sous-tâches de premier niveau, chacune suivie de ses sous-sous-tâches.
@@ -739,7 +741,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                 style={{ background: `linear-gradient(135deg, ${PRIORITY_COLORS[task.priority]}, ${PRIORITY_COLORS[task.priority]}99)` }}>
                 {task.priority}
               </span>
-              {task.department && (
+              {task.department && !hideDept && (
                 <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium"
                   style={{ backgroundColor: `${deptColor}cc` }}>
                   {task.department.name}
@@ -1196,7 +1198,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Espace</p>
                     <span className="inline-flex items-center gap-2 text-sm font-medium">
                       <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: deptColor }} />
-                      {task.department?.name}
+                      {hideDept ? 'Magasin' : task.department?.name}
                     </span>
                   </div>
 

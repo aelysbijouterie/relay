@@ -200,7 +200,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
               <p className="text-sm">
                 <span className="font-bold">{String(requestedDays).replace('.', ',')} jour{requestedDays > 1 ? 's' : ''} ouvré{requestedDays > 1 ? 's' : ''}</span> demandé{requestedDays > 1 ? 's' : ''}
               </p>
-              {remainingAfter != null && balance && (
+              {remainingAfter != null && balance && !blocked && (
                 <>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {isRtt ? 'RTT restants' : 'Reste à poser'} : {String(Math.round((baseRemaining! + alreadyCounted) * 100) / 100).replace('.', ',')} j
