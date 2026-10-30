@@ -150,7 +150,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
                 ))}
               </div>
               {type === 'Alternance' && <p className="text-xs text-muted-foreground mt-2">Les périodes d'alternance sont enregistrées directement, sans validation.</p>}
-              {allowedTypes && type === 'Congés payés' && <p className="text-xs text-muted-foreground mt-2">Cette demande sera envoyée à la RH (Chloé Estangoy) pour validation.</p>}
+              {allowedTypes && type === 'Congés payés' && <p className="text-xs text-muted-foreground mt-2">Cette demande sera envoyée au pôle RH pour validation.</p>}
             </div>
           )}
 
@@ -228,7 +228,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
               <ul className="text-xs space-y-0.5 ml-6" style={{ color: '#B91C1C' }}>
                 {rules.blocks.map(b => <li key={b}>• {b}</li>)}
               </ul>
-              <p className="text-xs mt-2 ml-6 text-muted-foreground">Choisis d&apos;autres dates, ou contacte la RH.</p>
+              <p className="text-xs mt-2 ml-6 text-muted-foreground">Choisis d&apos;autres dates, ou contacte le pôle RH.</p>
             </div>
           )}
           {rules.warnings.length > 0 && !blocked && (
@@ -256,7 +256,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
                   <li key={o.id}>★ {o.title}{o.op_mecanique ? ` — ${o.op_mecanique}` : ''}</li>
                 ))}
               </ul>
-              <p className="text-xs mt-2 ml-6" style={{ color: '#BE3F50' }}>Les congés sont déconseillés pendant une opération. Tu peux quand même poser ta demande, la RH décidera.</p>
+              <p className="text-xs mt-2 ml-6" style={{ color: '#BE3F50' }}>Les congés sont déconseillés pendant une opération. Tu peux quand même poser ta demande, le pôle RH décidera.</p>
             </div>
           )}
 

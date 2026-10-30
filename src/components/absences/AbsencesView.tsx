@@ -244,7 +244,7 @@ export function AbsencesView() {
         </div>
       )}
       {me?.is_boutique_account && !needMember && (
-        <p className="text-xs text-muted-foreground -mt-2 mb-4">Toutes les demandes sont validées par la RH (Chloé Estangoy).</p>
+        <p className="text-xs text-muted-foreground -mt-2 mb-4">Toutes les demandes sont validées par le pôle RH.</p>
       )}
 
       {/* Disposition 2 colonnes : calendrier à gauche, compteurs + demandes à droite */}
