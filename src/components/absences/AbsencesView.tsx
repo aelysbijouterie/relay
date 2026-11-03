@@ -458,7 +458,7 @@ export function AbsencesView() {
         </aside>{/* fin colonne latérale */}
       </div>{/* fin grille 2 colonnes */}
 
-      {showNew && <NewAbsenceModal absence={editAbsence} operations={operations} allowedTypes={me?.is_boutique_account ? (me.acting_is_cadre ? ['Congés payés', 'RTT', 'Alternance'] : ['Congés payés', 'Alternance']) : undefined} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
+      {showNew && <NewAbsenceModal absence={editAbsence} operations={operations} boutique={!!me?.is_boutique_account} allowedTypes={me?.is_boutique_account ? (me.acting_is_cadre ? ['Congés payés', 'RTT', 'Alternance'] : ['Congés payés', 'Alternance']) : undefined} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
       {showPeriod && <ActivityPeriodModal periods={periods.filter(p => p.department_id === me?.department_id)} onClose={() => setShowPeriod(false)} onChange={load} />}
 
       {/* Liste complète des absents d'un jour (quand la cellule est trop chargée) */}

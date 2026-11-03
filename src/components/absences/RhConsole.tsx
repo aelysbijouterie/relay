@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, X, Download, Loader2, ClipboardList, Search, Store, Wallet, ListChecks, CalendarOff, Trash2, Plus, CalendarDays, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type AbsencePeriod, type AbsenceStatus, type AbsenceType } from '@/types/absences'
-import { countWorkdays } from '@/lib/absences/workdays'
+import { countWorkdays, boutiqueDayOptions } from '@/lib/absences/workdays'
 import { OP_CATEGORY_COLORS } from '@/types/pacMediaKit'
 import { RefuseDialog } from './RefuseDialog'
 import { RhShopCalendar } from './RhShopCalendar'
@@ -39,7 +39,8 @@ function rangeOf(a: RhAbsence) {
   }
   return { start: a.start_date, end: a.end_date, sp: a.start_period, ep: a.end_period }
 }
-function daysOf(a: RhAbsence): number { const r = rangeOf(a); return countWorkdays(r.start, r.end, r.sp, r.ep) }
+// Demandes des boutiques : les samedis comptent pour les congés payés (magasins ouverts).
+function daysOf(a: RhAbsence): number { const r = rangeOf(a); return countWorkdays(r.start, r.end, r.sp, r.ep, boutiqueDayOptions(a.type)) }
 function rangeLabel(a: RhAbsence): string {
   const r = rangeOf(a)
   const sp = r.sp !== 'full' ? ` (${PERIOD_LABELS[r.sp]})` : ''
@@ -167,7 +168,7 @@ export function RhConsole() {
       // Solde importé = « reste à poser » à une date : on ne déduit que les congés validés depuis cette date.
       const since = sinceById.get(a.user_id)
       if (since ? a.start_date < since : !a.start_date.startsWith(String(year))) continue
-      m.set(a.user_id, (m.get(a.user_id) ?? 0) + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period))
+      m.set(a.user_id, (m.get(a.user_id) ?? 0) + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period, boutiqueDayOptions(a.type)))
     }
     return m
   }, [absences, members, year])

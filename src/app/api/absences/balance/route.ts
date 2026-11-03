@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
-import { countWorkdays, balanceKeyForType } from '@/lib/absences/workdays'
+import { countWorkdays, balanceKeyForType, boutiqueDayOptions } from '@/lib/absences/workdays'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +20,8 @@ export async function GET() {
   const ctx = await getActingContext(supabase, userId)
   const targetId = ctx.actingUserId
   if (!targetId) return NextResponse.json({ conges: { start: null, taken: 0, remaining: null }, rtt: { start: null, taken: 0, remaining: null } })
+  // Boutiques : samedis décomptés, 5 jours au plus par semaine.
+  const dayOpts = ctx.isBoutique ? boutiqueDayOptions() : {}
 
   const { data: profile } = await supabase
     .from('profiles').select('leave_balance_conges, leave_balance_rtt, leave_balance_since, leave_acquiring, leave_split_days, is_cadre').eq('id', targetId).single()
@@ -37,7 +39,7 @@ export async function GET() {
   for (const a of absences ?? []) {
     const key = balanceKeyForType(a.type)
     if (!key) continue
-    const d = countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period)
+    const d = countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period, dayOpts)
     if (key === 'conges') takenConges += d; else takenRtt += d
   }
 
@@ -46,12 +48,12 @@ export async function GET() {
     .from('absences')
     .select('start_date, end_date, start_period, end_period')
     .eq('user_id', targetId).eq('type', 'Congés payés').in('status', ['En attente', 'Modif. en attente'])
-  const pending = (pendingRows ?? []).reduce((s, a) => s + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period), 0)
+  const pending = (pendingRows ?? []).reduce((s, a) => s + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period, dayOpts), 0)
   const { data: pendingRttRows } = await supabase
     .from('absences')
     .select('start_date, end_date, start_period, end_period')
     .eq('user_id', targetId).eq('type', 'RTT').in('status', ['En attente', 'Modif. en attente'])
-  const pendingRtt = (pendingRttRows ?? []).reduce((s, a) => s + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period), 0)
+  const pendingRtt = (pendingRttRows ?? []).reduce((s, a) => s + countWorkdays(a.start_date, a.end_date, a.start_period, a.end_period, dayOpts), 0)
   // Jours de fractionnement (ajoutés à la main par la RH) : ils s'ajoutent aux jours acquis.
   const split = Number(profile?.leave_split_days ?? 0)
 

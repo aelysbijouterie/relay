@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { countWorkdays } from '@/lib/absences/workdays'
+import { countWorkdays, boutiqueDayOptions } from '@/lib/absences/workdays'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       const s = since.get(a.user_id as string)
       if (s && (a.start_date as string) < s) continue
       takenBeforeJune.set(a.user_id as string, (takenBeforeJune.get(a.user_id as string) ?? 0)
-        + countWorkdays(a.start_date as string, a.end_date as string, a.start_period as 'full' | 'am' | 'pm', a.end_period as 'full' | 'am' | 'pm'))
+        + countWorkdays(a.start_date as string, a.end_date as string, a.start_period as 'full' | 'am' | 'pm', a.end_period as 'full' | 'am' | 'pm', boutiqueDayOptions()))
     }
   }
 

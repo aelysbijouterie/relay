@@ -1,6 +1,6 @@
 import type { createAdminClient } from '@/lib/supabase/server'
 import { holidayName } from '@/lib/calendar/holidays'
-import { countWorkdays } from '@/lib/absences/workdays'
+import { countWorkdays, boutiqueDayOptions } from '@/lib/absences/workdays'
 import {
   evaluateLeaveRequest, leavePeriod, weekStart, LEAVE_PERIOD_CAP_DAYS,
   type CustomPeriod, type LeaveEvaluation,
@@ -48,7 +48,7 @@ export async function evaluateForBoutique(
   let cap: { limit: number; used: number; requested: number } | undefined
   if (opts.memberId && opts.applyCap !== false) { // plafond de 5 semaines : congés payés seulement (pas les RTT)
     const period = leavePeriod(start)
-    const requested = countWorkdays(start, end, opts.startPeriod ?? 'full', opts.endPeriod ?? 'full')
+    const requested = countWorkdays(start, end, opts.startPeriod ?? 'full', opts.endPeriod ?? 'full', boutiqueDayOptions())
     let q = supabase
       .from('absences').select('id, start_date, end_date, start_period, end_period')
       .eq('user_id', opts.memberId).eq('type', 'Congés payés').neq('status', 'Refusé')
@@ -56,7 +56,7 @@ export async function evaluateForBoutique(
     if (opts.excludeAbsenceId) q = q.neq('id', opts.excludeAbsenceId)
     const { data: mine } = await q
     let used = (mine ?? []).reduce((sum, a) =>
-      sum + countWorkdays(a.start_date as string, a.end_date as string, a.start_period as AbsencePeriod, a.end_period as AbsencePeriod), 0)
+      sum + countWorkdays(a.start_date as string, a.end_date as string, a.start_period as AbsencePeriod, a.end_period as AbsencePeriod, boutiqueDayOptions()), 0)
     // Jours pris avant RELAYS : ne concernent que la période en cours (celle de l'import).
     const today = new Date().toISOString().slice(0, 10)
     if (leavePeriod(today).start === period.start) {

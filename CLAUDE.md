@@ -755,3 +755,10 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
 - Demande en attente modifiable (dates corrigées, reste « En attente ») ; suppression par la boutique = disparition côté RH
   (la RH est prévenue par e-mail si la demande était déjà validée) ; la console RH se rafraîchit toutes les 30 s.
 - Onglet RH « Calendrier boutiques » : case par magasin, chaque absence = « n° magasin · nom complet ».
+
+### Annexe C sexies — Décompte des jours des boutiques (samedis)
+- `countWorkdays(start, end, sp, ep, { saturdays })` (`lib/absences/workdays.ts`) : pour les **boutiques** (`boutiqueDayOptions()`), le **samedi se décompte**
+  (magasins ouverts) ; dimanches et fériés jamais ; **une semaine décompte au plus 5 jours** (le 6e jour est le jour de repos) — lun→sam = 5 j,
+  un samedi posé seul = 1 j, mer→sam = 4 j. Les jours peuvent être posés un par un. Demi-journées : retirées du 1er/dernier jour, puis plafond de 5 j/semaine.
+- Appliqué à toutes les demandes boutique (CP et RTT) : fenêtre de demande, `api/absences/balance`, plafond de 5 semaines (`leaveRulesServer.ts`),
+  console RH, bascule du 1er juin (`cron/leave-accrual`). Siège inchangé (lundi→vendredi). Acquisition inchangée : 2,08 j/mois, plafond 25 j.

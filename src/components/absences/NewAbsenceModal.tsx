@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Loader2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { countWorkdays } from '@/lib/absences/workdays'
+import { countWorkdays, boutiqueDayOptions } from '@/lib/absences/workdays'
 import { ABSENCE_TYPES, ABSENCE_COLORS, type AbsenceType, type AbsencePeriod, type Absence } from '@/types/absences'
 
 // Opération commerciale (planning PAC) : sert à prévenir quand on pose des congés dessus.
@@ -15,7 +15,7 @@ export interface CommercialOperation {
   op_mecanique?: string | null
 }
 
-export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClose, onCreated }: { absence?: Absence | null; operations?: CommercialOperation[]; allowedTypes?: AbsenceType[]; onClose: () => void; onCreated: () => void }) {
+export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutique = false, onClose, onCreated }: { absence?: Absence | null; operations?: CommercialOperation[]; allowedTypes?: AbsenceType[]; boutique?: boolean; onClose: () => void; onCreated: () => void }) {
   const editing = !!absence
   const [type, setType] = useState<AbsenceType>(absence?.type ?? 'Congés payés')
   const [startDate, setStartDate] = useState(absence?.start_date ?? '')
@@ -56,14 +56,16 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, onClos
 
   const sameDay = startDate && endDate && startDate === endDate
   // Décompte des jours ouvrés demandés (fériés et week-ends exclus) et solde après la demande.
-  const requestedDays = startDate && endDate && endDate >= startDate
-    ? countWorkdays(startDate, endDate, startPeriod, startDate === endDate ? startPeriod : endPeriod) : 0
+  // Boutiques : le samedi compte pour les congés payés (magasins ouverts).
   const effectiveType = editing ? absence?.type : type
+  const dayOpts = boutique ? boutiqueDayOptions(effectiveType ?? '') : {}
+  const requestedDays = startDate && endDate && endDate >= startDate
+    ? countWorkdays(startDate, endDate, startPeriod, startDate === endDate ? startPeriod : endPeriod, dayOpts) : 0
   const isConges = effectiveType === 'Congés payés' || effectiveType === 'RTT'
   const isRtt = effectiveType === 'RTT'
   // En modification d'un congé déjà validé, ses jours sont déjà déduits du solde : on les rend d'abord.
   const alreadyCounted = editing && absence && absence.type === effectiveType && absence.status === 'Validé'
-    ? countWorkdays(absence.start_date, absence.end_date, absence.start_period, absence.end_period) : 0
+    ? countWorkdays(absence.start_date, absence.end_date, absence.start_period, absence.end_period, dayOpts) : 0
   const baseRemaining = balance ? (isRtt ? balance.rttRemaining : balance.remaining) : null
   const basePending = balance ? (isRtt ? balance.pendingRtt : balance.pending) : 0
   const remainingAfter = baseRemaining != null ? baseRemaining + alreadyCounted - basePending - requestedDays : null
