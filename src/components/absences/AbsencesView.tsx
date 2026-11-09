@@ -25,6 +25,8 @@ export function AbsencesView() {
   const [depts, setDepts] = useState<Dept[]>([])
   const [me, setMe] = useState<Me | null>(null)
   const [operations, setOperations] = useState<CommercialOperation[]>([])
+  // Boutiques : périodes où la demande de congés est impossible (affichées en rouge d'avance).
+  const [blocked, setBlocked] = useState<{ label: string; start: string; end: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
   const [showNew, setShowNew] = useState(false)
@@ -40,13 +42,16 @@ export function AbsencesView() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [aRes, mRes, pRes, dRes, oRes] = await Promise.all([
+      const [aRes, mRes, pRes, dRes, oRes, bRes] = await Promise.all([
         fetch('/api/absences', { cache: 'no-store' }),
         fetch('/api/account', { cache: 'no-store' }),
         fetch('/api/activity-periods', { cache: 'no-store' }),
         fetch('/api/departments', { cache: 'no-store' }),
         fetch('/api/pac-media-kit', { cache: 'no-store' }),
+        fetch('/api/absences/blocked-periods', { cache: 'no-store' }),
       ])
+      const bData = await bRes.json().catch(() => [])
+      setBlocked(Array.isArray(bData) ? bData : [])
       const aData = await aRes.json(); const mData = await mRes.json()
       const pData = await pRes.json(); const dData = await dRes.json()
       const oData = await oRes.json().catch(() => [])
@@ -180,6 +185,13 @@ export function AbsencesView() {
       ? periods.filter(p => filterDepts.has(p.department_id))
       : periods
     const match = relevant.find(p => ds >= p.start_date && ds <= p.end_date)
+    return match ? match.label : null
+  }
+
+  // Une date est-elle bloquée pour la boutique (demande impossible) ? Renvoie le motif, sinon null.
+  function blockedOn(date: Date): string | null {
+    const ds = localDs(date)
+    const match = blocked.find(p => ds >= p.start && ds <= p.end)
     return match ? match.label : null
   }
 
@@ -336,17 +348,20 @@ export function AbsencesView() {
                 const items = absencesOn(date)
                 const isToday = localDs(date) === todayStr
                 const isWeekend = (date.getDay() === 0 || date.getDay() === 6)
-                const isActivity = activityOn(date)
+                const isBlocked = blockedOn(date)
+                const isActivity = isBlocked ?? activityOn(date)
                 const dayOps = operationsOn(date)
                 const ds = localDs(date)
                 const ferie = (me?.show_holidays ?? true) ? holidayName(ds) : null
-                const vacances = (me?.show_school_holidays ?? true) ? schoolHolidayName(ds) : null
+                // Boutiques : pas de code couleur « vacances scolaires ».
+                const vacances = (me?.show_school_holidays ?? true) && !me?.is_boutique_account ? schoolHolidayName(ds) : null
                 return (
                   <div key={i}
                     className={`aspect-square rounded-lg border p-1 overflow-hidden ${isToday ? 'border-2' : 'border-border'}`}
                     style={{
                       ...(isToday ? { borderColor: 'var(--accent)' } : {}),
-                      ...(isActivity ? { backgroundColor: 'rgba(239,68,68,0.09)', borderColor: 'rgba(239,68,68,0.35)' }
+                      ...(isBlocked ? { backgroundColor: 'rgba(239,68,68,0.16)', borderColor: 'rgba(239,68,68,0.55)' }
+                          : isActivity ? { backgroundColor: 'rgba(239,68,68,0.09)', borderColor: 'rgba(239,68,68,0.35)' }
                           : ferie ? { backgroundColor: 'rgba(217,70,239,0.10)', borderColor: 'rgba(217,70,239,0.30)' }
                           : vacances ? { backgroundColor: 'rgba(234,179,8,0.10)' }
                           : isWeekend ? { backgroundColor: 'var(--muted)', opacity: 0.6 } : {}),
@@ -408,7 +423,13 @@ export function AbsencesView() {
               <span className="text-xs text-muted-foreground">Jour férié</span>
             </div>
           )}
-          {(me?.show_school_holidays ?? true) && (
+          {me?.is_boutique_account && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.4)' }} />
+              <span className="text-xs text-muted-foreground">Demande impossible (période bloquée)</span>
+            </div>
+          )}
+          {(me?.show_school_holidays ?? true) && !me?.is_boutique_account && (
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(234,179,8,0.25)' }} />
               <span className="text-xs text-muted-foreground">Vacances scolaires</span>
