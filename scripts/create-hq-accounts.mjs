@@ -1,6 +1,7 @@
 // Crée les accès « siège » supplémentaires (Direction et Direction Régionale).
 // Usage :  node scripts/create-hq-accounts.mjs --dry-run     (affiche ce qui serait créé, sans rien écrire)
 //          node scripts/create-hq-accounts.mjs --password=...  (crée les comptes)
+//          node scripts/create-hq-accounts.mjs --reset --password=...  (comptes déjà créés : leur applique ce mot de passe)
 // Idempotent : une adresse qui a déjà un profil est ignorée.
 // Mot de passe temporaire : donné au lancement avec --password=... (rappelé dans un fichier HORS du dépôt, jamais committé) ;
 // chaque personne doit ensuite en choisir un nouveau (« Mot de passe oublié » ou page Compte).
@@ -12,6 +13,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const DRY = process.argv.includes('--dry-run')
+const RESET = process.argv.includes('--reset') // donne le mot de passe temporaire à des comptes DÉJÀ créés
 
 const ACCOUNTS = [
   // Pôle Direction
@@ -53,7 +55,15 @@ const lines = ['email_de_connexion;nom;service;mot_de_passe_temporaire']
 for (const a of ACCOUNTS) {
   const dept = deptBySlug.get(a.dept)
   const found = await (await rest(`profiles?select=id&email=ilike.${encodeURIComponent(a.email)}`)).json()
-  if (Array.isArray(found) && found.length > 0) { console.log(`= ${a.email} : profil déjà existant, ignoré`); continue }
+  if (Array.isArray(found) && found.length > 0) {
+    if (!RESET) { console.log(`= ${a.email} : profil déjà existant, ignoré (--reset pour lui donner le mot de passe temporaire)`); continue }
+    if (DRY) { console.log(`~ (simulation) ${a.email} : mot de passe réinitialisé`); continue }
+    const r = await fetch(`${URL_}/auth/v1/admin/users/${found[0].id}`, { method: 'PUT', headers, body: JSON.stringify({ password: password() }) })
+    if (!r.ok) { const e = await r.json().catch(() => ({})); console.log(`! ${a.email} : réinitialisation refusée : ${e.msg ?? e.message ?? r.status}`); continue }
+    lines.push(`${a.email};${a.name};${dept.name};${password()}`)
+    console.log(`~ ${a.email} : mot de passe temporaire appliqué`)
+    continue
+  }
   if (DRY) { console.log(`+ (simulation) ${a.email} → ${a.name}, service « ${dept.name} »`); continue }
 
   const pwd = password()

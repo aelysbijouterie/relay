@@ -796,3 +796,5 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
 - **Accès siège supplémentaires** : `node scripts/create-hq-accounts.mjs [--dry-run]` (à lancer par Manon) — jf.imbert@aelys.fr et jerome.negre@aelys.fr (Direction) ; resp.420@, resp.422@, resp.423@cge-bijouteries.fr = Marie LE ROUX, Elodie GROS,
   Caroline THOMAS (Direction Régionale, avec Audrey Voyat). Profils du siège ordinaires (aucune boutique, rôle collaborateur) : assignables sur les cartes. Mots de passe temporaires dans `Documents
 elays-comptes-siege.csv` (hors dépôt).
+- **Vue annuelle — trois mises en page** (choix mémorisé sur le poste) : « Mois en colonnes » (6 mois par page, jours 1-31 de haut en bas), « Calendriers mensuels » (6 grilles de mois par page), « Mois en lignes » (planning + récapitulatif). Toutes en A4 paysage, 2 pages (testé en PDF avec des données fictives).
+- `create-hq-accounts.mjs --reset --password=...` applique le mot de passe temporaire à des comptes déjà créés (un compte existant est sinon ignoré).
