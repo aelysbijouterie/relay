@@ -100,7 +100,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
         if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error ?? 'Envoi impossible') }
         const res = await r.json()
         if (!res.autoValidated) {
-          fetch('/api/notify/absence-request', {
+          !boutique && fetch('/api/notify/absence-request', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type, start_date: startDate, end_date: endDate, modification: true }),
           }).catch(() => {})
@@ -116,7 +116,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
         if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error ?? 'Envoi impossible') }
         const res = await r.json()
         if (!res.autoValidated) {
-          fetch('/api/notify/absence-request', {
+          !boutique && fetch('/api/notify/absence-request', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type, start_date: startDate, end_date: endDate }),
           }).catch(() => {})
@@ -124,7 +124,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
         } else {
           // Alternance saisie librement ou absence signalée : pas de validation, mais la RH est informée.
           if (type === 'Alternance' || isReport) {
-            fetch('/api/notify/absence-request', {
+            !boutique && fetch('/api/notify/absence-request', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ type, start_date: startDate, end_date: endDate, info: true }),
             }).catch(() => {})

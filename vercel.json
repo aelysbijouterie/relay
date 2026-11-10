@@ -21,12 +21,28 @@
       "schedule": "30 8 * * 1"
     },
     {
-      "path": "/api/cron/leave-reminder",
-      "schedule": "15 8 * * 1-5"
-    },
-    {
       "path": "/api/cron/leave-accrual",
       "schedule": "0 3 1 * *"
+    },
+    {
+      "path": "/api/cron/leave-reminder",
+      "schedule": "0 7 * * 1"
+    },
+    {
+      "path": "/api/cron/leave-reminder",
+      "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/cron/leave-escalation",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/leave-escalation",
+      "schedule": "30 10 * * *"
+    },
+    {
+      "path": "/api/cron/leave-escalation",
+      "schedule": "30 14 * * *"
     }
   ]
 }

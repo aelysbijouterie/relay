@@ -351,6 +351,15 @@ export function AccountView({ profile, teamSettings }: Props) {
               </button>
             </label>
           ))}
+          {(profile as unknown as { can_validate_boutiques?: boolean }).can_validate_boutiques && (
+            <div className="flex items-center justify-between gap-4 py-3 px-1 border-t border-border">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Demandes de congés des boutiques</p>
+                <p className="text-xs text-muted-foreground">Nouvelle demande, rappels à 48 h et 72 h, récapitulatif du lundi 09 h — obligatoires, ils ne peuvent pas être désactivés.</p>
+              </div>
+              <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-muted text-muted-foreground">Toujours actif</span>
+            </div>
+          )}
         </div>
       </section>
 

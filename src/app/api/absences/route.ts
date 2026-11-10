@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sendRhRequestMail } from '@/lib/absences/rhMail'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
@@ -120,5 +121,9 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Boutique : la RH est prévenue TOUT DE SUITE, depuis le serveur (jamais perdu si l'onglet se ferme) :
+  // demande à valider (congés payés / RTT) ou information (alternance, absence signalée).
+  if (ctx.isBoutique) await sendRhRequestMail(supabase, data.id, autoValidated ? 'info' : 'new')
   return NextResponse.json({ success: true, id: data.id, autoValidated })
 }

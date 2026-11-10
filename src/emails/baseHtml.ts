@@ -28,6 +28,7 @@ export function baseHtml({
   deptColor = '#E0596A',
   accentBar,            // optionnel : dégradé custom (ex. inter-équipes)
   prefLabel,            // ex. « Tâche assignée » — affiché dans le footer
+  mandatory,            // notification obligatoire : pas de lien « Gérer mes notifications »
 }: {
   title: string
   preheader: string
@@ -35,9 +36,12 @@ export function baseHtml({
   deptColor?: string
   accentBar?: string
   prefLabel?: string
+  mandatory?: boolean
 }): string {
   const bar = accentBar ?? deptColor
-  const prefLine = prefLabel
+  const prefLine = mandatory
+    ? `Notification obligatoire : elle ne peut pas être désactivée.<br/>`
+    : prefLabel
     ? `Tu reçois cet email car la notification «&nbsp;${prefLabel}&nbsp;» est activée.<br/>`
     : ''
   return `<!DOCTYPE html>
@@ -77,8 +81,8 @@ export function baseHtml({
           <p style="margin:0;color:#9AA0AE;font-size:11.5px;line-height:1.6;">
             ${prefLine}
             <a href="${APP_URL}/kanban" style="color:${deptColor};text-decoration:none;font-weight:600;">Ouvrir RELAYS</a>
-            &nbsp;·&nbsp;
-            <a href="${APP_URL}/compte" style="color:#9AA0AE;text-decoration:none;font-weight:600;">Gérer mes notifications</a>
+            ${mandatory ? '' : `&nbsp;·&nbsp;
+            <a href="${APP_URL}/compte" style="color:#9AA0AE;text-decoration:none;font-weight:600;">Gérer mes notifications</a>`}
           </p>
         </td></tr>
 

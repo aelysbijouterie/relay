@@ -773,3 +773,16 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
 - **Signalement d'absence (boutiques)** : types « Maladie » et « Autre » (validés d'office, aucun décompte de congés, e-mail d'information à la RH), bouton « Signaler une absence ». Justificatif facultatif par glisser-déposer
   (PDF/JPG/PNG, 10 Mo) : `POST /api/absences/[id]/attachment` → bucket privé `absence-docs` (créé par le code) ; colonnes `absences.attachment_path/attachment_name` (migration `029_absence_attachments.sql`) ;
   `GET` = lien signé de 60 s, réservé à la RH validatrice et à la boutique concernée ; lien « Justificatif » dans la console RH.
+
+### Annexe C octies — Circuit e-mail des congés boutiques → RH (migration 030)
+- **Demande** (CP/RTT) : e-mail immédiat à la RH validatrice (`can_validate_boutiques`), envoyé **par le serveur** à l'enregistrement (`POST /api/absences`, `PUT /api/absences/[id]`) via `lib/absences/rhMail.ts`
+  (`sendRhRequestMail`). Types : `new`, `modification` (anciennes → nouvelles dates), `info` (alternance, maladie, autre : sans validation), `reminder48`, `reminder72`. Le navigateur de la boutique n'envoie plus rien
+  (`notify/absence-request` répond « géré par le serveur » pour une boutique).
+- **Contenu** (le maximum) : collaborateur, magasin (n°, ville, responsable), contrat, date d'entrée, type, dates (demi-journées), jours décomptés (samedis compris, 5 j/semaine max), motif, heure de dépôt, durée d'attente,
+  solde (acquis, fractionnement, en acquisition, pris, autres demandes en attente, reste avant/après, plafond des 5 semaines), points d'attention (périodes déconseillées/bloquées, opérations ★, collègues du magasin absents),
+  autres demandes en attente du collaborateur, lien direct `/conges/rh?focus=<id>` (la console RH met la ligne en évidence).
+- **Relances** : `cron/leave-escalation` (06:30, 10:30, 14:30 UTC, tous les jours) → 48 h puis 72 h sans décision (une demande déjà vieille de 72 h reçoit directement la relance 72 h) ; une seule fois chacune
+  (`absences.rh_reminder_48_at/72_at`) ; l'attente part de `created_at`, ou de `rh_pending_since` pour une modification. Sans la migration 030 : aucun envoi.
+- **Récapitulatif** : `cron/leave-reminder` **le lundi 09:00 heure de Paris** (cron à 07:00 ET 08:00 UTC, seul le passage qui tombe à 09 h Paris envoie ; `?force=1` pour tester) — toutes les demandes en attente, détaillées, les plus
+  anciennes d'abord ; rien si aucune demande. Remplace l'ancien récapitulatif quotidien.
+- **Non désactivable** : ces e-mails n'utilisent jamais `notifyByPreference` ; pied de page « Notification obligatoire » (pas de lien de préférences) ; ligne « Toujours actif » dans Compte → Notifications pour la RH validatrice.

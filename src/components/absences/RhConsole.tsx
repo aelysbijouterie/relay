@@ -68,6 +68,17 @@ export function RhConsole() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
   const [refuseIds, setRefuseIds] = useState<string[] | null>(null) // demandes en cours de refus (dialogue)
+  // Lien des e-mails : /conges/rh?focus=<id> met la demande en évidence (et affiche toutes les demandes).
+  const [focusId, setFocusId] = useState<string | null>(null)
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get('focus')
+    if (f) { setFocusId(f); setStatusFilter('all') }
+  }, [])
+  useEffect(() => {
+    if (!focusId || absences.length === 0) return
+    const el = document.getElementById(`abs-${focusId}`)
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focusId, absences.length, statusFilter])
 
   const load = useCallback(async () => {
     try {
@@ -350,7 +361,7 @@ export function RhConsole() {
                 {filtered.map(a => {
                   const oc = overlapCount(a); const hits = opsHit(a)
                   return (
-                    <tr key={a.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                    <tr key={a.id} id={`abs-${a.id}`} className={`border-b border-border last:border-0 hover:bg-muted/30 ${focusId === a.id ? 'bg-amber-50 ring-2 ring-inset ring-amber-300' : ''}`}>
                       <td className="p-3">{isPending(a) && <input type="checkbox" aria-label="Sélectionner" checked={selected.has(a.id)} onChange={() => toggle(a.id)} />}</td>
                       <td className="p-3 whitespace-nowrap">{boutiqueById.get(a.user.boutique_id)?.name ?? '—'}</td>
                       <td className="p-3 font-medium whitespace-nowrap">{a.user.name}</td>

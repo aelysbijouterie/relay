@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
 import { evaluateForBoutique } from '@/lib/absences/leaveRulesServer'
 import { notifyRhCancellation } from '@/lib/absences/notifyRh'
+import { sendRhRequestMail } from '@/lib/absences/rhMail'
 
 export const dynamic = 'force-dynamic'
 
@@ -172,6 +173,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       start_date, end_date, start_period: start_period ?? 'full', end_period: end_period ?? 'full',
     }).eq('id', params.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // La RH a reçu un e-mail avec les anciennes dates : on lui envoie la version corrigée.
+    if (ctx.isBoutique) await sendRhRequestMail(supabase, params.id, 'new', { edited: true })
     return NextResponse.json({ success: true, autoValidated: false, edited: true })
   }
 
@@ -200,5 +203,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     status: 'Modif. en attente',
   }).eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (ctx.isBoutique) {
+    // Nouvelle attente : les relances 48 h / 72 h repartent de zéro (colonnes de la migration 030, lecture tolérante).
+    await supabase.from('absences').update({ rh_pending_since: new Date().toISOString(), rh_reminder_48_at: null, rh_reminder_72_at: null }).eq('id', params.id)
+    await sendRhRequestMail(supabase, params.id, 'modification')
+  }
   return NextResponse.json({ success: true, autoValidated: false })
 }

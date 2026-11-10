@@ -37,21 +37,17 @@ export async function POST(request: NextRequest) {
     .in('role', ['manager', 'admin'])
     .neq('id', requesterId)
 
-  // Boutique : seule la RH validatrice est prévenue (can_validate_boutiques).
-  let managers = (allManagers ?? []).filter(m => {
+  // Les demandes des boutiques sont notifiées à la RH validatrice par le serveur (lib/absences/rhMail.ts),
+  // au moment de l'enregistrement : rien à envoyer ici.
+  if (requester.boutique_id) return NextResponse.json({ sent: 0, handledByServer: true })
+  // L'information « alternance saisie » ne concerne que la RH des boutiques.
+  if (info) return NextResponse.json({ sent: 0 })
+
+  const managers = (allManagers ?? []).filter(m => {
     if (m.department_id === requester.department_id) return true
     const extras: string[] = m.extra_department_ids ?? []
     return extras.includes(requester.department_id as string)
   })
-  if (requester.boutique_id) {
-    const { data: rh } = await supabase
-      .from('profiles').select('id, name, email, role, department_id, extra_department_ids')
-      .eq('can_validate_boutiques', true)
-    managers = rh ?? []
-  } else if (info) {
-    // L'information « alternance saisie » ne concerne que la RH des boutiques.
-    return NextResponse.json({ sent: 0 })
-  }
 
   const dept = Array.isArray(requester.department) ? requester.department[0] : requester.department
   const deptColor = (dept as { color?: string })?.color ?? '#E0596A'
