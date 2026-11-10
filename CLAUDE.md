@@ -781,8 +781,18 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
 - **Contenu** (le maximum) : collaborateur, magasin (n°, ville, responsable), contrat, date d'entrée, type, dates (demi-journées), jours décomptés (samedis compris, 5 j/semaine max), motif, heure de dépôt, durée d'attente,
   solde (acquis, fractionnement, en acquisition, pris, autres demandes en attente, reste avant/après, plafond des 5 semaines), points d'attention (périodes déconseillées/bloquées, opérations ★, collègues du magasin absents),
   autres demandes en attente du collaborateur, lien direct `/conges/rh?focus=<id>` (la console RH met la ligne en évidence).
-- **Relances** : `cron/leave-escalation` (06:30, 10:30, 14:30 UTC, tous les jours) → 48 h puis 72 h sans décision (une demande déjà vieille de 72 h reçoit directement la relance 72 h) ; une seule fois chacune
-  (`absences.rh_reminder_48_at/72_at`) ; l'attente part de `created_at`, ou de `rh_pending_since` pour une modification. Sans la migration 030 : aucun envoi.
+- **Relances** : `cron/leave-escalation` (06:30, 10:30, 14:30 UTC, tous les jours) → relance à 72 h sans décision ; une seule fois
+  (`absences.rh_reminder_72_at` ; `rh_reminder_48_at` n'est plus utilisée : la relance à 48 h a été supprimée) ; l'attente part de `created_at`, ou de `rh_pending_since` pour une modification. Sans la migration 030 : aucun envoi.
 - **Récapitulatif** : `cron/leave-reminder` **le lundi 09:00 heure de Paris** (cron à 07:00 ET 08:00 UTC, seul le passage qui tombe à 09 h Paris envoie ; `?force=1` pour tester) — toutes les demandes en attente, détaillées, les plus
   anciennes d'abord ; rien si aucune demande. Remplace l'ancien récapitulatif quotidien.
 - **Non désactivable** : ces e-mails n'utilisent jamais `notifyByPreference` ; pied de page « Notification obligatoire » (pas de lien de préférences) ; ligne « Toujours actif » dans Compte → Notifications pour la RH validatrice.
+
+### Annexe C nonies — Mails RH restructurés, vue annuelle imprimable, accès siège supplémentaires
+- **Mails à la RH** (`lib/absences/rhMail.ts`) : en-tête (type, nom, magasin), trois tuiles (dates · jours décomptés · reste après), bouton, puis blocs numérotés : 1 « À vérifier avant de décider » (🔴 bloquant / 🟠 attention / ✅ rien à signaler),
+  2 la demande, 3 le solde (acquis → reste après), 4 collaborateur et magasin, 5 autres demandes en attente. Circuit : e-mail immédiat, relance à 72 h, récapitulatif du lundi 09 h (plus de relance à 48 h).
+  Absence signalée (alternance, maladie, autre) = même mail complet ; avec justificatif, le mail part une fois le fichier enregistré (`POST /api/absences/[id]/attachment`), ou via `POST /api/absences/[id]/notify` si l'envoi du fichier échoue.
+- **Vue annuelle imprimable** (boutiques) : `/conges/annuel` (`AnnualCalendar.tsx`), bouton « Vue annuelle » dans Congés. A4 paysage, 2 pages : planning (un mois par ligne, un jour par colonne, initiales des absents, périodes bloquées en rouge, fériés,
+  dimanches) puis récapitulatif par collaborateur + périodes bloquées. Les variantes `print:` du layout/sidebar/header masquent l'interface à l'impression.
+- **Accès siège supplémentaires** : `node scripts/create-hq-accounts.mjs [--dry-run]` (à lancer par Manon) — jf.imbert@aelys.fr et jerome.negre@aelys.fr (Direction) ; resp.420@, resp.422@, resp.423@cge-bijouteries.fr = Marie LE ROUX, Elodie GROS,
+  Caroline THOMAS (Direction Régionale, avec Audrey Voyat). Profils du siège ordinaires (aucune boutique, rôle collaborateur) : assignables sur les cartes. Mots de passe temporaires dans `Documents
+elays-comptes-siege.csv` (hors dépôt).

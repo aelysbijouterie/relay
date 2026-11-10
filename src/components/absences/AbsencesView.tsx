@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Check, X, Clock, Loader2, CalendarDays, Trash2, Filter, Ban, Pencil, Stethoscope } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Check, X, Clock, Loader2, CalendarDays, Trash2, Filter, Ban, Pencil, Stethoscope, Printer } from 'lucide-react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type Absence, type AbsenceType, type ActivityPeriod } from '@/types/absences'
@@ -240,6 +241,12 @@ export function AbsencesView() {
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border border-border hover:bg-muted transition-colors" title="Définir des périodes d'activité">
               <Ban className="w-4 h-4" /> Périodes d'activité
             </button>
+          )}
+          {me?.is_boutique_account && (
+            <Link href="/conges/annuel"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border border-border hover:bg-muted transition-colors" title="Planning de l'année, imprimable sur 2 pages A4 paysage">
+              <Printer className="w-4 h-4" /> Vue annuelle
+            </Link>
           )}
           {me?.is_boutique_account && (
             <button onClick={() => { setEditAbsence(null); setNewType('Maladie'); setShowNew(true) }}

@@ -111,7 +111,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
       } else {
         const r = await fetch('/api/absences', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type, start_date: startDate, end_date: endDate, start_period: startPeriod, end_period: sameDay ? startPeriod : endPeriod, reason }),
+          body: JSON.stringify({ type, start_date: startDate, end_date: endDate, start_period: startPeriod, end_period: sameDay ? startPeriod : endPeriod, reason, has_file: isReport && !!file }),
         })
         if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error ?? 'Envoi impossible') }
         const res = await r.json()
@@ -134,7 +134,10 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
           if (isReport && file && res.id) {
             const fd = new FormData(); fd.append('file', file)
             const up = await fetch(`/api/absences/${res.id}/attachment`, { method: 'POST', body: fd }).catch(() => null)
-            if (!up || !up.ok) { attachFailed = true; const e = await up?.json().catch(() => ({})); toast.error(e?.error ?? 'Le justificatif n\'a pas pu être envoyé') }
+            if (!up || !up.ok) {
+              attachFailed = true; const e = await up?.json().catch(() => ({})); toast.error(e?.error ?? 'Le justificatif n\'a pas pu être envoyé')
+              fetch(`/api/absences/${res.id}/notify`, { method: 'POST' }).catch(() => {}) // la RH est prévenue quand même, sans justificatif
+            }
           }
           toast.success(type === 'Alternance' ? 'Période enregistrée' : isReport ? (attachFailed ? 'Absence signalée (sans justificatif)' : 'Absence signalée au pôle RH') : 'Absence enregistrée (validée)')
         }

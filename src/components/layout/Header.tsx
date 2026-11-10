@@ -23,7 +23,7 @@ export function Header({ department, profile, departments, isDemo }: HeaderProps
   return (
     <>
       <header
-        className="flex items-center justify-between px-6 glass border-b border-white/10 border-x-0 border-t-0 z-10"
+        className="flex items-center justify-between px-6 glass border-b border-white/10 border-x-0 border-t-0 z-10 print:hidden"
         style={{ height: 'var(--header-height)' }}
       >
         <div className="flex items-center gap-3 ml-10 lg:ml-0">

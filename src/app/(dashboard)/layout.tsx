@@ -202,11 +202,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <TasksProvider initialTasks={tasks} userId={profile!.id} deptId={department!.id}>
       <AccentProvider color={department!.color}>
-        <div className="flex h-screen overflow-hidden bg-background">
+        <div className="flex h-screen overflow-hidden bg-background print:block print:h-auto print:overflow-visible">
           <Sidebar profile={profile!} members={members!} department={department!} extraDepartments={extraDepartments} isBoutique={isBoutique} canValidateBoutiques={canValidateBoutiques} />
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 overflow-hidden print:block print:overflow-visible">
             <Header department={department!} profile={profile!} departments={departments!} members={members!} isDemo={!!demoDeptId} />
-            <main className="flex-1 overflow-auto p-6">{children}</main>
+            <main className="flex-1 overflow-auto p-6 print:overflow-visible print:p-0">{children}</main>
           </div>
         </div>
       </AccentProvider>

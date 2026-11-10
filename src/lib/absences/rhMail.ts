@@ -8,7 +8,7 @@ import type { AbsencePeriod } from '@/types/absences'
 
 type Admin = ReturnType<typeof createAdminClient>
 
-export type RhMailKind = 'new' | 'modification' | 'info' | 'reminder48' | 'reminder72'
+export type RhMailKind = 'new' | 'modification' | 'info' | 'reminder72'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://aelys-relays.vercel.app'
 const RH_COLOR = '#3E8FCC'
@@ -50,6 +50,7 @@ export interface RequestInfo {
   overlapsShop: { name: string; type: string; start: string; end: string; status: string }[]
   operations: { title: string; mecanique: string | null; start: string | null; end: string | null }[]
   otherPending: { type: string; start: string; end: string }[]
+  attachmentName: string | null
 }
 
 type Rel<T> = T | T[] | null | undefined
@@ -88,6 +89,13 @@ export async function loadRequestInfo(supabase: Admin, absenceId: string): Promi
     const { data: w, error } = await supabase.from('absences').select('rh_pending_since').eq('id', absenceId).single()
     if (!error && w?.rh_pending_since) waitingSince = w.rh_pending_since as string
   } catch { /* migration 030 pas encore passée */ }
+
+  // Justificatif joint (colonnes de la migration 029 : lecture tolérante)
+  let attachmentName: string | null = null
+  try {
+    const { data: att, error } = await supabase.from('absences').select('attachment_name').eq('id', absenceId).single()
+    if (!error) attachmentName = (att?.attachment_name as string | null) ?? null
+  } catch { /* migration 029 pas encore passée */ }
 
   // Autres demandes du collaborateur
   const { data: mine } = await supabase.from('absences')
@@ -163,7 +171,7 @@ export async function loadRequestInfo(supabase: Admin, absenceId: string): Promi
     createdAt: a.created_at as string, waitingSince, waitingHours: Math.max(0, (Date.now() - new Date(waitingSince).getTime()) / 3600000),
     who: { name: u.name as string, contract: (u.contract_type as string | null) ?? null, hireDate: (u.hire_date as string | null) ?? null, cadre: u.is_cadre === true },
     shop: { code: (shop.code as number | string | null) ?? null, name: shop.name as string, city: (shop.city as string | null) ?? null, responsable: (shop.responsable as string | null) ?? null },
-    range, oldRange, days, oldDays, balance, warnings, blocks, overlapsShop, operations, otherPending,
+    range, oldRange, days, oldDays, balance, warnings, blocks, overlapsShop, operations, otherPending, attachmentName,
   }
 }
 
@@ -177,107 +185,146 @@ const rangeText = (r: { start: string; end: string; sp: AbsencePeriod; ep: Absen
   r.start === r.end ? `${day(r.start)}${periodLabel(r.sp)}` : `${day(r.start)}${periodLabel(r.sp)} → ${day(r.end)}${periodLabel(r.ep)}`
 
 const KIND_META: Record<RhMailKind, { emoji: string; label: string; color: string; title: string }> = {
-  new:          { emoji: '🗓️', label: 'Congés à valider',                color: RH_COLOR,  title: 'Nouvelle demande de congés à valider' },
-  modification: { emoji: '✏️', label: 'Modification à valider',          color: '#7E6FB0', title: 'Demande de modification à valider' },
-  info:         { emoji: '🩺', label: 'Absence signalée',                color: '#64748B', title: 'Absence signalée par une boutique' },
-  reminder48:   { emoji: '⏰', label: 'Rappel 48 h — toujours en attente', color: '#D97706', title: 'Rappel : demande en attente depuis 48 h' },
-  reminder72:   { emoji: '🚨', label: 'Rappel 72 h — urgent',            color: '#DC2626', title: 'Rappel urgent : demande en attente depuis 72 h' },
+  new:          { emoji: '🗓️', label: 'Congés à valider',                 color: RH_COLOR,  title: 'Nouvelle demande de congés à valider' },
+  modification: { emoji: '✏️', label: 'Modification à valider',           color: '#7E6FB0', title: 'Demande de modification à valider' },
+  info:         { emoji: '🩺', label: 'Absence signalée',                 color: '#64748B', title: 'Absence signalée par une boutique' },
+  reminder72:   { emoji: '🚨', label: 'Rappel 72 h — urgent',             color: '#DC2626', title: 'Rappel urgent : demande en attente depuis 72 h' },
 }
 
-const row = (k: string, v: string) =>
-  `<tr><td style="padding:5px 12px 5px 0;color:#6A7180;font-size:13px;white-space:nowrap;vertical-align:top;">${k}</td><td style="padding:5px 0;color:#1C1E26;font-size:13.5px;font-weight:600;">${v}</td></tr>`
-const section = (title: string, inner: string, color = '#9AA0AE') =>
-  `<p style="margin:18px 0 6px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${color};">${title}</p>${inner}`
-const table = (rows: string) => `<table cellpadding="0" cellspacing="0" style="width:100%;">${rows}</table>`
-const bullet = (items: string[], color: string) =>
-  `<ul style="margin:0;padding-left:18px;color:${color};font-size:13.5px;line-height:1.55;">${items.map(i => `<li style="margin:0 0 3px;">${i}</li>`).join('')}</ul>`
+// ── Éléments de mise en page (tables + styles inline : compatibles avec tous les clients mail) ──
+const kv = (k: string, v: string) =>
+  `<tr><td style="padding:7px 14px 7px 0;color:#6A7180;font-size:13px;white-space:nowrap;vertical-align:top;border-bottom:1px solid #F0F2F6;">${k}</td><td style="padding:7px 0;color:#1C1E26;font-size:13.5px;font-weight:600;border-bottom:1px solid #F0F2F6;">${v}</td></tr>`
+const kvTable = (rows: string) => `<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">${rows}</table>`
+const block = (n: number, title: string, inner: string, color: string) => `
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;"><tr>
+    <td style="width:26px;vertical-align:top;"><div style="width:22px;height:22px;border-radius:11px;background:${color};color:#fff;font-size:12px;font-weight:700;text-align:center;line-height:22px;">${n}</div></td>
+    <td style="vertical-align:top;"><p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1C1E26;">${title}</p>${inner}</td>
+  </tr></table>`
+const tile = (label: string, value: string, sub: string, color = '#1C1E26') =>
+  `<td style="width:33.33%;padding:0 4px;vertical-align:top;"><div style="background:#F6F8FB;border:1px solid #E6EAF1;border-radius:12px;padding:12px 10px;text-align:center;">
+    <div style="font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8089A0;">${label}</div>
+    <div style="margin:5px 0 2px;font-size:19px;font-weight:800;color:${color};line-height:1.15;">${value}</div>
+    <div style="font-size:11.5px;color:#6A7180;">${sub}</div></div></td>`
+const flag = (icon: string, text: string, color: string) =>
+  `<tr><td style="width:24px;vertical-align:top;padding:3px 0;font-size:14px;">${icon}</td><td style="padding:3px 0;font-size:13.5px;line-height:1.5;color:${color};">${text}</td></tr>`
 
 export function requestSubject(i: RequestInfo, kind: RhMailKind): string {
   const m = KIND_META[kind]
   const where = `${i.who.name} (${i.shop.name})`
   const dates = i.range.start === i.range.end ? short(i.range.start) : `${short(i.range.start)} → ${short(i.range.end)}`
   const emoji = kind === 'info' && i.type === 'Alternance' ? '🎓' : m.emoji
-  const head = kind === 'info' ? `${i.type === 'Alternance' ? 'Alternance enregistrée' : 'Absence signalée'}` : m.label
+  const head = kind === 'info' ? (i.type === 'Alternance' ? 'Alternance enregistrée' : 'Absence signalée') : m.label
   return `${emoji} ${head} — ${where} · ${dates}${kind === 'info' ? '' : ` · ${num(i.days)} j`}`
 }
 
 export function requestHtml(i: RequestInfo, kind: RhMailKind): string {
   const m = KIND_META[kind]
-  const urgent = kind === 'reminder48' || kind === 'reminder72'
+  const urgent = kind === 'reminder72'
+  const info = kind === 'info'
   const link = `${APP_URL}/conges/rh?focus=${i.id}`
+  const b = i.balance
+  const kindChip = info ? (i.type === 'Alternance' ? 'Alternance enregistrée' : 'Absence signalée') : m.label
 
   const banner = urgent
-    ? `<div style="background:${m.color}14;border:1px solid ${m.color}55;border-radius:10px;padding:12px 16px;margin:0 0 18px;"><p style="margin:0;font-size:14px;font-weight:700;color:${m.color};">${esc(m.label)}</p><p style="margin:4px 0 0;font-size:13px;color:#5A6072;">Cette demande attend votre validation depuis ${esc(waitingText(i.waitingHours))}. Le magasin ne sait pas encore s'il peut s'organiser.</p></div>`
+    ? `<div style="background:${m.color}12;border:1px solid ${m.color}55;border-radius:12px;padding:13px 16px;margin:0 0 18px;"><p style="margin:0;font-size:14px;font-weight:700;color:${m.color};">🚨 En attente depuis ${esc(waitingText(i.waitingHours))}</p><p style="margin:4px 0 0;font-size:13px;color:#5A6072;">Le magasin n'a toujours pas de réponse et ne peut pas s'organiser.</p></div>`
     : ''
 
-  const who = table(
-    row('Collaborateur', esc(i.who.name)) +
-    row('Magasin', `${i.shop.code != null ? `n° ${esc(i.shop.code)} · ` : ''}${esc(i.shop.name)}${i.shop.city ? ` (${esc(i.shop.city)})` : ''}`) +
-    (i.shop.responsable ? row('Responsable', esc(i.shop.responsable)) : '') +
-    (i.who.contract ? row('Contrat', esc(i.who.contract) + (i.who.cadre ? ' · cadre' : '')) : '') +
-    (i.who.hireDate ? row('Date d\'entrée', esc(day(i.who.hireDate))) : '')
-  )
+  // 1 · Résumé : les trois chiffres utiles pour décider, en un coup d'œil
+  const dateTile = i.range.start === i.range.end ? short(i.range.start) : `${short(i.range.start)} → ${short(i.range.end)}`
+  const tiles = info
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;"><tr>
+        ${tile('Type', esc(i.type), 'sans validation')}
+        ${tile('Du', esc(short(i.range.start)), esc(periodLabel(i.range.sp).trim() || 'journée entière'))}
+        ${tile('Au', esc(short(i.range.end)), esc(periodLabel(i.range.ep).trim() || 'journée entière'))}
+      </tr></table>`
+    : `<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;"><tr>
+        ${tile('Dates', esc(dateTile), esc(i.type))}
+        ${tile('Jours décomptés', `${num(i.days)} j`, 'samedis compris')}
+        ${b ? tile('Reste après', `${num(b.after)} j`, b.after < 0 ? 'par anticipation' : `sur ${num(b.before)} j`, b.after < 0 ? '#DC2626' : '#1F9D57') : tile('Déposée', esc(short(i.createdAt.slice(0, 10))), 'à valider')}
+      </tr></table>`
 
-  const req = table(
-    row('Type', esc(i.type)) +
+  const cta = `<div style="margin:20px 0 4px;text-align:center;">${button({ label: info ? 'Voir dans la gestion RH →' : 'Valider ou refuser la demande →', color: m.color, href: link })}</div>`
+
+  // 2 · Points d'attention, classés par gravité
+  const reds: string[] = [], oranges: string[] = []
+  for (const w of i.blocks) reds.push(`<strong>Période bloquée :</strong> ${esc(w)}`)
+  if (b && b.after < 0) oranges.push(`<strong>Solde négatif :</strong> ${num(Math.abs(b.after))} j pris par anticipation`)
+  if (b?.cap && b.cap.used > b.cap.limit) reds.push(`<strong>Plafond dépassé :</strong> ${num(b.cap.used)} j sur ${b.cap.limit} j sur la période`)
+  for (const w of i.warnings) oranges.push(`<strong>Période déconseillée :</strong> ${esc(w)}`)
+  for (const o of i.operations) oranges.push(`<strong>★ Opération commerciale :</strong> ${esc(o.title)}${o.mecanique ? ` (${esc(o.mecanique)})` : ''}, du ${esc(short(o.start!))} au ${esc(short(o.end!))}`)
+  for (const o of i.overlapsShop) oranges.push(`<strong>Collègue absent :</strong> ${esc(o.name)} — ${esc(o.type)}, du ${esc(short(o.start))} au ${esc(short(o.end))}${o.status.includes('attente') ? ' (en attente)' : ''}`)
+  const attention = info ? '' : block(1, 'À vérifier avant de décider',
+    reds.length + oranges.length === 0
+      ? `<table cellpadding="0" cellspacing="0" style="width:100%;">${flag('✅', 'Rien à signaler : aucune opération commerciale, aucun collègue absent, aucune période déconseillée, solde suffisant.', '#1F9D57')}</table>`
+      : `<table cellpadding="0" cellspacing="0" style="width:100%;">${reds.map(t => flag('🔴', t, '#B91C1C')).join('')}${oranges.map(t => flag('🟠', t, '#92400E')).join('')}</table>`,
+    reds.length ? '#DC2626' : oranges.length ? '#D97706' : '#1F9D57')
+
+  // 3 · La demande
+  const num2 = info ? 1 : 2
+  const request = block(num2, 'La demande', kvTable(
+    kv('Type', esc(i.type)) +
     (i.modification && i.oldRange
-      ? row('Dates actuelles (validées)', `<span style="text-decoration:line-through;color:#8089A0;">${esc(rangeText(i.oldRange))}</span> — ${num(i.oldDays ?? 0)} j`)
-        + row('Nouvelles dates demandées', esc(rangeText(i.range)))
-      : row('Période', esc(rangeText(i.range)))) +
-    (kind === 'info' ? '' : row('Jours décomptés', `<span style="font-size:15px;">${num(i.days)} j</span> <span style="font-weight:400;color:#8089A0;">(samedis compris, 5 jours au plus par semaine)</span>`)) +
-    row('Demande déposée', esc(new Date(i.createdAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }))) +
-    (kind !== 'info' ? row('En attente depuis', esc(waitingText(i.waitingHours))) : '') +
-    (i.reason ? row('Motif indiqué', esc(i.reason)) : '')
-  )
+      ? kv('Dates actuelles', `<span style="text-decoration:line-through;color:#8089A0;font-weight:500;">${esc(rangeText(i.oldRange))}</span> <span style="font-weight:500;color:#8089A0;">(${num(i.oldDays ?? 0)} j)</span>`)
+        + kv('Nouvelles dates', esc(rangeText(i.range)))
+      : kv('Période', esc(rangeText(i.range)))) +
+    (info ? '' : kv('Jours décomptés', `${num(i.days)} j <span style="font-weight:400;color:#8089A0;">(5 jours au plus par semaine, dimanches et fériés exclus)</span>`)) +
+    (i.reason ? kv('Motif indiqué', esc(i.reason)) : '') +
+    kv('Déposée le', esc(new Date(i.createdAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }))) +
+    (info ? '' : kv('En attente depuis', esc(waitingText(i.waitingHours)))) +
+    (i.attachmentName ? kv('Justificatif joint', `📎 ${esc(i.attachmentName)} — <a href="${link}" style="color:${m.color};text-decoration:none;">ouvrir</a>`) : (info && (i.type === 'Maladie') ? kv('Justificatif', '<span style="font-weight:500;color:#8089A0;">non joint</span>') : ''))
+  ), m.color)
 
-  let balanceHtml = ''
-  if (i.balance) {
-    const b = i.balance
-    const neg = b.after < 0
-    balanceHtml = section(`Solde ${esc(b.label)}`, table(
-      row('Jours acquis à poser', `${num(b.acquired)} j${b.split ? ` <span style="font-weight:400;color:#8089A0;">+ ${num(b.split)} j de fractionnement</span>` : ''}`) +
-      (b.acquiring != null ? row('En cours d\'acquisition', `${num(b.acquiring)} j`) : '') +
-      row('Déjà pris (validés)', `${num(b.taken)} j`) +
-      (b.pendingOthers > 0 ? row('Autres demandes en attente', `${num(b.pendingOthers)} j`) : '') +
-      row('Reste avant cette demande', `${num(b.before)} j`) +
-      row('Reste après cette demande', `<span style="color:${neg ? '#DC2626' : '#1F9D57'};font-size:15px;">${num(b.after)} j</span>${neg ? ' <span style="font-weight:400;color:#DC2626;">— jours pris par anticipation</span>' : ''}`) +
-      (b.cap ? row('Plafond 5 semaines (période du 1er juin)', `${num(b.cap.used)} / ${b.cap.limit} j${b.cap.used > b.cap.limit ? ' <span style="color:#DC2626;">— dépassé</span>' : ''}`) : '')
-    ))
+  // 4 · Solde
+  let balanceBlock = ''
+  if (b) {
+    balanceBlock = block(num2 + 1, `Solde ${esc(b.label)}`, kvTable(
+      kv('Jours acquis à poser', `${num(b.acquired)} j${b.split ? ` <span style="font-weight:400;color:#8089A0;">+ ${num(b.split)} j de fractionnement</span>` : ''}`) +
+      (b.acquiring != null ? kv('En cours d\'acquisition', `${num(b.acquiring)} j`) : '') +
+      kv('Déjà pris (validés)', `− ${num(b.taken)} j`) +
+      (b.pendingOthers > 0 ? kv('Autres demandes en attente', `− ${num(b.pendingOthers)} j`) : '') +
+      kv('Reste avant cette demande', `${num(b.before)} j`) +
+      kv('Cette demande', `− ${num(i.days)} j`) +
+      kv('Reste après', `<span style="color:${b.after < 0 ? '#DC2626' : '#1F9D57'};font-size:15px;">${num(b.after)} j</span>`) +
+      (b.cap ? kv('Plafond 5 semaines', `${num(b.cap.used)} / ${b.cap.limit} j <span style="font-weight:400;color:#8089A0;">(période du 1er juin)</span>`) : '')
+    ), '#3E8FCC')
   }
 
-  const alerts: string[] = []
-  for (const w of i.blocks) alerts.push(`<strong style="color:#DC2626;">Période bloquée :</strong> ${esc(w)}`)
-  for (const w of i.warnings) alerts.push(`Période déconseillée : ${esc(w)}`)
-  for (const o of i.operations) alerts.push(`★ Opération commerciale : <strong>${esc(o.title)}</strong>${o.mecanique ? ` — ${esc(o.mecanique)}` : ''} (${esc(short(o.start!))}${o.end !== o.start ? ` → ${esc(short(o.end!))}` : ''})`)
-  for (const o of i.overlapsShop) alerts.push(`Collègue absent : <strong>${esc(o.name)}</strong> — ${esc(o.type)}, ${esc(short(o.start))}${o.end !== o.start ? ` → ${esc(short(o.end))}` : ''}${o.status.includes('attente') ? ' (en attente)' : ''}`)
-  const alertsHtml = alerts.length
-    ? section(`Points d'attention (${alerts.length})`, bullet(alerts, '#B45309'), '#D97706')
-    : section('Points d\'attention', `<p style="margin:0;font-size:13.5px;color:#1F9D57;font-weight:600;">Rien à signaler : aucune opération, aucun collègue absent, aucune période déconseillée.</p>`, '#1F9D57')
+  // 5 · Collaborateur et magasin
+  const who = block(num2 + (b ? 2 : 1), 'Collaborateur et magasin', kvTable(
+    kv('Collaborateur', esc(i.who.name)) +
+    kv('Magasin', `${i.shop.code != null ? `n° ${esc(i.shop.code)} · ` : ''}${esc(i.shop.name)}${i.shop.city ? ` (${esc(i.shop.city)})` : ''}`) +
+    (i.shop.responsable ? kv('Responsable', esc(i.shop.responsable)) : '') +
+    (i.who.contract ? kv('Contrat', esc(i.who.contract) + (i.who.cadre ? ' · cadre' : '')) : '') +
+    (i.who.hireDate ? kv('Date d\'entrée', esc(day(i.who.hireDate))) : '')
+  ), '#7E6FB0')
 
-  const othersHtml = i.otherPending.length
-    ? section('Autres demandes en attente de ce collaborateur', bullet(i.otherPending.map(o => `${esc(o.type)} — ${esc(short(o.start))}${o.end !== o.start ? ` → ${esc(short(o.end))}` : ''}`), '#1C1E26'))
+  const others = i.otherPending.length
+    ? block(num2 + (b ? 3 : 2), 'Autres demandes en attente de ce collaborateur',
+        `<ul style="margin:0;padding-left:18px;color:#1C1E26;font-size:13.5px;line-height:1.55;">${i.otherPending.map(o => `<li>${esc(o.type)} — du ${esc(short(o.start))} au ${esc(short(o.end))}</li>`).join('')}</ul>`, '#64748B')
     : ''
 
-  const infoNote = kind === 'info'
-    ? `<p style="margin:14px 0 0;font-size:13px;color:#5A6072;">Aucune validation n'est nécessaire (absence enregistrée directement, sans décompte de congés). Si un justificatif a été joint, il est consultable dans la gestion des congés boutiques.</p>`
+  const infoNote = info
+    ? `<p style="margin:18px 0 0;padding:11px 14px;background:#F6F8FB;border-radius:10px;font-size:13px;color:#5A6072;line-height:1.5;">Aucune validation n'est nécessaire : l'absence est enregistrée directement, sans décompte de congés.</p>`
     : ''
 
   return baseHtml({
     title: m.title,
-    preheader: `${i.who.name} (${i.shop.name}) — ${rangeText(i.range)}${kind === 'info' ? '' : ` — ${num(i.days)} j`}`,
+    preheader: `${i.who.name} (${i.shop.name}) — ${rangeText(i.range)}${info ? '' : ` — ${num(i.days)} j`}`,
     deptColor: m.color,
     mandatory: true,
     content: `
       ${banner}
-      <h2 style="margin:0 0 4px;font-size:21px;font-weight:700;color:#1C1E26;">${esc(urgent ? m.title : m.label)}</h2>
-      <p style="margin:0 0 6px;color:#5A6072;font-size:14.5px;line-height:1.6;"><strong>${esc(i.who.name)}</strong> · ${esc(i.shop.name)} · ${esc(i.type)}${kind === 'info' ? '' : ` · <strong>${num(i.days)} j</strong>`}</p>
-      ${section('Demandeur', who)}
-      ${section('Demande', req)}
-      ${balanceHtml}
-      ${alertsHtml}
-      ${othersHtml}
+      <p style="margin:0 0 6px;"><span style="display:inline-block;background:${m.color}16;color:${m.color};border-radius:20px;padding:3px 11px;font-size:11.5px;font-weight:700;letter-spacing:.03em;">${esc(kindChip)}</span></p>
+      <h2 style="margin:0;font-size:22px;font-weight:800;color:#1C1E26;letter-spacing:-0.01em;">${esc(i.who.name)}</h2>
+      <p style="margin:2px 0 0;color:#5A6072;font-size:14.5px;">${i.shop.code != null ? `n° ${esc(i.shop.code)} · ` : ''}${esc(i.shop.name)}${i.shop.city ? ` · ${esc(i.shop.city)}` : ''}</p>
+      ${tiles}
+      ${cta}
+      ${attention}
+      ${request}
+      ${balanceBlock}
+      ${who}
+      ${others}
       ${infoNote}
-      <div style="margin-top:22px;">${button({ label: kind === 'info' ? 'Voir dans la gestion RH →' : 'Valider ou refuser la demande →', color: m.color, href: link })}</div>
     `,
   })
 }
@@ -308,10 +355,9 @@ export async function sendRhDigest(supabase: Admin): Promise<{ sent: number; pen
   const infos = (await Promise.all(ids.slice(0, 30).map(id => loadRequestInfo(supabase, id).catch(() => null)))).filter((x): x is RequestInfo => !!x)
   infos.sort((a, b) => b.waitingHours - a.waitingHours)
   const over72 = infos.filter(i => i.waitingHours >= 72).length
-  const over48 = infos.filter(i => i.waitingHours >= 48 && i.waitingHours < 72).length
 
   const card = (i: RequestInfo) => {
-    const c = i.waitingHours >= 72 ? '#DC2626' : i.waitingHours >= 48 ? '#D97706' : RH_COLOR
+    const c = i.waitingHours >= 72 ? '#DC2626' : RH_COLOR
     const badges: string[] = []
     if (i.modification) badges.push('<span style="background:#7E6FB01A;color:#7E6FB0;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;">modification</span>')
     if (i.balance && i.balance.after < 0) badges.push('<span style="background:#DC26261A;color:#DC2626;border-radius:12px;padding:2px 8px;font-size:11px;font-weight:700;">solde négatif</span>')
@@ -340,13 +386,12 @@ export async function sendRhDigest(supabase: Admin): Promise<{ sent: number; pen
       <p style="margin:0 0 16px;color:#5A6072;font-size:14.5px;line-height:1.6;">
         Récapitulatif du lundi : demandes des boutiques encore en attente de validation, les plus anciennes en premier.
         ${over72 ? `<br/><strong style="color:#DC2626;">${over72} attend${over72 > 1 ? 'ent' : ''} depuis plus de 72 h.</strong>` : ''}
-        ${over48 ? `<br/><strong style="color:#D97706;">${over48} attend${over48 > 1 ? 'ent' : ''} depuis plus de 48 h.</strong>` : ''}
       </p>
       ${infos.map(card).join('')}
       ${ids.length > infos.length ? `<p style="margin:0 0 16px;color:#6A7180;font-size:13px;">… et ${ids.length - infos.length} autre(s) dans la gestion RH.</p>` : ''}
       <div style="margin-top:18px;">${button({ label: 'Ouvrir la gestion des congés boutiques →', color: RH_COLOR, href: `${APP_URL}/conges/rh` })}</div>
     `,
   })
-  await sendEmail({ to: recipients, subject: `🗓️ ${ids.length} demande${ids.length > 1 ? 's' : ''} de congés à traiter${over72 ? ` — dont ${over72} en attente depuis plus de 72 h` : over48 ? ` — dont ${over48} depuis plus de 48 h` : ''}`, html })
+  await sendEmail({ to: recipients, subject: `🗓️ ${ids.length} demande${ids.length > 1 ? 's' : ''} de congés à traiter${over72 ? ` — dont ${over72} en attente depuis plus de 72 h` : ''}`, html })
   return { sent: recipients.length, pending: ids.length }
 }

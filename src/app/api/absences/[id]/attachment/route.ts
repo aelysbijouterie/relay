@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
+import { sendRhRequestMail } from '@/lib/absences/rhMail'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     await supabase.storage.from(BUCKET).remove([path]).catch(() => {})
     return NextResponse.json({ error: 'Pièce jointe non enregistrée (migration 029 à exécuter ?) : ' + error.message }, { status: 500 })
   }
+  // Le mail d'information à la RH part maintenant, avec le justificatif.
+  await sendRhRequestMail(supabase, params.id, 'info')
   return NextResponse.json({ success: true, name: file.name })
 }
 

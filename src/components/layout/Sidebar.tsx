@@ -299,12 +299,12 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
         <div className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
       )}
 
-      <aside className="hidden lg:flex flex-col flex-shrink-0 h-screen sticky top-0">
+      <aside className="hidden lg:flex flex-col flex-shrink-0 h-screen sticky top-0 print:hidden">
         {content}
       </aside>
 
       <aside className={cn(
-        'lg:hidden fixed left-0 top-0 z-50 h-full transition-transform duration-300 ease-out',
+        'lg:hidden print:hidden fixed left-0 top-0 z-50 h-full transition-transform duration-300 ease-out',
         open ? 'translate-x-0' : '-translate-x-full'
       )}>
         {content}

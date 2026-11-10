@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const body = await request.json()
-  const { type, start_date, end_date, start_period, end_period, reason } = body
+  const { type, start_date, end_date, start_period, end_period, reason, has_file } = body
 
   if (!type || !start_date || !end_date) {
     return NextResponse.json({ error: 'Type et dates requis' }, { status: 400 })
@@ -124,6 +124,8 @@ export async function POST(request: NextRequest) {
 
   // Boutique : la RH est prévenue TOUT DE SUITE, depuis le serveur (jamais perdu si l'onglet se ferme) :
   // demande à valider (congés payés / RTT) ou information (alternance, absence signalée).
-  if (ctx.isBoutique) await sendRhRequestMail(supabase, data.id, autoValidated ? 'info' : 'new')
+  // Absence signalée AVEC justificatif : le mail part une fois le fichier enregistré (route attachment), pour le contenir.
+  const mailAfterUpload = autoValidated && has_file === true && (type === 'Maladie' || type === 'Autre')
+  if (ctx.isBoutique && !mailAfterUpload) await sendRhRequestMail(supabase, data.id, autoValidated ? 'info' : 'new')
   return NextResponse.json({ success: true, id: data.id, autoValidated })
 }
