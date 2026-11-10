@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, X, Download, Loader2, ClipboardList, Search, Store, Wallet, ListChecks, CalendarOff, Trash2, Plus, CalendarDays, Users } from 'lucide-react'
+import { Check, X, Download, Loader2, ClipboardList, Search, Store, Wallet, ListChecks, CalendarOff, Trash2, Plus, CalendarDays, Users, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type AbsencePeriod, type AbsenceStatus, type AbsenceType } from '@/types/absences'
 import { countWorkdays, boutiqueDayOptions } from '@/lib/absences/workdays'
@@ -20,6 +20,7 @@ interface RhAbsence {
   reason: string | null; status: AbsenceStatus; review_note: string | null; created_at: string
   pending_start_date: string | null; pending_end_date: string | null
   pending_start_period: AbsencePeriod | null; pending_end_period: AbsencePeriod | null
+  attachment_name?: string | null
   user: { id: string; name: string; boutique_id: string }
 }
 interface Operation { id: string; title: string; op_date_debut: string | null; op_date_fin: string | null; op_category?: string }
@@ -358,6 +359,12 @@ export function RhConsole() {
                         {rangeLabel(a)}
                         {a.status === 'Modif. en attente' && <span className="ml-1.5 text-[0.65rem] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-semibold">modif</span>}
                         {a.reason && <p className="text-xs text-muted-foreground max-w-[16rem] truncate" title={a.reason}>{a.reason}</p>}
+                        {a.attachment_name && (
+                          <a href={`/api/absences/${a.id}/attachment`} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline" title={a.attachment_name}>
+                            <Paperclip className="w-3 h-3" /> Justificatif
+                          </a>
+                        )}
                       </td>
                       <td className="p-3 text-right tabular-nums">{String(daysOf(a)).replace('.', ',')}</td>
                       <td className="p-3">

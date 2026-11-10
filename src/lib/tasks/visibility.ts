@@ -2,6 +2,8 @@ import type { Task } from '@/types'
 
 interface VisibilityContext {
   userId: string
+  /** Compte de boutique : identifiants des collaborateurs du magasin (cartes qui leur sont assignées). */
+  teamIds?: string[]
 }
 
 /**
@@ -13,14 +15,16 @@ interface VisibilityContext {
  * assignant explicitement quelqu'un à la carte, jamais par appartenance à
  * un service.
  *
- * Règle IDENTIQUE pour tous les rôles, y compris admin.
+ * Règle IDENTIQUE pour tous les rôles, y compris admin. Un compte de boutique voit aussi les cartes
+ * assignées à l'un des collaborateurs de son magasin (une assignation en sous-tâche ajoute la personne à la carte).
  *
  * Le calendrier personnel applique le même principe (créateur/assigné),
  * de façon indépendante côté client.
  */
 export function isTaskVisibleTo(task: Task, ctx: VisibilityContext): boolean {
-  if (task.created_by === ctx.userId) return true
-  if ((task.assignees ?? []).some(a => a.id === ctx.userId)) return true
+  const ids = [ctx.userId, ...(ctx.teamIds ?? [])]
+  if (task.created_by && ids.includes(task.created_by)) return true
+  if ((task.assignees ?? []).some(a => ids.includes(a.id))) return true
   return false
 }
 

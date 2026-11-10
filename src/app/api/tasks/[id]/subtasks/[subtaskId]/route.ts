@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sanitizeAssignees } from '@/lib/boutique/session'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -14,6 +15,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   // ── 1. Mise à jour des assignés de la sous-tâche (liste d'IDs) ──────────────
   if (Array.isArray(body.assignees)) {
+    const actor = getUserId()
+    if (actor) body.assignees = await sanitizeAssignees(supabase, actor, body.assignees as string[])
     await supabase.from('subtask_assignees').delete().eq('subtask_id', params.subtaskId)
     if (body.assignees.length > 0) {
       await supabase.from('subtask_assignees').insert(

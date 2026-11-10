@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sanitizeAssignees } from '@/lib/boutique/session'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
     case 'assign': {
       // Remplace les assignés : on retire puis on ajoute la personne choisie sur chaque carte.
       if (!value) return NextResponse.json({ error: 'Personne requise' }, { status: 400 })
+      if ((await sanitizeAssignees(supabase, userId, [value])).length === 0) return NextResponse.json({ error: 'Cette personne ne peut pas être assignée' }, { status: 403 })
       for (const taskId of ids) {
         const { data: existing } = await supabase.from('task_assignees').select('user_id').eq('task_id', taskId)
         const already = new Set((existing ?? []).map(e => e.user_id))

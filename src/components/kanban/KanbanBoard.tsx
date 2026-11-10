@@ -32,6 +32,20 @@ export function KanbanBoard({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy]       = useState(false)
   const [bulkMembers, setBulkMembers] = useState<{ id: string; name: string }[]>([])
+  // Boutique : tri par collaborateur du magasin (chacun retrouve les tâches où il est identifié).
+  const [shopMembers, setShopMembers] = useState<{ id: string; name: string }[] | null>(null)
+  const [collab, setCollab] = useState<string>('all')
+
+  useEffect(() => {
+    fetch('/api/boutique/members', { cache: 'no-store' }).then(r => r.json())
+      .then(d => {
+        if (d?.isBoutique && Array.isArray(d.members)) {
+          setShopMembers(d.members)
+          if (d.current) setCollab(d.current) // le collaborateur choisi dans la barre latérale est présélectionné
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch('/api/profiles', { cache: 'no-store' }).then(r => r.json())
@@ -90,6 +104,8 @@ export function KanbanBoard({
         ].filter(Boolean).join(' ').toLowerCase()
         if (!haystack.includes(q)) return false
       }
+      // Boutique : filtre par collaborateur identifié sur la carte (ou sur l'une de ses sous-tâches, qui l'ajoute à la carte).
+      if (shopMembers) return collab === 'all' || (t.assignees ?? []).some(a => a.id === collab)
       if (taskFilter === 'all') return true
       if (!currentUserId) return true // pas encore hydraté
       const isAssignedToMe = (t.assignees ?? []).some(a => a.id === currentUserId)
@@ -222,6 +238,18 @@ export function KanbanBoard({
         <span className="text-xs text-muted-foreground">
           {visibleTasks.length} tâche{visibleTasks.length !== 1 ? 's' : ''}
         </span>
+        {shopMembers ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground mr-0.5">Collaborateur :</span>
+            {[{ id: 'all', name: 'Tous' }, ...shopMembers].map(m => (
+              <button key={m.id} onClick={() => setCollab(m.id)}
+                className={cn('text-xs px-2.5 py-1.5 rounded-lg border transition-colors',
+                  collab === m.id ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted')}>
+                {m.id === 'all' ? m.name : m.name.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+        ) : (
         <div className="inline-flex rounded-lg border border-border overflow-hidden">
           <button
             onClick={() => setTaskFilter('all')}
@@ -239,6 +267,7 @@ export function KanbanBoard({
             <Send className="w-3 h-3" /> Créées par moi
           </button>
         </div>
+        )}
         <button
           onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
           className={cn(

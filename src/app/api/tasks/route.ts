@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { isTaskVisibleTo } from '@/lib/tasks/visibility'
+import { getBoutiqueTeamIds } from '@/lib/boutique/session'
 import type { Task } from '@/types'
 
 // CRITIQUE : sans cet export, Next.js considère cette route comme statique
@@ -65,7 +66,8 @@ export async function GET() {
 
   // Visibilité stricte : chacun ne voit que ce qu'il a créé ou ce qui lui
   // est assigné (voir src/lib/tasks/visibility.ts).
-  const visibleTasks = tasks.filter(t => isTaskVisibleTo(t, { userId }))
+  const teamIds = await getBoutiqueTeamIds(supabase, userId)
+  const visibleTasks = tasks.filter(t => isTaskVisibleTo(t, { userId, teamIds }))
 
   // Progression des sous-tâches (table task_subtasks) pour les barres de
   // Kanban, + échéance de chacune (pour afficher la prochaine échéance de

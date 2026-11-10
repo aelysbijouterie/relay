@@ -4,6 +4,8 @@ import { createServerClient, getCurrentUserId } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/tasks/activity'
 import { revalidatePath } from 'next/cache'
 import { taskSchema } from '@/lib/validations/task'
+import { createAdminClient } from '@/lib/supabase/server'
+import { sanitizeAssignees } from '@/lib/boutique/session'
 import type { TaskStatus, Task } from '@/types'
 
 export async function createTask(data: unknown): Promise<{ success: boolean; taskId?: string; error?: string }> {
@@ -14,7 +16,8 @@ export async function createTask(data: unknown): Promise<{ success: boolean; tas
     const parsed = taskSchema.safeParse(data)
     if (!parsed.success) return { success: false, error: parsed.error.errors[0].message }
 
-    const { assignees, extra_departments, ...taskData } = parsed.data
+    const { assignees: rawAssignees, extra_departments, ...taskData } = parsed.data
+    const assignees = rawAssignees?.length ? await sanitizeAssignees(createAdminClient(), userId, rawAssignees) : rawAssignees
 
     const { data: task, error } = await supabase
       .from('tasks')
@@ -46,13 +49,14 @@ export async function createTask(data: unknown): Promise<{ success: boolean; tas
 }
 
 export async function updateTask(taskId: string, data: unknown) {
-  getCurrentUserId()
+  const actorId = getCurrentUserId()
   const supabase = createServerClient()
 
   const parsed = taskSchema.partial().safeParse(data)
   if (!parsed.success) throw new Error(parsed.error.errors[0].message)
 
-  const { assignees, extra_departments, ...taskData } = parsed.data
+  const { assignees: rawAssignees, extra_departments, ...taskData } = parsed.data
+  const assignees = rawAssignees?.length ? await sanitizeAssignees(createAdminClient(), actorId, rawAssignees) : rawAssignees
 
   const { error } = await supabase
     .from('tasks')

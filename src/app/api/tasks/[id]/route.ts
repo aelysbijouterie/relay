@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sanitizeAssignees } from '@/lib/boutique/session'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { logActivity, canMutateTask } from '@/lib/tasks/activity'
@@ -71,9 +72,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 
   if (assignees !== undefined) {
+    const cleanAssignees = await sanitizeAssignees(supabase, userId, assignees)
     await supabase.from('task_assignees').delete().eq('task_id', params.id)
-    if (assignees.length) {
-      await supabase.from('task_assignees').insert(assignees.map(uid => ({ task_id: params.id, user_id: uid })))
+    if (cleanAssignees.length) {
+      await supabase.from('task_assignees').insert(cleanAssignees.map(uid => ({ task_id: params.id, user_id: uid })))
     }
     await logActivity({ taskId: params.id, actorId: userId, type: 'assignees',
       newValue: `${assignees.length} assigné(s)` })

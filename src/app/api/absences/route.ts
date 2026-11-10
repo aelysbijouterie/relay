@@ -83,8 +83,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Demande impossible sur ces dates : ${evaluation.blocks.join(' ; ')}`, blocks: evaluation.blocks }, { status: 422 })
     }
   }
-  // Boutique : uniquement « Congés payés » (à valider par la RH) et « Alternance » (saisie libre).
-  if (ctx.isBoutique && type !== 'Congés payés' && type !== 'Alternance') {
+  // Boutique : « Congés payés » (à valider par la RH), « Alternance » (saisie libre) et les absences signalées
+  // (« Maladie », « Autre » : la RH est informée, aucune validation).
+  if (ctx.isBoutique && type !== 'Congés payés' && type !== 'Alternance' && type !== 'Maladie' && type !== 'Autre') {
     // Les RTT ne sont ouverts qu'aux cadres (profil is_cadre).
     let okRtt = false
     if (type === 'RTT') {
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
   // nécessitent pas de validation (statut "Validé" directement).
   const { data: me } = await supabase.from('profiles').select('role').eq('id', requesterId).single()
   const autoValidated = ctx.isBoutique
-    ? type === 'Alternance'
+    ? (type === 'Alternance' || type === 'Maladie' || type === 'Autre')
     : (me?.role === 'manager' || me?.role === 'admin' || type === 'Alternance')
 
   const { data, error } = await supabase

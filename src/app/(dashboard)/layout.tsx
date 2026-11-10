@@ -10,6 +10,7 @@ import { TasksProvider } from '@/components/providers/TasksProvider'
 import { DEMO_DEPARTMENTS, DEMO_PROFILES, getTasksForDept } from '@/lib/demo-data'
 import type { Profile, Department, Task } from '@/types'
 import { isTaskVisibleTo } from '@/lib/tasks/visibility'
+import { getBoutiqueTeamIds } from '@/lib/boutique/session'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = cookies()
@@ -173,7 +174,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // est assigné, jamais automatiquement le reste du service (voir
     // src/lib/tasks/visibility.ts). Le calendrier personnel applique le même
     // principe, indépendamment, côté client.
-    tasks = tasks.filter(t => isTaskVisibleTo(t as unknown as Task, { userId: userId! }))
+    const teamIds = isBoutique ? await getBoutiqueTeamIds(supabase, userId!) : []
+    tasks = tasks.filter(t => isTaskVisibleTo(t as unknown as Task, { userId: userId!, teamIds }))
 
     // Boutique : pas de liste d'équipe (le sélecteur de collaborateur la remplace).
     const { data: memberRows } = isBoutique

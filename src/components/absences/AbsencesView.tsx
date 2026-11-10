@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Check, X, Clock, Loader2, CalendarDays, Trash2, Filter, Ban, Pencil } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Check, X, Clock, Loader2, CalendarDays, Trash2, Filter, Ban, Pencil, Stethoscope } from 'lucide-react'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
-import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type Absence, type ActivityPeriod } from '@/types/absences'
+import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type Absence, type AbsenceType, type ActivityPeriod } from '@/types/absences'
 import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
 import { NewAbsenceModal } from './NewAbsenceModal'
 import { ActivityPeriodModal } from './ActivityPeriodModal'
@@ -30,6 +30,7 @@ export function AbsencesView() {
   const [loading, setLoading] = useState(true)
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
   const [showNew, setShowNew] = useState(false)
+  const [newType, setNewType] = useState<AbsenceType | undefined>(undefined) // type présélectionné à l'ouverture
   const [showPeriod, setShowPeriod] = useState(false)
   const [dayDetail, setDayDetail] = useState<Date | null>(null) // jour dont on liste toutes les absences
   const [editAbsence, setEditAbsence] = useState<Absence | null>(null)
@@ -240,7 +241,15 @@ export function AbsencesView() {
               <Ban className="w-4 h-4" /> Périodes d'activité
             </button>
           )}
-          <button onClick={() => { setEditAbsence(null); setShowNew(true) }}
+          {me?.is_boutique_account && (
+            <button onClick={() => { setEditAbsence(null); setNewType('Maladie'); setShowNew(true) }}
+              disabled={needMember}
+              title={needMember ? "Choisissez d'abord le collaborateur ci-dessous" : 'Arrêt maladie ou autre absence, avec justificatif'}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border border-border hover:bg-muted transition-colors disabled:opacity-40">
+              <Stethoscope className="w-4 h-4" /> Signaler une absence
+            </button>
+          )}
+          <button onClick={() => { setEditAbsence(null); setNewType(undefined); setShowNew(true) }}
             disabled={needMember}
             title={needMember ? "Choisissez d'abord le collaborateur ci-dessous" : undefined}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold transition-transform hover:scale-[1.02] disabled:opacity-40 disabled:hover:scale-100"
@@ -401,7 +410,7 @@ export function AbsencesView() {
         )}
 
         <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-border">
-          {Object.entries(ABSENCE_COLORS).filter(([type]) => !me?.is_boutique_account || type === 'Congés payés' || type === 'Alternance' || (type === 'RTT' && me?.acting_is_cadre)).map(([type, color]) => (
+          {Object.entries(ABSENCE_COLORS).filter(([type]) => !me?.is_boutique_account || type === 'Congés payés' || type === 'Alternance' || type === 'Maladie' || type === 'Autre' || (type === 'RTT' && me?.acting_is_cadre)).map(([type, color]) => (
             <div key={type} className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded" style={{ backgroundColor: color }} />
               <span className="text-xs text-muted-foreground">{type}</span>
@@ -479,7 +488,7 @@ export function AbsencesView() {
         </aside>{/* fin colonne latérale */}
       </div>{/* fin grille 2 colonnes */}
 
-      {showNew && <NewAbsenceModal absence={editAbsence} operations={operations} boutique={!!me?.is_boutique_account} allowedTypes={me?.is_boutique_account ? (me.acting_is_cadre ? ['Congés payés', 'RTT', 'Alternance'] : ['Congés payés', 'Alternance']) : undefined} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
+      {showNew && <NewAbsenceModal absence={editAbsence} initialType={newType} operations={operations} boutique={!!me?.is_boutique_account} allowedTypes={me?.is_boutique_account ? (me.acting_is_cadre ? ['Congés payés', 'RTT', 'Alternance', 'Maladie', 'Autre'] : ['Congés payés', 'Alternance', 'Maladie', 'Autre']) : undefined} onClose={() => { setShowNew(false); setEditAbsence(null) }} onCreated={() => { setShowNew(false); setEditAbsence(null); load() }} />}
       {showPeriod && <ActivityPeriodModal periods={periods.filter(p => p.department_id === me?.department_id)} onClose={() => setShowPeriod(false)} onChange={load} />}
 
       {/* Liste complète des absents d'un jour (quand la cellule est trop chargée) */}

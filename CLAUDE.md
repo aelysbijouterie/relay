@@ -762,3 +762,14 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
   un samedi posé seul = 1 j, mer→sam = 4 j. Les jours peuvent être posés un par un. Demi-journées : retirées du 1er/dernier jour, puis plafond de 5 j/semaine.
 - Appliqué à toutes les demandes boutique (CP et RTT) : fenêtre de demande, `api/absences/balance`, plafond de 5 semaines (`leaveRulesServer.ts`),
   console RH, bascule du 1er juin (`cron/leave-accrual`). Siège inchangé (lundi→vendredi). Acquisition inchangée : 2,08 j/mois, plafond 25 j.
+
+### Annexe C septies — Collaborateurs sur les cartes, boutiques hors assignations du siège, signalement d'absence (migration 029)
+- **Cartes boutique par collaborateur** : `/api/profiles` renvoie à une boutique ses seuls collaborateurs (groupe « Collaborateurs du magasin ») ; la carte est assignée par défaut au
+  collaborateur choisi dans la barre latérale. Visibilité : le compte du magasin voit les cartes qu'il a créées **ou** assignées à l'un de ses collaborateurs (`getBoutiqueTeamIds` + `isTaskVisibleTo(…, { teamIds })`,
+  `api/tasks` et `layout.tsx`). Une assignation en sous-tâche ajoute déjà la personne à la carte (`subtasks/[subtaskId]` PATCH) → elle voit la carte entière. Kanban boutique : filtre « Collaborateur : Tous | Prénom… »
+  (collaborateur choisi présélectionné) à la place de « Mes tâches / Créées par moi ».
+- **Boutiques hors assignations du siège** : `/api/profiles` exclut tout profil rattaché à une boutique (`boutique_id` non nul) pour les équipes du siège ; `sanitizeAssignees()` (lib/boutique/session.ts) filtre côté serveur
+  (création/modification de carte, assignation groupée, assignés de sous-tâche) : le siège ne peut pas assigner une boutique, une boutique ne peut assigner que son magasin. Les assignations déjà existantes ne sont pas supprimées.
+- **Signalement d'absence (boutiques)** : types « Maladie » et « Autre » (validés d'office, aucun décompte de congés, e-mail d'information à la RH), bouton « Signaler une absence ». Justificatif facultatif par glisser-déposer
+  (PDF/JPG/PNG, 10 Mo) : `POST /api/absences/[id]/attachment` → bucket privé `absence-docs` (créé par le code) ; colonnes `absences.attachment_path/attachment_name` (migration `029_absence_attachments.sql`) ;
+  `GET` = lien signé de 60 s, réservé à la RH validatrice et à la boutique concernée ; lien « Justificatif » dans la console RH.

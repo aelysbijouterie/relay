@@ -92,6 +92,9 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
   useEffect(() => {
     if (!open) return
     fetch('/api/profiles').then(r => r.json()).then(setAllProfiles).catch(() => {})
+    // Boutique : la carte est assignée par défaut au collaborateur choisi (jamais au compte du magasin).
+    fetch('/api/boutique/members', { cache: 'no-store' }).then(r => r.json())
+      .then(d => { if (d?.isBoutique) setAssigneeIds(d.current ? [d.current] : []) }).catch(() => {})
     fetch('/api/templates').then(r => r.json()).then(d => setTemplates(Array.isArray(d) ? d : [])).catch(() => {})
   }, [open])
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Loader2, AlertTriangle } from 'lucide-react'
+import { X, Loader2, AlertTriangle, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 import { countWorkdays, boutiqueDayOptions } from '@/lib/absences/workdays'
 import { ABSENCE_TYPES, ABSENCE_COLORS, type AbsenceType, type AbsencePeriod, type Absence } from '@/types/absences'
@@ -15,15 +15,18 @@ export interface CommercialOperation {
   op_mecanique?: string | null
 }
 
-export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutique = false, onClose, onCreated }: { absence?: Absence | null; operations?: CommercialOperation[]; allowedTypes?: AbsenceType[]; boutique?: boolean; onClose: () => void; onCreated: () => void }) {
+export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutique = false, initialType, onClose, onCreated }: { absence?: Absence | null; operations?: CommercialOperation[]; allowedTypes?: AbsenceType[]; boutique?: boolean; initialType?: AbsenceType; onClose: () => void; onCreated: () => void }) {
   const editing = !!absence
-  const [type, setType] = useState<AbsenceType>(absence?.type ?? 'Congés payés')
+  const [type, setType] = useState<AbsenceType>(absence?.type ?? initialType ?? 'Congés payés')
   const [startDate, setStartDate] = useState(absence?.start_date ?? '')
   const [endDate, setEndDate] = useState(absence?.end_date ?? '')
   const [startPeriod, setStartPeriod] = useState<AbsencePeriod>(absence?.start_period ?? 'full')
   const [endPeriod, setEndPeriod] = useState<AbsencePeriod>(absence?.end_period ?? 'full')
   const [reason, setReason] = useState(absence?.reason ?? '')
   const [saving, setSaving] = useState(false)
+  // Absence signalée (boutique) : justificatif facultatif, glissé-déposé ou choisi dans les fichiers.
+  const [file, setFile] = useState<File | null>(null)
+  const [dragOver, setDragOver] = useState(false)
   const [conflicts, setConflicts] = useState<{ name: string; type: string; start_date: string; end_date: string; status: string }[]>([])
   // Règles boutique : blocks = demande impossible, warnings = déconseillé (voir /api/absences/rules).
   const [rules, setRules] = useState<{ blocks: string[]; warnings: string[] }>({ blocks: [], warnings: [] })
@@ -54,6 +57,8 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
     return () => { clearTimeout(t); ctrl.abort() }
   }, [startDate, endDate, startPeriod, endPeriod, absence])
 
+  // Boutique : « Maladie » et « Autre » sont des absences signalées (pas de validation, pas de solde).
+  const isReport = !editing && boutique && (type === 'Maladie' || type === 'Autre')
   const sameDay = startDate && endDate && startDate === endDate
   // Décompte des jours ouvrés demandés (fériés et week-ends exclus) et solde après la demande.
   // Boutiques : le samedi compte pour les congés payés (magasins ouverts).
@@ -117,14 +122,21 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
           }).catch(() => {})
           toast.success('Demande envoyée')
         } else {
-          // Alternance saisie librement : pas de validation, mais la RH est informée.
-          if (type === 'Alternance') {
+          // Alternance saisie librement ou absence signalée : pas de validation, mais la RH est informée.
+          if (type === 'Alternance' || isReport) {
             fetch('/api/notify/absence-request', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ type, start_date: startDate, end_date: endDate, info: true }),
             }).catch(() => {})
           }
-          toast.success(type === 'Alternance' ? 'Période enregistrée' : 'Absence enregistrée (validée)')
+          // Justificatif (arrêt maladie) : envoyé juste après l'enregistrement de l'absence.
+          let attachFailed = false
+          if (isReport && file && res.id) {
+            const fd = new FormData(); fd.append('file', file)
+            const up = await fetch(`/api/absences/${res.id}/attachment`, { method: 'POST', body: fd }).catch(() => null)
+            if (!up || !up.ok) { attachFailed = true; const e = await up?.json().catch(() => ({})); toast.error(e?.error ?? 'Le justificatif n\'a pas pu être envoyé') }
+          }
+          toast.success(type === 'Alternance' ? 'Période enregistrée' : isReport ? (attachFailed ? 'Absence signalée (sans justificatif)' : 'Absence signalée au pôle RH') : 'Absence enregistrée (validée)')
         }
       }
       onCreated()
@@ -153,6 +165,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
               </div>
               {type === 'Alternance' && <p className="text-xs text-muted-foreground mt-2">Les périodes d'alternance sont enregistrées directement, sans validation.</p>}
               {allowedTypes && type === 'Congés payés' && <p className="text-xs text-muted-foreground mt-2">Cette demande sera envoyée au pôle RH pour validation.</p>}
+              {isReport && <p className="text-xs text-muted-foreground mt-2">Cette absence est signalée au pôle RH : elle est enregistrée directement, sans validation et sans décompte de congés.</p>}
             </div>
           )}
 
@@ -194,6 +207,41 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
                 className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground resize-none"
                 placeholder="Une précision si besoin…" />
+            </div>
+          )}
+
+          {isReport && (
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {type === 'Maladie' ? 'Arrêt maladie' : 'Justificatif'} (optionnel)
+              </label>
+              <label
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault(); setDragOver(false)
+                  const f = e.dataTransfer.files?.[0]
+                  if (f) setFile(f)
+                }}
+                className={`mt-1 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-5 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'}`}>
+                <Paperclip className="w-5 h-5 text-muted-foreground" />
+                {file ? (
+                  <>
+                    <span className="text-sm font-semibold break-all">{file.name}</span>
+                    <span className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1).replace('.', ',')} Mo · cliquez pour changer</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-medium">Glissez le justificatif ici</span>
+                    <span className="text-xs text-muted-foreground">ou cliquez pour le choisir · PDF, JPG ou PNG · 10 Mo maximum</span>
+                  </>
+                )}
+                <input type="file" className="hidden" accept="application/pdf,image/*"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f) }} />
+              </label>
+              {file && (
+                <button type="button" onClick={() => setFile(null)} className="text-xs text-muted-foreground hover:text-foreground mt-1 underline">Retirer le fichier</button>
+              )}
             </div>
           )}
 
@@ -283,7 +331,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
           <button onClick={submit} disabled={saving || blocked}
             className="w-full py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 transition-transform hover:scale-[1.01]"
             style={{ backgroundColor: 'var(--accent)' }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : editing ? 'Envoyer la modification' : 'Envoyer la demande'}
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : editing ? 'Envoyer la modification' : isReport ? 'Signaler l\'absence' : 'Envoyer la demande'}
           </button>
         </div>
       </div>

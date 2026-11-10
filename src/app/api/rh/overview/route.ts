@@ -32,8 +32,15 @@ export async function GET() {
     `).order('start_date', { ascending: false }),
   ])
 
+  // Justificatifs joints (colonnes ajoutées par la migration 029) : lecture tolérante.
+  const attachments = new Map<string, string>()
+  try {
+    const { data: att } = await supabase.from('absences').select('id, attachment_name').not('attachment_path', 'is', null)
+    for (const r of att ?? []) attachments.set(r.id as string, (r.attachment_name as string | null) ?? 'Justificatif')
+  } catch { /* migration pas encore passée */ }
+
   const rows = (absences ?? [])
-    .map((a: Record<string, unknown>) => ({ ...a, user: Array.isArray(a.user) ? a.user[0] : a.user }))
+    .map((a: Record<string, unknown>) => ({ ...a, user: Array.isArray(a.user) ? a.user[0] : a.user, attachment_name: attachments.get(a.id as string) ?? null }))
     .filter(a => !!(a.user as { boutique_id?: string | null } | undefined)?.boutique_id)
 
   return NextResponse.json(

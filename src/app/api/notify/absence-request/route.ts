@@ -61,13 +61,13 @@ export async function POST(request: NextRequest) {
   for (const m of managers ?? []) {
     if (!m.email) continue
     const html = baseHtml({
-      title: info ? 'Période d\'alternance enregistrée' : 'Nouvelle demande d\'absence',
+      title: info ? (type === 'Alternance' ? 'Période d\'alternance enregistrée' : 'Absence signalée') : 'Nouvelle demande d\'absence',
       preheader: `${displayName} a déposé une demande de ${type}`,
       deptColor,
       content: `
-        <h2 style="margin:0 0 10px;font-size:21px;font-weight:700;color:#1C1E26;">${info ? 'Alternance enregistrée' : 'Demande d\'absence à valider'}</h2>
+        <h2 style="margin:0 0 10px;font-size:21px;font-weight:700;color:#1C1E26;">${info ? (type === 'Alternance' ? 'Alternance enregistrée' : 'Absence signalée') : 'Demande d\'absence à valider'}</h2>
         <p style="margin:0 0 18px;color:#5A6072;font-size:14.5px;line-height:1.6;">
-          <strong>${displayName}</strong> ${info ? 'a enregistré une période (aucune validation nécessaire, pour information) :' : 'a déposé une demande d\'absence :'}
+          <strong>${displayName}</strong> ${info ? (type === 'Alternance' ? 'a enregistré une période (aucune validation nécessaire, pour information) :' : 'a signalé une absence (aucune validation nécessaire, pour information) :') : 'a déposé une demande d\'absence :'}
         </p>
         <div style="background:#F9FAFB;border-left:4px solid ${deptColor};border-radius:0 10px 10px 0;padding:15px 18px;margin-bottom:18px;">
           <p style="margin:0;font-size:15px;font-weight:600;color:#1C1E26;">${type}</p>
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       `,
     })
     try {
-      await sendEmail({ to: m.email, subject: info ? `🎓 Alternance enregistrée — ${displayName}` : `🗓️ Demande d'absence — ${displayName}`, html })
+      await sendEmail({ to: m.email, subject: info ? (type === 'Alternance' ? `🎓 Alternance enregistrée — ${displayName}` : `🩺 Absence signalée — ${displayName}`) : `🗓️ Demande d'absence — ${displayName}`, html })
       sent++
     } catch { /* noop */ }
   }
