@@ -798,3 +798,8 @@ des profils sans connexion (`boutique_id`, `is_active=false`, e-mail `@boutiques
 elays-comptes-siege.csv` (hors dépôt).
 - **Vue annuelle — trois mises en page** (choix mémorisé sur le poste) : « Mois en colonnes » (6 mois par page, jours 1-31 de haut en bas), « Calendriers mensuels » (6 grilles de mois par page), « Mois en lignes » (planning + récapitulatif). Toutes en A4 paysage, 2 pages (testé en PDF avec des données fictives).
 - `create-hq-accounts.mjs --reset --password=...` applique le mot de passe temporaire à des comptes déjà créés (un compte existant est sinon ignoré).
+
+### Annexe C decies — Opérations & Média Kit pour tous, Statistiques supprimées
+- **Opérations & Média Kit** : onglet visible par **tous** les utilisateurs (sidebar). `GET /api/pac-media-kit` répond à tout utilisateur connecté ; Marketing, Web et la RH validatrice reçoivent les cartes complètes (création/modification
+  possibles) ; **tous les autres** (autres services, boutiques) reçoivent la version allégée en consultation seule (dates, mécanique, CGV, exclusions, commentaires — sans montants, références, description ni équipe).
+- **Statistiques** : onglet supprimé pour tous (`/stats` redirige vers `/kanban`, composant `StatsView` et API `stats/team` supprimés).

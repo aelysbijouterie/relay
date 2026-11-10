@@ -28,6 +28,15 @@ export function PacMediaKitView() {
   const [departments, setDepartments] = useState<Department[]>([])
   // Compte boutique : planning en lecture seule (pas de création, pas de carte complète).
   const isBoutique = (profile as unknown as { is_boutique_account?: boolean } | null)?.is_boutique_account === true
+  // Consultation seule pour tous les services hors Marketing/Web (la RH validatrice garde la vue complète).
+  const canEdit = useMemo(() => {
+    const p = profile as unknown as { department_id?: string | null; extra_department_ids?: string[]; can_validate_boutiques?: boolean } | null
+    if (!p) return false
+    if (p.can_validate_boutiques) return true
+    const slugOf = (id?: string | null) => departments.find(d => d.id === id)?.slug ?? ''
+    return PAC_MEDIA_KIT_DEPARTMENTS.includes(slugOf(p.department_id)) || (p.extra_department_ids ?? []).some(id => PAC_MEDIA_KIT_DEPARTMENTS.includes(slugOf(id)))
+  }, [profile, departments])
+  const readOnly = isBoutique || !canEdit
 
   async function load() {
     setLoading(true)
@@ -115,10 +124,12 @@ export function PacMediaKitView() {
           <p className="text-sm text-muted-foreground">
             {isBoutique
               ? 'Planning des opérations commerciales et média kit — pour savoir quand poser (ou non) vos congés'
+              : readOnly
+              ? 'Planning des opérations commerciales et média kit — consultation'
               : 'Planning des opérations commerciales et média kit — Marketing & Web'}
           </p>
         </div>
-        {!isBoutique && (
+        {!readOnly && (
         <button onClick={() => setShowNew(true)}
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl text-white transition-transform hover:scale-[1.02]"
           style={{ backgroundColor: 'var(--accent)' }}>
@@ -201,7 +212,7 @@ export function PacMediaKitView() {
         </p>
       )}
 
-      {selectedTask && isBoutique && (
+      {selectedTask && readOnly && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setSelectedTask(null)}>
           <div className="bg-card rounded-2xl w-full max-w-md p-6 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}
             style={{ boxShadow: '0 30px 80px rgba(20,30,40,0.2)' }}>
@@ -228,7 +239,7 @@ export function PacMediaKitView() {
         </div>
       )}
 
-      {selectedTask && !isBoutique && (
+      {selectedTask && !readOnly && (
         <TaskModal
           task={selectedTask}
           open={!!selectedTask}

@@ -10,7 +10,7 @@ function getUserId(): string | null {
   try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
 }
 
-// GET : toutes les opérations PAC & Média Kit des services Marketing + Web.
+// GET : toutes les opérations PAC & Média Kit des services Marketing + Web, pour tout utilisateur connecté.
 // Exception VOLONTAIRE à la visibilité stricte du Kanban (créateur/assigné
 // uniquement) : ce planning est un vrai outil d'équipe, décidé ensemble —
 // tout le monde dans ces deux services voit toutes les opérations, qu'il y
@@ -38,11 +38,10 @@ export async function GET() {
 
   const mySlug = (primaryDept as { slug?: string } | undefined)?.slug
   const myExtraSlugs = (extraDepts ?? []).map((d: { slug: string }) => d.slug)
-  // Les boutiques et la RH validatrice des congés voient aussi le planning (en lecture seule).
-  const allowed = ctx.isBoutique || profile?.can_validate_boutiques === true
-    || PAC_MEDIA_KIT_DEPARTMENTS.includes(mySlug ?? '') || myExtraSlugs.some(s => PAC_MEDIA_KIT_DEPARTMENTS.includes(s))
-
-  if (!allowed) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
+  // TOUT utilisateur connecté voit le planning (information commerciale pour tous). Les données internes
+  // (montants, références, description, équipe) restent réservées à Marketing/Web et à la RH validatrice.
+  const isFull = !ctx.isBoutique && (profile?.can_validate_boutiques === true
+    || PAC_MEDIA_KIT_DEPARTMENTS.includes(mySlug ?? '') || myExtraSlugs.some(s => PAC_MEDIA_KIT_DEPARTMENTS.includes(s)))
 
   // Les IDs des services Marketing + Web (indépendamment de qui les demande).
   const { data: pacDepts } = await supabase.from('departments').select('id, slug').in('slug', PAC_MEDIA_KIT_DEPARTMENTS)
@@ -80,9 +79,9 @@ export async function GET() {
     tags: ((t.tags as { tag: unknown }[]) ?? []).map(a => a.tag).filter(Boolean),
   }))
 
-  // Boutiques : lecture seule et sans donnée interne (montants, références,
+  // Boutiques et services hors Marketing/Web : lecture seule et sans donnée interne (montants, références,
   // description, équipe). Seul ce qui sert à savoir « quand » et « quoi » est exposé.
-  if (ctx.isBoutique) {
+  if (!isFull) {
     const light = (mapped as unknown as Record<string, unknown>[]).map(t => ({
       id: t.id, title: t.title, status: t.status, priority: t.priority, deadline: t.deadline,
       op_category: t.op_category, op_date_debut: t.op_date_debut, op_date_fin: t.op_date_fin,

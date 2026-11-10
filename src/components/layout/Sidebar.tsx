@@ -4,18 +4,16 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Columns, Calendar, BarChart2, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Briefcase, ClipboardList } from 'lucide-react'
+import { Columns, Calendar, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Briefcase, ClipboardList } from 'lucide-react'
 import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
 import { Logo } from '@/components/brand/Logo'
 import type { Profile, Department } from '@/types'
-import { canUsePacMediaKit } from '@/types/pacMediaKit'
 
 const NAV_ITEMS = [
   { href: '/kanban',     label: 'Kanban',       icon: Columns },
   { href: '/calendrier', label: 'Calendrier',   icon: Calendar },
   { href: '/timeline',   label: 'Chronologie',  icon: Clock },
-  { href: '/stats',      label: 'Statistiques', icon: BarChart2 },
   { href: '/activite',   label: 'Activité',     icon: Activity },
   { href: '/archives',   label: 'Archives',     icon: Archive },
   { href: '/corbeille',  label: 'Corbeille',    icon: Trash2 },
@@ -135,9 +133,8 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
           ? [NAV_ITEMS[0], { href: '/pac-media-kit', label: 'Opérations & Média Kit', icon: Briefcase }, { href: '/conges', label: 'Congés & absences', icon: CalendarDays }]
           : [
               ...NAV_ITEMS.slice(0, 1), // Kanban en premier
-              ...(canUsePacMediaKit(department?.slug, extraDepartments.map(d => d.slug))
-                ? [{ href: '/pac-media-kit', label: 'Opérations & Média Kit', icon: Briefcase }]
-                : []),
+              // Opérations & Média Kit : visible par TOUS (consultation) ; Marketing et Web peuvent en plus créer et modifier.
+              { href: '/pac-media-kit', label: 'Opérations & Média Kit', icon: Briefcase },
               ...NAV_ITEMS.slice(1), // le reste (Calendrier, Chronologie, etc.)
             ]
         ).map(({ href, label, icon: Icon }) => {
