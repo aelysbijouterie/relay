@@ -3,8 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ABSENCE_COLORS, type AbsenceType } from '@/types/absences'
+import { OP_CATEGORY_COLORS, OP_CATEGORY_LABELS, type OpCategory } from '@/types/pacMediaKit'
 
 interface Shop { id: string; code: number; name: string }
+interface PacItem {
+  id: string; title: string; op_category: OpCategory
+  op_date_debut: string | null; op_date_fin: string | null; op_mecanique?: string | null
+}
 interface Entry {
   id: string; type: AbsenceType; start_date: string; end_date: string; status: string
   user: { id: string; name: string; boutique_id: string }
@@ -41,6 +46,23 @@ export function RhShopCalendar({ boutiques, absences }: { boutiques: Shop[]; abs
     if (next.has(id)) next.delete(id); else next.add(id)
     save(next)
   }
+
+  // Opérations commerciales et Média Kit (planning Marketing/Web), pour choisir les congés en connaissance de cause.
+  const [ops, setOps] = useState<PacItem[]>([])
+  const [showOps, setShowOps] = useState(true)
+  const [showMk, setShowMk] = useState(true)
+  useEffect(() => {
+    fetch('/api/pac-media-kit', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setOps(Array.isArray(d) ? d.filter((o: PacItem) => o.op_category === 'operation_commerciale' || o.op_category === 'media_kit') : []))
+      .catch(() => setOps([]))
+  }, [])
+  const opsOn = (ds: string) => ops.filter(o => {
+    if (o.op_category === 'operation_commerciale' ? !showOps : !showMk) return false
+    const end = (o.op_date_fin ?? o.op_date_debut)?.slice(0, 10)
+    const start = (o.op_date_debut ?? o.op_date_fin)?.slice(0, 10)
+    return !!start && !!end && ds >= start && ds <= end
+  })
 
   const shopById = useMemo(() => new Map(boutiques.map(b => [b.id, b])), [boutiques])
   const visible = useMemo(
@@ -87,6 +109,17 @@ export function RhShopCalendar({ boutiques, absences }: { boutiques: Shop[]; abs
         </div>
       </div>
 
+      <div className="bg-card border border-border rounded-2xl p-3 flex flex-wrap items-center gap-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing &amp; Web</p>
+        {([['operation_commerciale', showOps, setShowOps], ['media_kit', showMk, setShowMk]] as const).map(([cat, val, set]) => (
+          <label key={cat} className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={val} onChange={e => set(e.target.checked)} />
+            <span className="w-3 h-3 rounded" style={{ backgroundColor: OP_CATEGORY_COLORS[cat] }} />
+            {OP_CATEGORY_LABELS[cat]}
+          </label>
+        ))}
+      </div>
+
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => setCursor(c => c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 })} className="p-2 rounded-lg hover:bg-muted"><ChevronLeft className="w-5 h-5" /></button>
@@ -106,6 +139,14 @@ export function RhShopCalendar({ boutiques, absences }: { boutiques: Shop[]; abs
               <div key={i} className={`min-h-[96px] rounded-lg border p-1 overflow-hidden ${ds === todayStr ? 'border-2' : 'border-border'}`}
                 style={{ ...(ds === todayStr ? { borderColor: 'var(--accent)' } : {}), ...(weekend ? { backgroundColor: 'var(--muted)', opacity: 0.6 } : {}) }}>
                 <div className="text-xs font-semibold mb-0.5 text-muted-foreground">{date.getDate()}</div>
+                {opsOn(ds).slice(0, 2).map(o => (
+                  <div key={o.id} className="text-[0.55rem] leading-tight px-1 rounded truncate font-semibold mb-0.5"
+                    style={{ backgroundColor: `${OP_CATEGORY_COLORS[o.op_category]}22`, color: OP_CATEGORY_COLORS[o.op_category] }}
+                    title={`${OP_CATEGORY_LABELS[o.op_category]} : ${o.title}${o.op_mecanique ? ` — ${o.op_mecanique}` : ''}`}>
+                    {o.op_category === 'media_kit' ? '▣' : '★'} {o.title}{o.op_mecanique && o.op_category === 'operation_commerciale' ? ` · ${o.op_mecanique}` : ''}
+                  </div>
+                ))}
+                {opsOn(ds).length > 2 && <div className="text-[0.55rem] text-muted-foreground px-1">+{opsOn(ds).length - 2} autre(s)</div>}
                 <div className="space-y-0.5">
                   {items.slice(0, 3).map(a => (
                     <div key={a.id} title={`${label(a)} · ${a.type}${a.status.includes('attente') ? ' (en attente)' : ''}`}
@@ -131,6 +172,7 @@ export function RhShopCalendar({ boutiques, absences }: { boutiques: Shop[]; abs
               <span className="text-xs text-muted-foreground">{t}</span>
             </div>
           ))}
+          <span className="text-xs text-muted-foreground">★ Opération commerciale · ▣ Média Kit</span>
           <span className="text-xs text-muted-foreground">· pastille pâle = en attente de validation</span>
         </div>
       </div>
