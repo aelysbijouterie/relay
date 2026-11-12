@@ -46,7 +46,7 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-3xl font-extrabold tracking-tight mb-2">Bon retour&nbsp;👋</h1>
-          <p className="text-muted-foreground text-sm mb-7">Connecte-toi pour retrouver tes tâches du jour.</p>
+          <p className="text-muted-foreground text-sm mb-7">Connectez-vous pour retrouver vos tâches du jour.</p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>

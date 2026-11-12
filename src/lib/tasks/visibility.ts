@@ -44,3 +44,22 @@ export async function getUserDepartmentIds(
   for (const d of (data?.extra_department_ids as string[] | null) ?? []) ids.add(d)
   return [...ids]
 }
+
+/**
+ * Filtre PostgREST (`.or(...)`) qui ne ramène que les cartes visibles par l'utilisateur : créées par lui (ou, pour une
+ * boutique, par son compte) ou qui lui sont assignées. Évite de lire 500 cartes de toute l'entreprise puis de filtrer :
+ * au-delà de 500 cartes actives, certaines personnes ne verraient plus leurs propres cartes.
+ * Renvoie null si la liste serait trop longue pour une URL : l'appelant retombe alors sur l'ancien filtrage en mémoire.
+ */
+export async function visibleTasksOrFilter(
+  supabase: ReturnType<typeof import('@/lib/supabase/server').createAdminClient>,
+  ids: string[]
+): Promise<string | null> {
+  const { data, error } = await supabase.from('task_assignees').select('task_id').in('user_id', ids)
+  if (error) return null
+  const assigned = Array.from(new Set((data ?? []).map(r => r.task_id as string)))
+  if (assigned.length > 250) return null
+  const parts = [`created_by.in.(${ids.join(',')})`]
+  if (assigned.length) parts.push(`id.in.(${assigned.join(',')})`)
+  return parts.join(',')
+}

@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # Mises à jour de sécurité et de versions mineures, une proposition par semaine.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      correctifs:
+        update-types: [minor, patch]

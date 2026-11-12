@@ -87,7 +87,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
     : []
 
   async function submit() {
-    if (!startDate || !endDate) { toast.error('Indique les dates'); return }
+    if (!startDate || !endDate) { toast.error('Indiquez les dates'); return }
     if (new Date(endDate) < new Date(startDate)) { toast.error('La date de fin doit être après le début'); return }
     setSaving(true)
     try {
@@ -281,7 +281,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
               <ul className="text-xs space-y-0.5 ml-6" style={{ color: '#B91C1C' }}>
                 {rules.blocks.map(b => <li key={b}>• {b}</li>)}
               </ul>
-              <p className="text-xs mt-2 ml-6 text-muted-foreground">Choisis d&apos;autres dates, ou contacte le pôle RH.</p>
+              <p className="text-xs mt-2 ml-6 text-muted-foreground">Choisissez d&apos;autres dates, ou contactez le pôle RH.</p>
             </div>
           )}
           {rules.warnings.length > 0 && !blocked && (
@@ -309,7 +309,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
                   <li key={o.id}>★ {o.title}{o.op_mecanique ? ` — ${o.op_mecanique}` : ''}</li>
                 ))}
               </ul>
-              <p className="text-xs mt-2 ml-6" style={{ color: '#BE3F50' }}>Les congés sont déconseillés pendant une opération. Tu peux quand même poser ta demande, le pôle RH décidera.</p>
+              <p className="text-xs mt-2 ml-6" style={{ color: '#BE3F50' }}>Les congés sont déconseillés pendant une opération. Vous pouvez quand même poser votre demande, le pôle RH décidera.</p>
             </div>
           )}
 
@@ -318,7 +318,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
               <div className="flex items-center gap-2 mb-1.5">
                 <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#D97706' }} />
                 <p className="text-sm font-semibold" style={{ color: '#B45309' }}>
-                  {conflicts.length} {conflicts.length > 1 ? 'personnes absentes' : 'personne absente'} dans ton service
+                  {conflicts.length} {conflicts.length > 1 ? 'personnes absentes' : 'personne absente'} dans votre service
                 </p>
               </div>
               <ul className="text-xs text-muted-foreground space-y-0.5 ml-6">
@@ -327,7 +327,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
                 ))}
                 {conflicts.length > 4 && <li>+{conflicts.length - 4} autre(s)</li>}
               </ul>
-              <p className="text-xs mt-2 ml-6" style={{ color: '#B45309' }}>Tu peux quand même poser ta demande.</p>
+              <p className="text-xs mt-2 ml-6" style={{ color: '#B45309' }}>Vous pouvez quand même poser votre demande.</p>
             </div>
           )}
 

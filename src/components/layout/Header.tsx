@@ -38,6 +38,8 @@ export function Header({ department, profile, departments, isDemo }: HeaderProps
         <div className="flex items-center gap-2">
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+            title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
             className="p-2 rounded-lg border border-white/20 hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground"
           >
             {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}

@@ -37,3 +37,7 @@ export function roleLabel(role?: string): string {
     default:              return role ?? ''
   }
 }
+/** Date locale au format AAAA-MM-JJ (évite le décalage d'un jour de `toISOString()` près de minuit). */
+export function localDateString(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}

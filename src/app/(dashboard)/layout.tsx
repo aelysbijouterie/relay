@@ -10,7 +10,7 @@ import { AccentProvider } from '@/components/layout/AccentProvider'
 import { TasksProvider } from '@/components/providers/TasksProvider'
 import { DEMO_DEPARTMENTS, DEMO_PROFILES, getTasksForDept } from '@/lib/demo-data'
 import type { Profile, Department, Task } from '@/types'
-import { isTaskVisibleTo } from '@/lib/tasks/visibility'
+import { isTaskVisibleTo, visibleTasksOrFilter } from '@/lib/tasks/visibility'
 import { getBoutiqueTeamIds } from '@/lib/boutique/session'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -75,11 +75,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const boutiqueRel = Array.isArray(boutiqueRow?.boutique) ? boutiqueRow?.boutique[0] : boutiqueRow?.boutique
     const boutiqueName = (boutiqueRel as { name?: string } | null | undefined)?.name
 
+    // Cartes visibles lues directement (créées par moi / assignées à moi) : pas de plafond de 500 cartes sur toute l'entreprise.
+    const teamIdsSsr = isBoutique ? await getBoutiqueTeamIds(supabase, userId) : []
+    const orFilterSsr = await visibleTasksOrFilter(supabase, [userId, ...teamIdsSsr])
+
     const [deptResult, tasksResult] = await Promise.all([
       supabase
         .from('departments')
         .select('id, name, slug, color, icon'),
-      supabase
+      (() => { const q = supabase
         .from('tasks')
         .select(`
           id, title, description, status, priority, deadline,
@@ -93,7 +97,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         .neq('status', 'Archivé')
         .is('deleted_at', null)
         .order('deadline', { ascending: true, nullsFirst: false })
-        .limit(500),
+        .limit(500); return orFilterSsr ? q.or(orFilterSsr) : q })(),
     ])
 
     departments = deptResult.data && deptResult.data.length > 0
@@ -170,7 +174,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // est assigné, jamais automatiquement le reste du service (voir
     // src/lib/tasks/visibility.ts). Le calendrier personnel applique le même
     // principe, indépendamment, côté client.
-    const teamIds = isBoutique ? await getBoutiqueTeamIds(supabase, userId!) : []
+    const teamIds = teamIdsSsr
     tasks = tasks.filter(t => isTaskVisibleTo(t as unknown as Task, { userId: userId!, teamIds }))
 
     // Boutique : pas de liste d'équipe (le sélecteur de collaborateur la remplace).

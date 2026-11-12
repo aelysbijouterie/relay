@@ -83,7 +83,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
           <Logo size={26} />
           <span className="font-bold text-lg tracking-tight">relays</span>
         </div>
-        <button className="lg:hidden p-1 rounded-lg hover:bg-muted transition-colors" onClick={() => setOpen(false)}>
+        <button className="lg:hidden p-1 rounded-lg hover:bg-muted transition-colors" onClick={() => setOpen(false)} aria-label="Fermer le menu">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -273,6 +273,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
           <button
             type="button"
             onClick={handleLogout}
+            aria-label="Se déconnecter"
             className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title="Déconnexion"
           >
@@ -288,6 +289,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
       <button
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-card border border-border rounded-xl shadow-lg"
         onClick={() => setOpen(true)}
+        aria-label="Ouvrir le menu"
       >
         <Menu className="w-4 h-4" />
       </button>

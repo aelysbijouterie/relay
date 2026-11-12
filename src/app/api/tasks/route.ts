@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
-import { isTaskVisibleTo } from '@/lib/tasks/visibility'
+import { isTaskVisibleTo, visibleTasksOrFilter } from '@/lib/tasks/visibility'
 import { getBoutiqueTeamIds } from '@/lib/boutique/session'
 import type { Task } from '@/types'
 
@@ -28,8 +28,10 @@ export async function GET() {
   }
 
   const supabase = createAdminClient()
+  const teamIds = await getBoutiqueTeamIds(supabase, userId)
+  const orFilter = await visibleTasksOrFilter(supabase, [userId, ...teamIds])
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('tasks')
     .select(`
       id, title, description, status, priority, deadline, position, recurring_task_id, completed_at,
@@ -51,6 +53,7 @@ export async function GET() {
     .order('position', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(500)
+  const { data, error } = await (orFilter ? query.or(orFilter) : query)
 
   if (error) {
     console.error('Tasks error:', error.message)
@@ -67,7 +70,6 @@ export async function GET() {
 
   // Visibilité stricte : chacun ne voit que ce qu'il a créé ou ce qui lui
   // est assigné (voir src/lib/tasks/visibility.ts).
-  const teamIds = await getBoutiqueTeamIds(supabase, userId)
   const visibleTasks = tasks.filter(t => isTaskVisibleTo(t, { userId, teamIds }))
 
   // Progression des sous-tâches (table task_subtasks) pour les barres de

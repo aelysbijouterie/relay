@@ -66,7 +66,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   // Une demande de boutique ne peut être refusée qu'avec un motif (transmis au collaborateur).
   const reviewNote: string | null = typeof body.review_note === 'string' ? body.review_note.trim().slice(0, 500) || null : null
   if (requester?.boutique_id && newStatus === 'Refusé' && !reviewNote) {
-    return NextResponse.json({ error: 'Indique le motif du refus' }, { status: 400 })
+    return NextResponse.json({ error: 'Indiquez le motif du refus' }, { status: 400 })
   }
 
   // Si la demande était une modification en attente et qu'on valide,

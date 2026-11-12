@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, Plus, Search, ChevronDown, ChevronUp, CheckSquare, Paperclip, Trash2, FileText, Repeat } from 'lucide-react'
 import { toast } from 'sonner'
-import { getInitials } from '@/lib/utils'
+import { localDateString, getInitials } from '@/lib/utils'
 import { createTask } from '@/lib/actions/tasks'
 import { TASK_STATUSES, TASK_PRIORITIES } from '@/types'
 import type { Department, Profile } from '@/types'
@@ -262,7 +262,7 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
     if (tpl.department_id) setDeptId(tpl.department_id)
     if (typeof tpl.default_deadline_days === 'number') {
       const d = new Date(); d.setDate(d.getDate() + tpl.default_deadline_days)
-      setDeadline(d.toISOString().slice(0, 10))
+      setDeadline(localDateString(d))
     }
     if (Array.isArray(tpl.default_subtasks) && tpl.default_subtasks.length) {
       setChecklist(tpl.default_subtasks.map(s => ({

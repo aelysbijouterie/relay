@@ -22,8 +22,9 @@ const PASS = process.env.SMTP_PASSWORD
 const FROM = process.env.SMTP_FROM ?? (USER ? `RELAYS <${USER}>` : 'RELAYS')
 
 // Le transporteur est créé une seule fois et réutilisé.
-let transporter: nodemailer.Transporter | null = null
-function getTransporter(): nodemailer.Transporter | null {
+type Transporter = ReturnType<typeof nodemailer.createTransport>
+let transporter: Transporter | null = null
+function getTransporter(): Transporter | null {
   if (!USER || !PASS) return null
   if (!transporter) {
     transporter = nodemailer.createTransport({

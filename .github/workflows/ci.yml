@@ -1,0 +1,33 @@
+name: Vérifications
+
+# À chaque envoi sur main et à chaque proposition de modification :
+# types TypeScript, règles de code, tests automatiques, puis compilation complète.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Types TypeScript
+        run: npx tsc --noEmit
+      - name: Règles de code (ESLint)
+        run: npm run lint
+      - name: Tests automatiques
+        run: npm test
+      - name: Compilation
+        run: npm run build
+        env:
+          # Valeurs factices : suffisantes pour compiler, sans aucun accès à la vraie base.
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: anon-factice
+          SUPABASE_SERVICE_ROLE_KEY: service-factice
+          CRON_SECRET: cron-factice

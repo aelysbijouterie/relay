@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   // payés remontent TOUS à la RH ; seules les périodes d'alternance sont libres.
   const ctx = await getActingContext(supabase, userId)
   if (ctx.isBoutique && !ctx.actingUserId) {
-    return NextResponse.json({ error: 'Choisis d\'abord le collaborateur concerné' }, { status: 400 })
+    return NextResponse.json({ error: 'Choisissez d’abord le collaborateur concerné' }, { status: 400 })
   }
   const requesterId = ctx.actingUserId ?? userId
 

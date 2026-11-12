@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
   const ctx = await getActingContext(supabase, userId)
   // Les soldes d'une boutique sont gérés par la RH uniquement.
   if (ctx.isBoutique) return NextResponse.json({ error: 'Les soldes sont gérés par la RH' }, { status: 403 })
-  if (!ctx.actingUserId) return NextResponse.json({ error: "Choisis d'abord le collaborateur concerné" }, { status: 400 })
+  if (!ctx.actingUserId) return NextResponse.json({ error: "Choisissez d’abord le collaborateur concerné" }, { status: 400 })
   const { error } = await supabase.from('profiles').update(updates).eq('id', ctx.actingUserId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })

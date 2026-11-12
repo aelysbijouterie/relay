@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import {
-  DndContext, DragOverlay, PointerSensor,
+  DndContext, DragOverlay, MouseSensor, KeyboardSensor, TouchSensor,
   useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
@@ -72,7 +72,12 @@ export function KanbanBoard({
     }
   }, [tasks])
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  // Souris, doigt (appui long pour ne pas gêner le défilement) et clavier (accessibilité).
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
+    useSensor(KeyboardSensor),
+  )
 
   // Filtre : par défaut toutes les tâches non archivées
   // Toggle "Mes tâches" : uniquement les tâches où l'utilisateur est assigné ou créateur

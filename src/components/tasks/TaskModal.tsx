@@ -209,6 +209,13 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
     setNewSubtask('')
   }, [taskId])
 
+  // Hooks déclarés AVANT le retour anticipé (règle des hooks de React) : titre éditable en ligne et décalage en bloc.
+  // Titre de carte éditable en ligne (champ visible).
+  const [inlineTitle, setInlineTitle] = useState(task.title)
+  const [selectedSubIds, setSelectedSubIds] = useState<Set<string>>(new Set())
+  const [shiftDays, setShiftDays] = useState(1)
+  const [shifting, setShifting] = useState(false)
+
   if (!open) return null
 
   const deptColor = task.department?.color ?? '#94A3B8'
@@ -326,8 +333,6 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
     task.created_by === currentUserId ||
     (task.assignees ?? []).some(a => a.id === currentUserId)
 
-  // Titre de carte éditable en ligne (champ visible).
-  const [inlineTitle, setInlineTitle] = useState(task.title)
   async function saveTitleInline() {
     const t = inlineTitle.trim()
     if (!t || t === task.title) { setInlineTitle(task.title); return }
@@ -599,9 +604,6 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   }
 
   // ── Décalage en bloc des échéances de sous-tâches ───────────────────────────
-  const [selectedSubIds, setSelectedSubIds] = useState<Set<string>>(new Set())
-  const [shiftDays, setShiftDays] = useState(1)
-  const [shifting, setShifting] = useState(false)
 
   function toggleSubSelect(id: string) {
     setSelectedSubIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
