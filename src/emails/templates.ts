@@ -1,4 +1,4 @@
-import { baseHtml, taskBlock, button } from './baseHtml'
+import { baseHtml, taskBlock, button, esc } from './baseHtml'
 
 type TaskInfo = {
   title: string
@@ -21,15 +21,15 @@ export function emailAssigned({
     subject: `📌 Tu as été assigné·e — ${task.title}`,
     html: baseHtml({
       title: 'Nouvelle tâche assignée',
-      preheader: `${createdByName} t'a assigné·e à « ${task.title} »`,
+      preheader: `${esc(createdByName)} t'a assigné·e à « ${esc(task.title)} »`,
       deptColor: department.color,
       prefLabel: 'Tâche assignée',
       content: `
         <h2 style="${H2}">Nouvelle tâche assignée</h2>
         <p style="${INTRO}">
-          Bonjour <strong>${assigneeName}</strong>,<br/>
-          <strong>${createdByName}</strong> t'a assigné·e à une tâche dans l'espace
-          <strong style="color:${department.color}">${department.name}</strong>.
+          Bonjour <strong>${esc(assigneeName)}</strong>,<br/>
+          <strong>${esc(createdByName)}</strong> t'a assigné·e à une tâche dans l'espace
+          <strong style="color:${department.color}">${esc(department.name)}</strong>.
         </p>
         ${taskBlock({ task, deptColor: department.color })}
         ${button({ label: 'Voir la tâche →', color: department.color })}
@@ -46,20 +46,20 @@ export function emailCrossTeam({
     subject: `🤝 Tâche inter-équipes — ${task.title}`,
     html: baseHtml({
       title: 'Tâche inter-équipes',
-      preheader: `${fromDept.name} → ${toDept.name} : « ${task.title} »`,
+      preheader: `${esc(fromDept.name)} → ${esc(toDept.name)} : « ${esc(task.title)} »`,
       deptColor: toDept.color,
       accentBar: `linear-gradient(90deg, ${fromDept.color}, ${toDept.color})`,
       prefLabel: 'Tâche assignée',
       content: `
         <h2 style="${H2}">Tâche inter-équipes</h2>
         <p style="${INTRO}">
-          Bonjour <strong>${assigneeName}</strong>,<br/>
-          <strong>${createdByName}</strong> t'a inclus·e dans une tâche commune à deux espaces :
+          Bonjour <strong>${esc(assigneeName)}</strong>,<br/>
+          <strong>${esc(createdByName)}</strong> t'a inclus·e dans une tâche commune à deux espaces :
         </p>
         <table cellpadding="0" cellspacing="0" style="margin:0 0 18px;"><tr>
-          <td><span style="display:inline-block;background:${fromDept.color};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;">${fromDept.name}</span></td>
+          <td><span style="display:inline-block;background:${fromDept.color};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;">${esc(fromDept.name)}</span></td>
           <td style="padding:0 8px;color:#B0B6C2;font-size:15px;">→</td>
-          <td><span style="display:inline-block;background:${toDept.color};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;">${toDept.name}</span></td>
+          <td><span style="display:inline-block;background:${toDept.color};color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;">${esc(toDept.name)}</span></td>
         </tr></table>
         ${taskBlock({ task, deptColor: toDept.color })}
         ${button({ label: 'Voir la tâche →', color: toDept.color })}
@@ -76,20 +76,20 @@ export function emailStatusChange({
     subject: `🔄 Statut mis à jour — ${task.title}`,
     html: baseHtml({
       title: 'Statut mis à jour',
-      preheader: `${oldStatus} → ${task.status} · ${task.title}`,
+      preheader: `${esc(oldStatus)} → ${esc(task.status)} · ${esc(task.title)}`,
       deptColor: department.color,
       prefLabel: 'Changement de statut',
       content: `
         <h2 style="${H2}">Statut mis à jour</h2>
         <p style="${INTRO}">
-          Bonjour <strong>${assigneeName}</strong>,<br/>
-          <strong>${changedByName}</strong> a changé le statut d'une tâche dans
-          <strong style="color:${department.color}">${department.name}</strong>.
+          Bonjour <strong>${esc(assigneeName)}</strong>,<br/>
+          <strong>${esc(changedByName)}</strong> a changé le statut d'une tâche dans
+          <strong style="color:${department.color}">${esc(department.name)}</strong>.
         </p>
         <table cellpadding="0" cellspacing="0" style="margin:0 0 18px;"><tr>
-          <td><span style="display:inline-block;background:#EEF1F5;color:#8089A0;font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;">${oldStatus}</span></td>
+          <td><span style="display:inline-block;background:#EEF1F5;color:#8089A0;font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;">${esc(oldStatus)}</span></td>
           <td style="padding:0 10px;color:#B0B6C2;font-size:15px;">→</td>
-          <td><span style="display:inline-block;background:${department.color}1A;color:${department.color};font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;">${task.status}</span></td>
+          <td><span style="display:inline-block;background:${department.color}1A;color:${department.color};font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;">${esc(task.status)}</span></td>
         </tr></table>
         ${taskBlock({ task, deptColor: department.color })}
         ${button({ label: 'Voir la tâche →', color: department.color })}
@@ -110,14 +110,14 @@ export function emailDeadlineReminder({
     subject: isJ1 ? `🔴 Échéance demain — ${task.title}` : `🟡 Échéance dans 3 jours — ${task.title}`,
     html: baseHtml({
       title: "Rappel d'échéance",
-      preheader: `${urgText} · ${task.title}`,
+      preheader: `${urgText} · ${esc(task.title)}`,
       deptColor: department.color,
       accentBar: urgColor,
       prefLabel: "Rappels d'échéance",
       content: `
         <h2 style="${H2}">Rappel d'échéance</h2>
         <p style="${INTRO}">
-          Bonjour <strong>${assigneeName}</strong>,<br/>
+          Bonjour <strong>${esc(assigneeName)}</strong>,<br/>
           Une de tes tâches arrive à échéance <strong>${isJ1 ? 'demain' : 'dans 3 jours'}</strong>.
         </p>
         <div style="background:${urgBg};border:1px solid ${urgColor}44;border-radius:10px;padding:11px 16px;margin-bottom:18px;font-size:13.5px;font-weight:700;color:${urgColor};">
@@ -147,7 +147,7 @@ export function emailWeeklyRecap({
       content: `
         <h2 style="${H2}">Ton récap de la semaine</h2>
         <p style="${INTRO}">
-          Bonjour <strong>${name}</strong>, voici un aperçu de tes tâches en cours pour bien démarrer la semaine.
+          Bonjour <strong>${esc(name)}</strong>, voici un aperçu de tes tâches en cours pour bien démarrer la semaine.
         </p>
         <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:22px;"><tr>
           <td style="text-align:center;background:#F7F8FA;border-radius:12px;padding:16px;">
@@ -179,18 +179,18 @@ export function emailMention({
     subject: `💬 ${authorName} t'a mentionné·e — ${task.title}`,
     html: baseHtml({
       title: 'Tu as été mentionné·e',
-      preheader: `${authorName} t'a mentionné·e dans « ${task.title} »`,
+      preheader: `${esc(authorName)} t'a mentionné·e dans « ${esc(task.title)} »`,
       deptColor: department.color,
       prefLabel: 'Mentions',
       content: `
         <h2 style="${H2}">Tu as été mentionné·e</h2>
         <p style="${INTRO}">
-          Bonjour <strong>${mentionedName}</strong>,<br/>
-          <strong>${authorName}</strong> t'a mentionné·e dans un commentaire.
+          Bonjour <strong>${esc(mentionedName)}</strong>,<br/>
+          <strong>${esc(authorName)}</strong> t'a mentionné·e dans un commentaire.
         </p>
         <div style="background:#F9FAFB;border-left:4px solid ${department.color};border-radius:0 10px 10px 0;padding:15px 18px;margin-bottom:18px;">
-          <p style="margin:0;font-size:14.5px;color:#2C313D;line-height:1.6;">${comment}</p>
-          <p style="margin:8px 0 0;font-size:12px;color:#9098A8;">— ${authorName}</p>
+          <p style="margin:0;font-size:14.5px;color:#2C313D;line-height:1.6;">${esc(comment)}</p>
+          <p style="margin:8px 0 0;font-size:12px;color:#9098A8;">— ${esc(authorName)}</p>
         </div>
         ${taskBlock({ task, deptColor: department.color })}
         ${button({ label: 'Répondre →', color: department.color })}
@@ -209,19 +209,19 @@ export function emailSubtaskAssigned({
     subject: `✅ Sous-tâche assignée — ${subtaskTitle}`,
     html: baseHtml({
       title: 'Sous-tâche assignée',
-      preheader: `${createdByName} t'a confié une sous-tâche : ${subtaskTitle}`,
+      preheader: `${esc(createdByName)} t'a confié une sous-tâche : ${esc(subtaskTitle)}`,
       deptColor: department.color,
       prefLabel: 'Tâche assignée',
       content: `
         <h2 style="${H2}">Une sous-tâche pour toi</h2>
         <p style="${INTRO}">
-          Bonjour <strong>${assigneeName}</strong>,<br/>
-          <strong>${createdByName}</strong> t'a assigné·e à une sous-tâche dans
-          <strong style="color:${department.color}">${department.name}</strong>.
+          Bonjour <strong>${esc(assigneeName)}</strong>,<br/>
+          <strong>${esc(createdByName)}</strong> t'a assigné·e à une sous-tâche dans
+          <strong style="color:${department.color}">${esc(department.name)}</strong>.
         </p>
         <div style="background:#F9FAFB;border-left:4px solid ${department.color};border-radius:0 10px 10px 0;padding:15px 18px;margin-bottom:14px;">
-          <p style="margin:0;font-size:15px;font-weight:600;color:#1C1E26;">${subtaskTitle}</p>
-          <p style="margin:6px 0 0;font-size:12.5px;color:#9098A8;">dans la carte « ${task.title} »</p>
+          <p style="margin:0;font-size:15px;font-weight:600;color:#1C1E26;">${esc(subtaskTitle)}</p>
+          <p style="margin:6px 0 0;font-size:12.5px;color:#9098A8;">dans la carte « ${esc(task.title)} »</p>
         </div>
         ${deadlineLine}
         ${button({ label: 'Voir la tâche →', color: department.color })}
@@ -239,14 +239,14 @@ export function emailStaleReminder({
     subject: `Un petit point sur « ${task.title} » ?`,
     html: baseHtml({
       title: 'Une tâche en pause',
-      preheader: `Pas de mouvement depuis ${days} jours · ${task.title}`,
+      preheader: `Pas de mouvement depuis ${days} jours · ${esc(task.title)}`,
       deptColor: department.color,
       accentBar: color,
       prefLabel: 'Rappels de tâches',
       content: `
         <h2 style="${H2}">Une tâche semble en pause</h2>
         <p style="${INTRO}">
-          Bonjour <strong>${assigneeName}</strong>,<br/>
+          Bonjour <strong>${esc(assigneeName)}</strong>,<br/>
           La tâche ci-dessous n'a pas bougé depuis <strong>${days} jours</strong>.
           Pas d'inquiétude — c'est juste un petit rappel au cas où elle t'était sortie de la tête.
           Si elle avance, pense à mettre à jour son statut ; sinon, tu peux l'ignorer.

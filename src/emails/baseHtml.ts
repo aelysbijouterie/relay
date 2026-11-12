@@ -8,6 +8,9 @@
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://aelys-relays.vercel.app'
 
+/** Échappe un texte saisi par un utilisateur avant de l'insérer dans un e-mail HTML. */
+export const esc = (v: unknown): string => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
 // Logo « 3 cartes translucides » reconstruit en HTML/CSS inline (les SVG
 // passent mal dans certains clients mail, on empile 3 carrés positionnés).
 function logoMarkup(): string {
@@ -114,8 +117,8 @@ export function taskBlock({
     <tr>
       <td style="width:4px;background:${deptColor};border-radius:12px 0 0 12px;font-size:0;line-height:0;">&nbsp;</td>
       <td style="padding:15px 18px;">
-        <p style="margin:0 0 5px;font-size:16px;font-weight:600;color:#1C1E26;">${task.title}</p>
-        ${task.description ? `<p style="margin:0 0 11px;font-size:13.5px;color:#6A7180;line-height:1.5;">${task.description}</p>` : ''}
+        <p style="margin:0 0 5px;font-size:16px;font-weight:600;color:#1C1E26;">${esc(task.title)}</p>
+        ${task.description ? `<p style="margin:0 0 11px;font-size:13.5px;color:#6A7180;line-height:1.5;">${esc(task.description)}</p>` : ''}
         <span style="display:inline-block;background:${pc}1A;color:${pc};border-radius:20px;padding:3px 10px;font-size:11.5px;font-weight:700;margin-right:6px;">${task.priority}</span>
         <span style="display:inline-block;background:#EEF1F5;color:#5A6276;border-radius:20px;padding:3px 10px;font-size:11.5px;margin-right:6px;">${task.status}</span>
         ${task.deadline ? `<span style="display:inline-block;color:#8089A0;font-size:11.5px;">📅 ${new Date(task.deadline).toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })}</span>` : ''}

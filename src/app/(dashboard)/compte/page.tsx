@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { parseSessionValue } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { AccountView } from '@/components/account/AccountView'
@@ -10,8 +11,8 @@ export default async function ComptePage() {
   const raw = cookies().get('relays-session')?.value
   if (!raw) redirect('/login')
 
-  let userId: string
-  try { userId = JSON.parse(raw).user_id } catch { redirect('/login') }
+  const userId = parseSessionValue(raw)?.user_id
+  if (!userId) redirect('/login')
 
   const supabase = createAdminClient()
   const { data } = await supabase

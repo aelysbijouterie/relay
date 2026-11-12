@@ -18,7 +18,7 @@ function parisNow(): { weekday: string; hour: number } {
 // qui tombe à 09 h à Paris envoie le mail. Aucun mail s'il n'y a rien à traiter. Jamais soumis aux préférences.
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization')
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const force = new URL(request.url).searchParams.get('force') === '1'

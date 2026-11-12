@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
@@ -10,7 +11,8 @@ export async function GET() {
 
   // Une boutique ne voit que son propre compte : jamais le reste de l'entreprise.
   let sessionUserId: string | null = null
-  try { sessionUserId = JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { /* noop */ }
+  sessionUserId = readSessionUserId()
+  if (!sessionUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const ctx = sessionUserId ? await getActingContext(supabase, sessionUserId) : null
 
   // Boutique : uniquement les collaborateurs de SON magasin (pour les identifier sur les cartes et sous-tâches).

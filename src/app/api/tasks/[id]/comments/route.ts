@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTaskAccess } from '@/lib/tasks/access'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { logActivity } from '@/lib/tasks/activity'
@@ -6,10 +8,13 @@ import { logActivity } from '@/lib/tasks/activity'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_comments')
@@ -22,6 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
   const userId = getUserId()
   if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 

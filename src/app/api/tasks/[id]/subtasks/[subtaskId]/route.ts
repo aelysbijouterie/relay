@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTaskAccess } from '@/lib/tasks/access'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { sanitizeAssignees } from '@/lib/boutique/session'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -6,10 +8,12 @@ import { createAdminClient } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string; subtaskId: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
+  if (!readSessionUserId()) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const body = await request.json()
   const supabase = createAdminClient()
 
@@ -83,6 +87,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string; subtaskId: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const supabase = createAdminClient()
   const { error } = await supabase
     .from('task_subtasks').delete()

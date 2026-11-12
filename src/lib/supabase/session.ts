@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { parseSessionValue, signSessionValue } from '@/lib/session-cookie'
 
 export interface SessionCookie {
   access_token:  string
@@ -17,19 +18,13 @@ function readSessionCookie(): SessionCookie | null {
   const raw = cookies().get(COOKIE_NAME)?.value
   if (!raw) return null
 
-  try {
-    const parsed = JSON.parse(raw) as Partial<SessionCookie>
-    if (!parsed.access_token || !parsed.refresh_token || !parsed.user_id || !parsed.expires_at) {
-      return null
-    }
-    return parsed as SessionCookie
-  } catch {
-    return null
-  }
+  const parsed = parseSessionValue<Partial<SessionCookie>>(raw)
+  if (!parsed || !parsed.access_token || !parsed.refresh_token || !parsed.user_id || !parsed.expires_at) return null
+  return parsed as SessionCookie
 }
 
 function writeSessionCookie(session: SessionCookie): void {
-  cookies().set(COOKIE_NAME, JSON.stringify(session), {
+  cookies().set(COOKIE_NAME, signSessionValue(session), {
     httpOnly: true,
     secure:   true,
     sameSite: 'lax',

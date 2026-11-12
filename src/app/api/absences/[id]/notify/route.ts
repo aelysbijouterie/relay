@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
@@ -7,7 +8,7 @@ import { sendRhRequestMail } from '@/lib/absences/rhMail'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 // POST : envoie à la RH l'e-mail d'information d'une absence signalée dont le justificatif n'a pas pu être enregistré

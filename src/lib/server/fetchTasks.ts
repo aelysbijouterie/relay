@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { parseSessionValue } from '@/lib/session-cookie'
 import { createClient } from '@supabase/supabase-js'
 import type { Task } from '@/types'
 
@@ -39,13 +40,8 @@ export async function fetchTasksForCurrentUser(): Promise<{
   const raw = (cookieStore as ReturnType<typeof cookies>).get('relays-session')?.value
   if (!raw) return { tasks: [], currentDepartmentId: '', currentUserName: '', isDemo: false }
 
-  let userId: string
-  try {
-    userId = JSON.parse(raw).user_id
-    if (!userId) throw new Error()
-  } catch {
-    return { tasks: [], currentDepartmentId: '', currentUserName: '', isDemo: false }
-  }
+  const userId = parseSessionValue(raw)?.user_id
+  if (!userId) return { tasks: [], currentDepartmentId: '', currentUserName: '', isDemo: false }
 
   const supabase = createAdmin()
 

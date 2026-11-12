@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
+import { parseSessionValue } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -37,15 +38,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const raw = cookieStore.get('relays-session')?.value
     if (!raw) redirect('/login')
 
-    let userId: string
-    let userEmail: string
-    try {
-      const s   = JSON.parse(raw)
-      userId    = s.user_id
-      userEmail = s.email ?? ''
-    } catch {
-      redirect('/login')
-    }
+    const sess = parseSessionValue<{ email?: string }>(raw)
+    if (!sess?.user_id) redirect('/login')
+    const userId: string = sess.user_id
+    const userEmail: string = sess.email ?? ''
 
     const supabase = createAdminClient()
 

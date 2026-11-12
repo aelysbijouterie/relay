@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTaskAccess } from '@/lib/tasks/access'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -7,10 +9,13 @@ const BUCKET = 'task-attachments'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_attachments')
@@ -23,12 +28,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
   const userId = getUserId()
   if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const formData = await request.formData()
   const file = formData.get('file') as File | null
   if (!file) return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 })
+  // Garde-fous : taille maximale et types dangereux refusés (exécutables, scripts, pages web).
+  if (file.size > 15 * 1024 * 1024) return NextResponse.json({ error: 'Fichier trop lourd (15 Mo maximum)' }, { status: 413 })
+  if (/\.(exe|bat|cmd|com|msi|scr|js|mjs|vbs|ps1|sh|jar|html?|svg|php|dll|apk)$/i.test(file.name)) {
+    return NextResponse.json({ error: 'Ce type de fichier n’est pas autorisé' }, { status: 415 })
+  }
 
   const supabase = createAdminClient()
 
@@ -69,6 +80,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const { attachmentId, path } = await request.json()
   const supabase = createAdminClient()
 

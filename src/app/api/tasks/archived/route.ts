@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import type { Task } from '@/types'
@@ -6,7 +7,7 @@ import type { Task } from '@/types'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 // Liste des tâches ARCHIVÉES visibles par l'utilisateur (même règle de

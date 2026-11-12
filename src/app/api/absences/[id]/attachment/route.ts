@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
@@ -11,7 +12,7 @@ const MAX_BYTES = 10 * 1024 * 1024
 const ALLOWED = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 // POST (multipart, champ « file ») : joint un justificatif (arrêt maladie) à une absence signalée par une boutique.

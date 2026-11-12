@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { parseSessionValue } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 
 function createAdmin() {
@@ -30,11 +31,7 @@ export function getCurrentUserId(): string {
   const cookieStore = cookies()
   const raw = cookieStore.get('relays-session')?.value
   if (!raw) throw new Error('Non authentifié')
-  try {
-    const s = JSON.parse(raw)
-    if (!s.user_id) throw new Error('Non authentifié')
-    return s.user_id as string
-  } catch {
-    throw new Error('Non authentifié')
-  }
+  const s = parseSessionValue(raw)
+  if (!s?.user_id) throw new Error('Non authentifié')
+  return s.user_id as string
 }

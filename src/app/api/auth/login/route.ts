@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { buildSessionCookie } from '@/lib/supabase/session'
+import { signSessionValue } from '@/lib/session-cookie'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
   })
 
   const response = NextResponse.json({ ok: true })
-  response.cookies.set('relays-session', JSON.stringify(session), {
+  response.cookies.set('relays-session', signSessionValue(session), {
     httpOnly: true,
     secure:   true,
     sameSite: 'lax',

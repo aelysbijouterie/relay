@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTaskAccess } from '@/lib/tasks/access'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -6,6 +8,9 @@ export const dynamic = 'force-dynamic'
 // Reçoit l'ordre complet des sous-tâches { orderedIds: string[] } et écrit
 // la nouvelle position de chacune (index dans le tableau).
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const { orderedIds } = await request.json()
   if (!Array.isArray(orderedIds)) return NextResponse.json({ error: 'orderedIds requis' }, { status: 400 })
 

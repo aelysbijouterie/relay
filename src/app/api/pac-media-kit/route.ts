@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
@@ -7,7 +8,7 @@ import { PAC_MEDIA_KIT_DEPARTMENTS } from '@/types/pacMediaKit'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 // GET : toutes les opérations PAC & Média Kit des services Marketing + Web, pour tout utilisateur connecté.

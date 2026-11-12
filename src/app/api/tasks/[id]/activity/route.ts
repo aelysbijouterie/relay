@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTaskAccess } from '@/lib/tasks/access'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('task_activity')

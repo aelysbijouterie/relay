@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { parseSessionValue } from '@/lib/session-cookie'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
 import { KanbanBoardServer } from '@/components/kanban/KanbanBoardServer'
@@ -23,8 +24,8 @@ export default async function KanbanPage() {
   const raw = cookieStore.get('relays-session')?.value
   if (!raw) redirect('/login')
 
-  let userId: string
-  try { userId = JSON.parse(raw).user_id } catch { redirect('/login') }
+  const userId = parseSessionValue(raw)?.user_id
+  if (!userId) redirect('/login')
 
   const supabase    = createAdminClient()
   const { data }    = await supabase

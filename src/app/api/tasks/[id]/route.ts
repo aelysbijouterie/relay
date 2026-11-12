@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTaskAccess } from '@/lib/tasks/access'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { sanitizeAssignees } from '@/lib/boutique/session'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
@@ -7,7 +9,7 @@ import { logActivity, canMutateTask } from '@/lib/tasks/activity'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 // Champs simples modifiables et tracés dans l'historique.
@@ -19,6 +21,7 @@ type EditableField = typeof EDITABLE_FIELDS[number]
 
 // PATCH : modifier une carte (un ou plusieurs champs), avec historique.
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
   const userId = getUserId()
   if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
@@ -87,6 +90,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 // DELETE : mise à la corbeille (récupérable), avec contrôle de droits.
 // La suppression définitive se fait depuis la corbeille (?permanent=1).
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  { const denied = await requireTaskAccess(params.id); if (denied) return denied }
   const userId = getUserId()
   if (!userId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 

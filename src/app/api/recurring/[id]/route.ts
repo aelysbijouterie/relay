@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 // PATCH : modifier un modèle (ou l'activer/désactiver).
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const b = await request.json()
   const supabase = createAdminClient()
   const updates: Record<string, unknown> = {}
@@ -18,6 +21,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
 // DELETE : supprimer un modèle.
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const supabase = createAdminClient()
   const { error } = await supabase.from('recurring_tasks').delete().eq('id', params.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

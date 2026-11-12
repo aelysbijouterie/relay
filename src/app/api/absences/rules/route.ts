@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
@@ -7,7 +8,7 @@ import { evaluateForBoutique } from '@/lib/absences/leaveRulesServer'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 // GET ?from=…&to=… : règles qui s'appliquent à une demande de congés payés d'une boutique

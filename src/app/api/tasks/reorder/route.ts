@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { createAdminClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -6,6 +7,8 @@ export const dynamic = 'force-dynamic'
 // Reçoit l'ordre complet d'une colonne : { status, orderedIds: string[] }
 // et écrit la position (index) de chaque carte de cette colonne.
 export async function PATCH(request: NextRequest) {
+  const authUserId = readSessionUserId()
+  if (!authUserId) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   const { orderedIds } = await request.json()
   if (!Array.isArray(orderedIds)) return NextResponse.json({ error: 'orderedIds requis' }, { status: 400 })
 

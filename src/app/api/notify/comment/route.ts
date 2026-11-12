@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { notifyByPreference } from '@/lib/notify'
@@ -7,7 +8,7 @@ import { emailMention } from '@/emails/templates'
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 // Notifie UNIQUEMENT les personnes explicitement mentionnées (@) dans un

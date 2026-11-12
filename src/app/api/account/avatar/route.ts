@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 
@@ -9,7 +10,7 @@ const MAX_BYTES = 5 * 1024 * 1024 // 5 Mo
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 export async function POST(request: NextRequest) {

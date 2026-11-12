@@ -804,3 +804,11 @@ elays-comptes-siege.csv` (hors dépôt).
   possibles) ; **tous les autres** (autres services, boutiques) reçoivent la version allégée en consultation seule (dates, mécanique, CGV, exclusions, commentaires — sans montants, références, description ni équipe).
 - **Statistiques** : onglet supprimé pour tous (`/stats` redirige vers `/kanban`, composant `StatsView` et API `stats/team` supprimés).
 - **Jours libres** : les 11 et 12 janvier **2027** uniquement ne sont pas refusés d'office (`ALWAYS_FREE_DAYS` dans `leaveRules.ts`) ; la période « Black Friday → soldes de janvier » se termine donc le 10 janvier 2027 (la 1re semaine des soldes court du 6 au 12).
+
+### Annexe C undecies — Durcissement sécurité (audit complet)
+- **Cookie de session signé** (`lib/session-cookie.ts`, vérifié aussi dans `middleware.ts` via `lib/session-edge.ts`) : `v1.<charge utile>.<HMAC-SHA256>` ; secret = `SESSION_SECRET` ou, à défaut, `SUPABASE_SERVICE_ROLE_KEY`.
+  Un cookie falsifié, ancien (JSON brut) ou sans secret = « non connecté ». Toutes les routes lisent l'identité via `readSessionUserId()` (plus de `JSON.parse` du cookie). Changer le secret déconnecte tout le monde (une reconnexion suffit).
+- **Routes fermées** : toute route de lecture ou d'écriture exige une session (`profiles`, `absences`, `departments`, `recurring`, `tags`, `templates`, `activity-periods`, commentaires, sous-tâches, pièces jointes, historique, réordonnancements…). `/api/debug` supprimée.
+- **Droits sur les cartes** (`lib/tasks/access.ts`, `requireTaskAccess`) : toutes les routes `tasks/[id]/…` vérifient que la personne est créatrice ou assignée de la carte (comptes boutique : collaborateurs du magasin inclus) ; exception PAC & Média Kit (Marketing, Web, RH validatrice).
+- **`notify/absence-review`** : réservé à la personne qui vient de décider (10 min), statut lu en base (plus celui du navigateur), « modification refusée » distinguée, vouvoiement pour les magasins.
+- **Autres** : secret des crons obligatoire (`!CRON_SECRET` → refus), en-têtes de sécurité (`next.config.js` : X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, HSTS), texte saisi échappé dans les e-mails (`esc()` dans `baseHtml.ts`), pièces jointes de cartes limitées à 15 Mo et types dangereux refusés.

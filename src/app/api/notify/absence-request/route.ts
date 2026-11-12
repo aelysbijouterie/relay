@@ -1,14 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
 import { sendEmail } from '@/lib/email'
-import { baseHtml, button } from '@/emails/baseHtml'
+import { baseHtml, button, esc } from '@/emails/baseHtml'
 
 export const dynamic = 'force-dynamic'
 
 function getUserId(): string | null {
-  try { return JSON.parse(cookies().get('relays-session')?.value ?? '').user_id ?? null } catch { return null }
+  return readSessionUserId()
 }
 
 // Prévient les responsables (manager/admin) du service du demandeur qu'une
@@ -58,15 +59,15 @@ export async function POST(request: NextRequest) {
     if (!m.email) continue
     const html = baseHtml({
       title: info ? (type === 'Alternance' ? 'Période d\'alternance enregistrée' : 'Absence signalée') : 'Nouvelle demande d\'absence',
-      preheader: `${displayName} a déposé une demande de ${type}`,
+      preheader: `${esc(displayName)} a déposé une demande de ${esc(type)}`,
       deptColor,
       content: `
         <h2 style="margin:0 0 10px;font-size:21px;font-weight:700;color:#1C1E26;">${info ? (type === 'Alternance' ? 'Alternance enregistrée' : 'Absence signalée') : 'Demande d\'absence à valider'}</h2>
         <p style="margin:0 0 18px;color:#5A6072;font-size:14.5px;line-height:1.6;">
-          <strong>${displayName}</strong> ${info ? (type === 'Alternance' ? 'a enregistré une période (aucune validation nécessaire, pour information) :' : 'a signalé une absence (aucune validation nécessaire, pour information) :') : 'a déposé une demande d\'absence :'}
+          <strong>${esc(displayName)}</strong> ${info ? (type === 'Alternance' ? 'a enregistré une période (aucune validation nécessaire, pour information) :' : 'a signalé une absence (aucune validation nécessaire, pour information) :') : 'a déposé une demande d\'absence :'}
         </p>
         <div style="background:#F9FAFB;border-left:4px solid ${deptColor};border-radius:0 10px 10px 0;padding:15px 18px;margin-bottom:18px;">
-          <p style="margin:0;font-size:15px;font-weight:600;color:#1C1E26;">${type}</p>
+          <p style="margin:0;font-size:15px;font-weight:600;color:#1C1E26;">${esc(type)}</p>
           <p style="margin:6px 0 0;font-size:13px;color:#6A7180;">Du ${fmt(start_date)} au ${fmt(end_date)}</p>
         </div>
         ${button({ label: 'Voir la demande →', color: deptColor, href: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://aelys-relays.vercel.app'}/conges` })}

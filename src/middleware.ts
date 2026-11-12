@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { isValidSessionValue } from '@/lib/session-edge'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (
@@ -10,7 +11,8 @@ export function middleware(request: NextRequest) {
   ) return NextResponse.next()
 
   const isDemo    = !!request.cookies.get('relays-demo')?.value
-  const isSession = !!request.cookies.get('relays-session')?.value
+  // Cookie de session SIGNÉ : un cookie falsifié ou ancien (non signé) ne compte pas comme connecté.
+  const isSession = await isValidSessionValue(request.cookies.get('relays-session')?.value)
   const isAuth    = isDemo || isSession
   const isLogin   = pathname.startsWith('/login') || pathname.startsWith('/auth')
                     || pathname.startsWith('/mot-de-passe-oublie')

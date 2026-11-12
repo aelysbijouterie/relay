@@ -14,7 +14,7 @@ function localDs(d: Date): string {
 // Chaque carte n'est créée qu'une fois (contrôle via recurring_task_id + deadline).
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization')
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
