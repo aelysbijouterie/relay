@@ -64,17 +64,17 @@ export function blackFriday(year: number): string { return addDays(nthWeekday(ye
  *  • semaine de la Saint-Valentin • semaine de la fête des mères
  *  • 1re semaine des soldes d'hiver et d'été
  *  • de la semaine du Black Friday jusqu'à la 1re semaine des soldes de janvier suivant (Noël compris).
- * Les 11 et 12 janvier sont toujours libres (ALWAYS_FREE_DAYS).
+ * Les 11 et 12 janvier 2027 sont libres (ALWAYS_FREE_DAYS).
  */
-/** Jours de l'année (« MM-JJ ») toujours libres, même s'ils tombent dans une période refusée d'office. */
-const ALWAYS_FREE_DAYS = ['01-11', '01-12']
+/** Dates précises (« AAAA-MM-JJ ») libres, même si elles tombent dans une période refusée d'office. */
+const ALWAYS_FREE_DAYS = ['2027-01-11', '2027-01-12']
 
 /** Retire les jours toujours libres d'une période (elle peut être coupée en deux). */
 function withoutFreeDays(p: RulePeriod): RulePeriod[] {
   const out: RulePeriod[] = []
   let segStart: string | null = null
   for (let d = p.start; d <= p.end; d = addDays(d, 1)) {
-    if (ALWAYS_FREE_DAYS.includes(d.slice(5))) {
+    if (ALWAYS_FREE_DAYS.includes(d)) {
       if (segStart) { out.push({ ...p, start: segStart, end: addDays(d, -1) }); segStart = null }
     } else if (!segStart) segStart = d
   }
