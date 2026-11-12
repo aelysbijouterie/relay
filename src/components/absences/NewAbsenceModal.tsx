@@ -78,7 +78,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
   const blocked = ((editing ? absence?.type : type) === 'Congés payés' || (editing ? absence?.type : type) === 'RTT') && rules.blocks.length > 0
 
   // Opérations commerciales qui chevauchent la période demandée.
-  const opConflicts = (startDate && endDate)
+  const opConflicts = (startDate && endDate && (type === 'Congés payés' || type === 'RTT'))
     ? operations.filter(o => {
         const end = o.op_date_fin ? o.op_date_fin.slice(0, 10) : (o.op_date_debut ? o.op_date_debut.slice(0, 10) : null)
         const start = o.op_date_debut ? o.op_date_debut.slice(0, 10) : end

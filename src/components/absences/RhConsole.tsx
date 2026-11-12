@@ -114,6 +114,8 @@ export function RhConsole() {
       && o.user_id !== a.user_id && overlaps(o.start_date, o.end_date, r.start, r.end)).length
   }, [absences])
   const opsHit = useCallback((a: RhAbsence) => {
+    // L'alternance (et les absences signalées) ne sont pas des congés : aucun rapprochement avec les opérations.
+    if (a.type !== 'Congés payés' && a.type !== 'RTT') return []
     const r = rangeOf(a)
     return operations.filter(o => {
       const e = o.op_date_fin ?? o.op_date_debut; const s = o.op_date_debut ?? e
@@ -244,6 +246,7 @@ export function RhConsole() {
     const opClash = new Set<string>()
     for (const a of mine) {
       if (a.end_date < today || a.start_date > in60) continue
+      if (a.type !== 'Congés payés' && a.type !== 'RTT') continue
       for (const o of operations) {
         const e = o.op_date_fin ?? o.op_date_debut; const s = o.op_date_debut ?? e
         if (s && e && overlaps(s.slice(0, 10), e.slice(0, 10), a.start_date, a.end_date)) opClash.add(o.title)
