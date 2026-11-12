@@ -803,3 +803,4 @@ elays-comptes-siege.csv` (hors dépôt).
 - **Opérations & Média Kit** : onglet visible par **tous** les utilisateurs (sidebar). `GET /api/pac-media-kit` répond à tout utilisateur connecté ; Marketing, Web et la RH validatrice reçoivent les cartes complètes (création/modification
   possibles) ; **tous les autres** (autres services, boutiques) reçoivent la version allégée en consultation seule (dates, mécanique, CGV, exclusions, commentaires — sans montants, références, description ni équipe).
 - **Statistiques** : onglet supprimé pour tous (`/stats` redirige vers `/kanban`, composant `StatsView` et API `stats/team` supprimés).
+- **Jours toujours libres** : les 11 et 12 janvier ne sont jamais refusés d'office (`ALWAYS_FREE_DAYS` dans `leaveRules.ts`) ; la période « Black Friday → soldes de janvier » se termine donc le 10 janvier 2027 (la 1re semaine des soldes court du 6 au 12).
