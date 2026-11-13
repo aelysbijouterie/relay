@@ -44,10 +44,7 @@ export async function GET() {
   const isFull = !ctx.isBoutique && (profile?.can_validate_boutiques === true
     || PAC_MEDIA_KIT_DEPARTMENTS.includes(mySlug ?? '') || myExtraSlugs.some(s => PAC_MEDIA_KIT_DEPARTMENTS.includes(s)))
 
-  // Les IDs des services Marketing + Web (indépendamment de qui les demande).
-  const { data: pacDepts } = await supabase.from('departments').select('id, slug').in('slug', PAC_MEDIA_KIT_DEPARTMENTS)
-  const pacDeptIds = (pacDepts ?? []).map((d: { id: string }) => d.id)
-  if (pacDeptIds.length === 0) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
+  // Toute carte portant une catégorie PAC / Média Kit apparaît, quel que soit son service, sans assignation ni mention.
 
   // Même forme que /api/tasks, pour que chaque carte renvoyée soit directement
   // utilisable par TaskModal (pas de re-fetch, pas de champ manquant).
@@ -66,7 +63,6 @@ export async function GET() {
       extra_departments:task_departments(department:departments(id, name, color, slug)),
       tags:task_tags(tag:tags(id, name, color))
     `)
-    .in('department_id', pacDeptIds)
     .not('op_category', 'is', null)
     .is('deleted_at', null)
     // Les cartes archivées restent au planning : une opération terminée doit rester visible pour tous.
