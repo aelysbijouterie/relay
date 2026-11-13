@@ -69,7 +69,7 @@ export async function GET() {
     .in('department_id', pacDeptIds)
     .not('op_category', 'is', null)
     .is('deleted_at', null)
-    .neq('status', 'Archivé')
+    // Les cartes archivées restent au planning : une opération terminée doit rester visible pour tous.
 
   if (error) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } })
 
