@@ -14,7 +14,8 @@ import { TaskModal } from '@/components/tasks/TaskModal'
 import { useTasks } from '@/hooks/useTasks'
 import { useTaskStore } from '@/store/tasks'
 import type { Task } from '@/types'
-import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
+import { holidayName, schoolZonesLabel } from '@/lib/calendar/holidays'
+import { SchoolZoneToggle, ZoneChips, useSchoolZones } from '@/components/calendar/SchoolZones'
 import { occurrencesInRange } from '@/lib/recurring/schedule'
 import type { RecurringTask } from '@/types/recurring'
 import { FREQUENCY_LABELS, WEEKDAYS } from '@/types/recurring'
@@ -259,6 +260,7 @@ export function CalendarView() {
         </div>
       </div>
 
+      {view === 'month' && (showSchool ?? true) && <div className="mb-3"><SchoolZoneToggle /></div>}
       {view === 'month' && <MonthView cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} showHol={showHol} showSchool={showSchool} projectionsByDay={projectionsByDay} onSelectRecurring={(m, date) => setSelectedRecurring({ model: m, date })} absencesByDay={absencesByDay} eventsByDay={eventsByDay} onSelectEvent={(ev, date) => setShowEventModal({ event: ev, date })} onAddEvent={(date) => setShowEventModal({ date })} />}
       {view === 'week'  && <WeekView  cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
       {view === 'day'   && <DayView   cursor={cursor} tasksForDay={tasksForDay} onSelect={setSelectedTask} />}
@@ -360,6 +362,7 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
   const monthStart = startOfMonth(cursor)
   const days = eachDayOfInterval({ start: monthStart, end: endOfMonth(cursor) })
   const startOffset = (getDay(monthStart) + 6) % 7
+  const [zones] = useSchoolZones()
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -377,19 +380,20 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
           const today = isToday(day)
           const ds = dsLocal(day)
           const ferie = (showHol ?? true) ? holidayName(ds) : null
-          const vacances = (showSchool ?? true) ? schoolHolidayName(ds) : null
+          const vacances = (showSchool ?? true) ? schoolZonesLabel(ds, zones) : null
           const projections = projectionsByDay?.get(ds) ?? []
           const dayAbsences = absencesByDay?.get(ds) ?? []
           const dayEvents = eventsByDay?.get(ds) ?? []
           return (
             <div key={day.toISOString()} className={cn('group relative min-h-[100px] p-2 border-b border-r border-border', today && 'bg-primary/5')}
-              style={!today && ferie ? { backgroundColor: 'rgba(217,70,239,0.07)' } : !today && vacances ? { backgroundColor: 'rgba(234,179,8,0.07)' } : undefined}
+              style={!today && ferie ? { backgroundColor: 'rgba(217,70,239,0.07)' } : undefined}
               title={ferie ?? vacances ?? undefined}>
               <div className="flex items-center justify-between mb-1">
                 <div className={cn('text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full', today && 'bg-primary text-primary-foreground')}
                   style={!today && ferie ? { color: '#C026D3' } : undefined}>
                   {format(day, 'd')}
                 </div>
+                {(showSchool ?? true) && <ZoneChips ds={ds} zones={zones} />}
                 <button onClick={() => onAddEvent?.(day)}
                   className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted text-muted-foreground"
                   title="Ajouter un événement ce jour">

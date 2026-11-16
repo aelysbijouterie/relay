@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ABSENCE_COLORS, type AbsenceType } from '@/types/absences'
+import { schoolZonesLabel } from '@/lib/calendar/holidays'
+import { SchoolZoneToggle, ZoneChips, useSchoolZones } from '@/components/calendar/SchoolZones'
 import { OP_CATEGORY_COLORS, OP_CATEGORY_LABELS, type OpCategory } from '@/types/pacMediaKit'
 
 interface Shop { id: string; code: number; name: string }
@@ -28,6 +30,7 @@ export function RhShopCalendar({ boutiques, absences }: { boutiques: Shop[]; abs
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
   const [selected, setSelected] = useState<Set<string> | null>(null) // null = tout (tant que rien n'a été coché)
   const [dayDetail, setDayDetail] = useState<string | null>(null)
+  const [zones] = useSchoolZones()
 
   useEffect(() => {
     try {
@@ -109,6 +112,8 @@ export function RhShopCalendar({ boutiques, absences }: { boutiques: Shop[]; abs
         </div>
       </div>
 
+      <div className="bg-card border border-border rounded-2xl p-3"><SchoolZoneToggle /></div>
+
       <div className="bg-card border border-border rounded-2xl p-3 flex flex-wrap items-center gap-4">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing &amp; Web</p>
         {([['operation_commerciale', showOps, setShowOps], ['media_kit', showMk, setShowMk]] as const).map(([cat, val, set]) => (
@@ -138,7 +143,10 @@ export function RhShopCalendar({ boutiques, absences }: { boutiques: Shop[]; abs
             return (
               <div key={i} className={`min-h-[96px] rounded-lg border p-1 overflow-hidden ${ds === todayStr ? 'border-2' : 'border-border'}`}
                 style={{ ...(ds === todayStr ? { borderColor: 'var(--accent)' } : {}), ...(weekend ? { backgroundColor: 'var(--muted)', opacity: 0.6 } : {}) }}>
-                <div className="text-xs font-semibold mb-0.5 text-muted-foreground">{date.getDate()}</div>
+                <div className="flex items-center justify-between mb-0.5" title={schoolZonesLabel(ds, zones) ?? undefined}>
+                  <span className="text-xs font-semibold text-muted-foreground">{date.getDate()}</span>
+                  <ZoneChips ds={ds} zones={zones} small />
+                </div>
                 {opsOn(ds).slice(0, 2).map(o => (
                   <div key={o.id} className="text-[0.55rem] leading-tight px-1 rounded truncate font-semibold mb-0.5"
                     style={{ backgroundColor: `${OP_CATEGORY_COLORS[o.op_category]}22`, color: OP_CATEGORY_COLORS[o.op_category] }}

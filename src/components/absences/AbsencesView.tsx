@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { getInitials } from '@/lib/utils'
 import { ABSENCE_COLORS, ABSENCE_STATUS_COLORS, PERIOD_LABELS, type Absence, type AbsenceType, type ActivityPeriod } from '@/types/absences'
-import { holidayName, schoolHolidayName } from '@/lib/calendar/holidays'
+import { holidayName, schoolZonesLabel } from '@/lib/calendar/holidays'
+import { SchoolZoneToggle, ZoneChips, useSchoolZones } from '@/components/calendar/SchoolZones'
 import { NewAbsenceModal } from './NewAbsenceModal'
 import { ActivityPeriodModal } from './ActivityPeriodModal'
 import { LeaveBalance } from './LeaveBalance'
@@ -29,6 +30,7 @@ export function AbsencesView() {
   // Boutiques : périodes où la demande de congés est impossible (affichées en rouge d'avance).
   const [blocked, setBlocked] = useState<{ label: string; start: string; end: string }[]>([])
   const [loading, setLoading] = useState(true)
+  const [zones] = useSchoolZones()
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
   const [showNew, setShowNew] = useState(false)
   const [newType, setNewType] = useState<AbsenceType | undefined>(undefined) // type présélectionné à l'ouverture
@@ -345,6 +347,7 @@ export function AbsencesView() {
 
       {/* Calendrier */}
       <div className="bg-card border border-border rounded-2xl p-4">
+        {(me?.show_school_holidays ?? true) && <div className="mb-3 pb-3 border-b border-border"><SchoolZoneToggle /></div>}
         <div className="flex items-center justify-between mb-4">
           <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-muted transition-colors"><ChevronLeft className="w-5 h-5" /></button>
           <h2 className="text-lg font-bold">{MONTHS[cursor.m]} {cursor.y}</h2>
@@ -369,8 +372,9 @@ export function AbsencesView() {
                 const dayOps = operationsOn(date)
                 const ds = localDs(date)
                 const ferie = (me?.show_holidays ?? true) ? holidayName(ds) : null
-                // Boutiques : pas de code couleur « vacances scolaires ».
-                const vacances = (me?.show_school_holidays ?? true) && !me?.is_boutique_account ? schoolHolidayName(ds) : null
+                // Vacances scolaires : simples pastilles de zone (A/B/C), jamais de fond coloré (réservé aux jours impossibles).
+                const showZones = me?.show_school_holidays ?? true
+                const vacances = showZones ? schoolZonesLabel(ds, zones) : null
                 return (
                   <div key={i}
                     className={`aspect-square rounded-lg border p-1 overflow-hidden ${isToday ? 'border-2' : 'border-border'}`}
@@ -379,12 +383,14 @@ export function AbsencesView() {
                       ...(isBlocked ? { backgroundColor: 'rgba(239,68,68,0.16)', borderColor: 'rgba(239,68,68,0.55)' }
                           : isActivity ? { backgroundColor: 'rgba(239,68,68,0.09)', borderColor: 'rgba(239,68,68,0.35)' }
                           : ferie ? { backgroundColor: 'rgba(217,70,239,0.10)', borderColor: 'rgba(217,70,239,0.30)' }
-                          : vacances ? { backgroundColor: 'rgba(234,179,8,0.10)' }
                           : isWeekend ? { backgroundColor: 'var(--muted)', opacity: 0.6 } : {}),
                     }}
                     title={ferie ? ferie : vacances ? vacances : isActivity ? isActivity : ''}>
-                    <div className={`text-xs font-semibold mb-0.5 ${isToday ? '' : 'text-muted-foreground'}`}
-                      style={isToday ? { color: 'var(--accent)' } : ferie ? { color: '#C026D3' } : isActivity ? { color: '#EF4444' } : {}}>{date.getDate()}</div>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className={`text-xs font-semibold ${isToday ? '' : 'text-muted-foreground'}`}
+                        style={isToday ? { color: 'var(--accent)' } : ferie ? { color: '#C026D3' } : isActivity ? { color: '#EF4444' } : {}}>{date.getDate()}</span>
+                      {showZones && <ZoneChips ds={ds} zones={zones} small />}
+                    </div>
                     {ferie && <div className="text-[0.5rem] leading-tight px-1 rounded truncate font-medium" style={{ color: '#C026D3' }} title={ferie}>{ferie}</div>}
                     {isActivity && <div className="text-[0.5rem] leading-tight px-1 rounded truncate font-medium" style={{ color: '#EF4444' }} title={isActivity}>{isActivity}</div>}
                     {dayOps.slice(0, 1).map(o => (
@@ -445,10 +451,10 @@ export function AbsencesView() {
               <span className="text-xs text-muted-foreground">Demande impossible (période bloquée)</span>
             </div>
           )}
-          {(me?.show_school_holidays ?? true) && !me?.is_boutique_account && (
+          {(me?.show_school_holidays ?? true) && (
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(234,179,8,0.25)' }} />
-              <span className="text-xs text-muted-foreground">Vacances scolaires</span>
+              <ZoneChips ds="2026-12-25" zones={['A', 'B', 'C']} />
+              <span className="text-xs text-muted-foreground">Vacances scolaires par zone (A, B, C)</span>
             </div>
           )}
         </div>

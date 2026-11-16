@@ -1,5 +1,7 @@
 'use client'
 
+import { schoolZonesLabel } from '@/lib/calendar/holidays'
+import { SchoolZoneToggle, ZoneChips, useSchoolZones } from '@/components/calendar/SchoolZones'
 import { useState, useEffect, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Plus, Briefcase, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,6 +25,7 @@ export function PacMediaKitView() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<CategoryFilter>('all')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [zones] = useSchoolZones()
   const [showNew, setShowNew] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [departments, setDepartments] = useState<Department[]>([])
@@ -155,6 +158,8 @@ export function PacMediaKitView() {
         ))}
       </div>
 
+      <SchoolZoneToggle />
+
       {/* Navigation mois */}
       <div className="flex items-center justify-between">
         <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-muted transition-colors"><ChevronLeft className="w-4 h-4" /></button>
@@ -176,10 +181,13 @@ export function PacMediaKitView() {
             const today = ds === todayStr
             const dayOps = opsOnDay(date)
             return (
-              <div key={i} className={cn('min-h-[92px] p-1.5 border-b border-r border-border', today && 'bg-primary/5')}>
-                <div className={cn('text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full',
-                  today && 'bg-primary text-primary-foreground')}>
-                  {date.getDate()}
+              <div key={i} className={cn('min-h-[92px] p-1.5 border-b border-r border-border', today && 'bg-primary/5')} title={schoolZonesLabel(ds, zones) ?? undefined}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className={cn('text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full',
+                    today && 'bg-primary text-primary-foreground')}>
+                    {date.getDate()}
+                  </div>
+                  <ZoneChips ds={ds} zones={zones} small />
                 </div>
                 <div className="space-y-0.5">
                   {dayOps.slice(0, 3).map(op => {

@@ -323,7 +323,7 @@ export function AccountView({ profile, teamSettings }: Props) {
         <div className="space-y-1">
           {([
             { key: 'show_holidays' as const, label: 'Jours fériés', description: 'Afficher les jours fériés sur les calendriers' },
-            { key: 'show_school_holidays' as const, label: 'Vacances scolaires (zone B)', description: 'Afficher les périodes de vacances scolaires' },
+            { key: 'show_school_holidays' as const, label: 'Vacances scolaires (zones A, B, C)', description: 'Afficher les pastilles de zones sur les plannings (choix des zones directement sur le planning)' },
             { key: 'show_absences_calendar' as const, label: 'Mes congés', description: 'Afficher mes propres congés validés dans le calendrier des tâches (pour anticiper mon planning)' },
           ]).map(({ key, label, description }) => (
             <label
