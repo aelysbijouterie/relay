@@ -17,7 +17,7 @@ interface CustomPeriodRow { id: string; label: string; start_date: string; end_d
 interface RhAbsence {
   id: string; user_id: string; type: AbsenceType
   start_date: string; end_date: string; start_period: AbsencePeriod; end_period: AbsencePeriod
-  reason: string | null; status: AbsenceStatus; review_note: string | null; created_at: string
+  reason: string | null; status: AbsenceStatus; review_note: string | null; reviewed_at?: string | null; created_at: string
   pending_start_date: string | null; pending_end_date: string | null
   pending_start_period: AbsencePeriod | null; pending_end_period: AbsencePeriod | null
   attachment_name?: string | null
@@ -29,6 +29,14 @@ type Tab = 'demandes' | 'soldes' | 'boutiques' | 'periodes' | 'calendrier' | 'co
 type StatusFilter = 'todo' | 'all' | 'Validé' | 'Refusé'
 
 const isPending = (a: RhAbsence) => a.status === 'En attente' || a.status === 'Modif. en attente'
+const WEEK_MS = 7 * 24 * 3600 * 1000
+// Demande en attente depuis plus d'une semaine (calculé sur la date de dépôt : s'applique aussi aux demandes anciennes).
+const isLate = (a: RhAbsence) => isPending(a) && Date.now() - new Date(a.created_at).getTime() > WEEK_MS
+const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const waitLabel = (iso: string) => {
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  return d <= 0 ? 'aujourd’hui' : d === 1 ? 'il y a 1 jour' : `il y a ${d} jours`
+}
 const fmtDay = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 const fmtShort = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 const localDs = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -160,10 +168,10 @@ export function RhConsole() {
   const selectedPending = selectablePending.filter(a => selected.has(a.id)).map(a => a.id)
 
   function exportCsv() {
-    const head = ['Boutique', 'Code', 'Collaborateur', 'Type', 'Début', 'Fin', 'Jours ouvrés', 'Statut', 'Motif', 'Demandé le']
+    const head = ['Boutique', 'Code', 'Collaborateur', 'Type', 'Début', 'Fin', 'Jours ouvrés', 'Statut', 'Motif', 'Demandé le', 'Motif du refus']
     const rows = filtered.map(a => {
       const r = rangeOf(a); const b = boutiqueById.get(a.user.boutique_id)
-      return [b?.name ?? '', b?.code ?? '', a.user.name, a.type, r.start, r.end, String(daysOf(a)).replace('.', ','), a.status, a.reason ?? '', a.created_at.slice(0, 10)]
+      return [b?.name ?? '', b?.code ?? '', a.user.name, a.type, r.start, r.end, String(daysOf(a)).replace('.', ','), a.status, a.reason ?? '', a.created_at.slice(0, 10), a.status === 'Refusé' ? (a.review_note ?? '') : '']
     })
     const csv = [head, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n')
     const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
@@ -352,22 +360,26 @@ export function RhConsole() {
                       checked={selectablePending.length > 0 && selectedPending.length === selectablePending.length}
                       onChange={e => setSelected(e.target.checked ? new Set(selectablePending.map(a => a.id)) : new Set())} />
                   </th>
-                  <th className="p-3">Boutique</th><th className="p-3">Collaborateur</th><th className="p-3">Type</th>
+                  <th className="p-3">Boutique</th><th className="p-3">Collaborateur</th><th className="p-3">Déposée le</th><th className="p-3">Type</th>
                   <th className="p-3">Période</th><th className="p-3 text-right">Jours</th><th className="p-3">Alertes</th>
                   <th className="p-3">Statut</th><th className="p-3 w-24" />
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">Aucune demande pour ces filtres.</td></tr>
+                  <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">Aucune demande pour ces filtres.</td></tr>
                 )}
                 {filtered.map(a => {
                   const oc = overlapCount(a); const hits = opsHit(a)
                   return (
-                    <tr key={a.id} id={`abs-${a.id}`} className={`border-b border-border last:border-0 hover:bg-muted/30 ${focusId === a.id ? 'bg-amber-50 ring-2 ring-inset ring-amber-300' : ''}`}>
+                    <tr key={a.id} id={`abs-${a.id}`} className={`border-b border-border last:border-0 hover:bg-muted/30 ${focusId === a.id ? 'bg-amber-50 ring-2 ring-inset ring-amber-300' : isLate(a) ? 'bg-red-50 dark:bg-red-950/20' : ''}`}>
                       <td className="p-3">{isPending(a) && <input type="checkbox" aria-label="Sélectionner" checked={selected.has(a.id)} onChange={() => toggle(a.id)} />}</td>
                       <td className="p-3 whitespace-nowrap">{boutiqueById.get(a.user.boutique_id)?.name ?? '—'}</td>
                       <td className="p-3 font-medium whitespace-nowrap">{a.user.name}</td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span className={isLate(a) ? 'font-semibold text-red-600' : ''}>{fmtDateTime(a.created_at)}</span>
+                        <p className={`text-xs ${isLate(a) ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>{isLate(a) ? '⚠ ' : ''}{waitLabel(a.created_at)}{isLate(a) ? ' — en attente' : ''}</p>
+                      </td>
                       <td className="p-3 whitespace-nowrap"><span style={{ color: ABSENCE_COLORS[a.type] }} className="font-semibold">{a.type}</span></td>
                       <td className="p-3 whitespace-nowrap">
                         {rangeLabel(a)}
@@ -387,7 +399,16 @@ export function RhConsole() {
                           {hits.length > 0 && <span className="text-[0.7rem] px-1.5 py-0.5 rounded font-semibold w-fit" style={{ backgroundColor: `${OP_CATEGORY_COLORS.operation_commerciale}1f`, color: '#BE3F50' }} title={hits.map(h => h.title).join(', ')}>★ Opération : {hits[0].title}{hits.length > 1 ? ` +${hits.length - 1}` : ''}</span>}
                         </div>
                       </td>
-                      <td className="p-3"><span className="text-xs px-2 py-1 rounded-md font-semibold text-white whitespace-nowrap" style={{ backgroundColor: ABSENCE_STATUS_COLORS[a.status] }}>{a.status}</span></td>
+                      <td className="p-3">
+                        <span className="text-xs px-2 py-1 rounded-md font-semibold text-white whitespace-nowrap" style={{ backgroundColor: ABSENCE_STATUS_COLORS[a.status] }}>{a.status}</span>
+                        {a.status === 'Refusé' && (
+                          <div className="mt-1.5 max-w-[16rem] text-xs rounded-lg px-2 py-1.5" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#B91C1C' }}>
+                            <p className="font-semibold">Motif du refus</p>
+                            <p className="whitespace-pre-wrap">{a.review_note || 'Aucun motif enregistré'}</p>
+                            {a.reviewed_at && <p className="opacity-70 mt-0.5">le {fmtDateTime(a.reviewed_at)}</p>}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3">
                         {isPending(a) && (
                           <div className="flex gap-1.5 justify-end">
