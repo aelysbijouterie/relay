@@ -7,6 +7,7 @@ import useSWR from 'swr'
 import { Columns, Calendar, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Briefcase, ClipboardList } from 'lucide-react'
 import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
+import { InstallApp } from './InstallApp'
 import { Logo } from '@/components/brand/Logo'
 import type { Profile, Department } from '@/types'
 
@@ -250,6 +251,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
 
       {/* User */}
       <div className="p-4 border-t border-border flex-shrink-0">
+        <InstallApp />
         <div className="flex items-center gap-2.5">
           <Link
             href={isBoutique ? '/kanban' : '/compte'}
