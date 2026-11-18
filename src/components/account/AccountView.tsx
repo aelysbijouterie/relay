@@ -1,5 +1,6 @@
 'use client'
 
+import { InstallApp } from '@/components/layout/InstallApp'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, Check, Loader2, Mail, Archive, CalendarDays, User, Bell, Sun } from 'lucide-react'
@@ -270,6 +271,12 @@ export function AccountView({ profile, teamSettings }: Props) {
           </button>
         </div>
         <p className="text-xs text-muted-foreground">L'email et le rôle sont gérés par un administrateur.</p>
+      </section>
+
+      <section className="bg-card border border-border rounded-2xl p-6 space-y-3">
+        <h2 className="font-medium">Application sur cet ordinateur</h2>
+        <p className="text-xs text-muted-foreground">Ouvre RELAYS dans sa propre fenêtre, sans barre du navigateur, avec un raccourci sur le bureau.</p>
+        <InstallApp />
       </section>
 
       </>)}

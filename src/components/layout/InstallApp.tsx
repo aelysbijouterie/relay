@@ -9,7 +9,7 @@ interface InstallEvent extends Event { prompt: () => Promise<void>; userChoice: 
  * Enregistre le service worker et propose « Installer l’application » (raccourci bureau, fenêtre sans barre du navigateur).
  * Le bouton disparaît une fois l’application installée / ouverte en mode application.
  */
-export function InstallApp() {
+export function InstallApp({ variant = 'row' }: { variant?: 'row' | 'icon' }) {
   const [evt, setEvt] = useState<InstallEvent | null>(null)
   const [help, setHelp] = useState(false)
   const [standalone, setStandalone] = useState(true)
@@ -24,7 +24,7 @@ export function InstallApp() {
     return () => { window.removeEventListener('beforeinstallprompt', onPrompt); window.removeEventListener('appinstalled', onInstalled) }
   }, [])
 
-  if (standalone) return null
+  if (standalone) return variant === 'row' ? <p className="text-sm text-green-600 font-medium">✓ Vous utilisez déjà RELAYS comme application.</p> : null
 
   async function install() {
     if (!evt) { setHelp(true); return }
@@ -35,10 +35,17 @@ export function InstallApp() {
 
   return (
     <>
-      <button type="button" onClick={install}
-        className="w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-xl text-xs font-semibold border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-        <Download className="w-3.5 h-3.5" /> Installer l’application
-      </button>
+      {variant === 'icon' ? (
+        <button type="button" onClick={install} aria-label="Installer l’application" title="Installer l’application"
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+          <Download className="w-3.5 h-3.5" />
+        </button>
+      ) : (
+        <button type="button" onClick={install}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-border hover:bg-muted transition-colors">
+          <Download className="w-4 h-4" /> Installer l’application
+        </button>
+      )}
       {help && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setHelp(false)}>
           <div className="bg-card rounded-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>

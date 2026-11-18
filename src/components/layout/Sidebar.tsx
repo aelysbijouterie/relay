@@ -251,7 +251,6 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
 
       {/* User */}
       <div className="p-4 border-t border-border flex-shrink-0">
-        <InstallApp />
         <div className="flex items-center gap-2.5">
           <Link
             href={isBoutique ? '/kanban' : '/compte'}
@@ -272,6 +271,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
               <p className="text-xs text-muted-foreground">{isBoutique ? 'Compte boutique' : roleLabel(profile.role)}</p>
             </div>
           </Link>
+          {isBoutique && <InstallApp variant="icon" />}
           <button
             type="button"
             onClick={handleLogout}
