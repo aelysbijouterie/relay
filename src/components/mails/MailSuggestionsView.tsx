@@ -48,7 +48,8 @@ export function MailSuggestionsView() {
       if (j.ok) toast.success(`Connexion OK — ${j.count} mail(s) reçu(s) ces 3 derniers jours`)
       else toast.error(j.error ?? 'Connexion impossible')
     } else if (j.ok) {
-      toast.success(`${j.read} mail(s) lus · ${j.proposed + j.created} action(s) trouvée(s)${j.retryLater ? ` · ${j.retryLater} à retenter` : ''}`)
+      if (j.aiError) toast.error(`L’IA n’a pas répondu : ${j.aiError} — ${j.retryLater} mail(s) seront retentés`, { duration: 15000 })
+      else toast.success(`${j.read} mail(s) lus · ${j.proposed + j.created} action(s) trouvée(s)`)
       load()
     } else toast.error(j.error ?? 'Analyse impossible')
   }

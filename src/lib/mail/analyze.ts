@@ -81,7 +81,13 @@ export async function analyzeMails(mails: RawMail[], today: string): Promise<Mai
       },
     }),
   })
-  if (!res.ok) throw new Error(`IA indisponible (${res.status})`)
+  if (!res.ok) {
+    let detail = ''
+    try { detail = ((await res.json())?.error?.message ?? '').toString().slice(0, 200) } catch { /* noop */ }
+    const err = new Error(`IA refusée (${res.status})${detail ? ` : ${detail}` : ''}`) as Error & { status?: number }
+    err.status = res.status
+    throw err
+  }
   const data = await res.json()
   const text: string | undefined = data?.candidates?.[0]?.content?.parts?.[0]?.text
   if (!text) throw new Error('Réponse IA vide')

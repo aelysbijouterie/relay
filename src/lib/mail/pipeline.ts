@@ -39,7 +39,7 @@ export async function createCardFromAction(
 export interface ScanResult {
   ok: boolean; error?: string
   read: number; skipped: number; analysed: number; withoutAction: number
-  proposed: number; created: number; retryLater: number
+  proposed: number; created: number; retryLater: number; aiError?: string
 }
 
 /**
@@ -78,7 +78,14 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
   for (let i = 0; i < toAnalyse.length; i += BATCH) {
     const batch = toAnalyse.slice(i, i + BATCH)
     let analyses
-    try { analyses = await analyzeMails(batch, today) } catch { res.retryLater += batch.length; continue }
+    try { analyses = await analyzeMails(batch, today) } catch (e) {
+      res.aiError = e instanceof Error ? e.message : 'Erreur IA inconnue'
+      const status = (e as { status?: number }).status
+      // Erreur de clé, de modèle ou de requête : inutile d'insister sur les lots suivants. Quota ou panne : on s'arrête aussi (retenté demain).
+      res.retryLater += toAnalyse.length - i
+      void status
+      break
+    }
     const byIdx = new Map(analyses.map(a => [a.index, a.actions]))
     for (let k = 0; k < batch.length; k++) {
       const m = batch[k]
