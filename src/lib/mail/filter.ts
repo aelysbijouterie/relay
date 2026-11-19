@@ -8,6 +8,8 @@ export interface RawMail {
   date: Date
   text: string
   headers: Record<string, string>
+  unread?: boolean   // non lu dans la boîte
+  todo?: boolean     // marqué « à traiter » (catégorie Outlook)
 }
 
 const AUTO_SENDER = /(no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|notifications?@|newsletter|bounce|alerts?@)/i
@@ -15,6 +17,12 @@ const AUTO_SUBJECT = /^(accept[ée]|refus[ée]|provisoire|r[ée]ponse automatiqu
 
 /** Raison pour laquelle un mail est écarté AVANT l'IA, ou null s'il doit être analysé. */
 export function skipReason(m: RawMail, ownAddress: string, exclude: string[]): string | null {
+  // Un mail marqué « à traiter » n'est écarté que par la liste d'exclusion (confidentialité), jamais par les filtres de bruit.
+  if (m.todo) {
+    const hayT = `${m.fromName} ${m.fromEmail} ${m.subject} ${m.text}`.toLowerCase()
+    for (const w of exclude) if (w && hayT.includes(w)) return `exclu (« ${w} »)`
+    return null
+  }
   const from = m.fromEmail.toLowerCase()
   if (ownAddress && from === ownAddress.toLowerCase()) return 'envoyé par moi'
   if (AUTO_SENDER.test(from)) return 'expéditeur automatique'

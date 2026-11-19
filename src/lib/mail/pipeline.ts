@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchRecentMails, imapConfig } from './imap'
 import { analyzeMails, type MailAction } from './analyze'
-import { parseExclude, skipReason, type RawMail } from './filter'
+import { cleanBody, parseExclude, skipReason, type RawMail } from './filter'
 import { sendEmail } from '@/lib/email'
 import { baseHtml, button, esc } from '@/emails/baseHtml'
 
@@ -39,7 +39,7 @@ export async function createCardFromAction(
 export interface ScanResult {
   ok: boolean; error?: string
   read: number; skipped: number; analysed: number; withoutAction: number
-  proposed: number; created: number; retryLater: number; aiError?: string
+  proposed: number; created: number; retryLater: number; readIgnored?: number; todoCards?: number; aiError?: string
 }
 
 /**
@@ -58,7 +58,10 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
   const exclude = parseExclude(process.env.MAIL_EXCLUDE)
 
   let mails: RawMail[]
-  try { mails = await fetchRecentMails(3, 40) } catch (e) { return { ...res, error: e instanceof Error ? e.message : 'Lecture de la boîte impossible' } }
+  try {
+    const r = await fetchRecentMails(3, 40)
+    mails = r.mails; res.readIgnored = r.readIgnored
+  } catch (e) { return { ...res, error: e instanceof Error ? e.message : 'Lecture de la boîte impossible' } }
   res.read = mails.length
 
   const { data: seen } = await supabase.from('mail_suggestions').select('message_id').in('message_id', mails.map(m => m.messageId))
@@ -85,8 +88,10 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
     const byIdx = new Map(analyses.map(a => [a.index, a.actions]))
     for (let k = 0; k < batch.length; k++) {
       const m = batch[k]
-      const actions: MailAction[] | undefined = byIdx.get(k)
+      let actions: MailAction[] | undefined = byIdx.get(k)
       if (!actions) { res.retryLater++; continue } // l'IA n'a pas répondu pour ce mail : retenté plus tard
+      // Mail marqué « à traiter » : une carte est TOUJOURS créée, même si l'IA ne voit pas d'action précise.
+      if (m.todo && actions.length === 0) actions = [{ title: `Traiter : ${m.subject}`.slice(0, 150), description: cleanBody(m.text, 800), priority: 'Moyenne', deadline: null }]
       res.analysed++
       if (actions.length === 0) {
         res.withoutAction++
@@ -97,9 +102,9 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
       for (let n = 0; n < actions.length; n++) {
         const a = actions[n]
         let status = 'pending'; let taskId: string | null = null
-        if (auto) {
+        if (auto || m.todo) { // les mails marqués « à traiter » deviennent des cartes sans validation
           taskId = await createCardFromAction(supabase, owner!, { ...a, from, subject: m.subject, received: m.date.toISOString() })
-          if (taskId) { status = 'created'; res.created++ } else res.proposed++
+          if (taskId) { status = 'created'; res.created++; if (m.todo) res.todoCards = (res.todoCards ?? 0) + 1 } else res.proposed++
         } else res.proposed++
         await supabase.from('mail_suggestions').upsert({
           message_id: m.messageId, action_idx: n, owner_id: owner!.id, status,

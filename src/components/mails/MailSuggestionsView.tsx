@@ -45,11 +45,18 @@ export function MailSuggestionsView() {
     const j = await r.json().catch(() => ({ ok: false, error: r.status === 504 || r.status === 502 ? `Le serveur a mis trop de temps à répondre (${r.status}) — recliquez, les mails déjà analysés sont conservés` : `Réponse inattendue du serveur (${r.status})` }))
     setBusy(null)
     if (action === 'test') {
-      if (j.ok) toast.success(`Connexion OK — ${j.count} mail(s) reçu(s) ces 3 derniers jours`)
+      if (j.ok) {
+        const marks: string[] = j.marks ?? []
+        toast.success(
+          `Connexion OK — ${j.count} mail(s) ces 3 derniers jours : ${j.unread} non lu(s), ${j.todo} marqué(s) « à traiter ». ` +
+          (marks.length ? `Marques vues : ${marks.join(', ')}.` : 'Aucune marque (drapeau, catégorie) transmise par OVH.') +
+          (j.todo === 0 ? ' Aucun mail avec la catégorie « à traiter » détecté.' : ''),
+          { duration: 30000 })
+      }
       else toast.error(j.error ?? 'Connexion impossible')
     } else if (j.ok) {
       if (j.aiError) toast.error(`L’IA n’a pas répondu : ${j.aiError} — ${j.retryLater} mail(s) seront retentés`, { duration: 15000 })
-      else toast.success(`${j.read} mail(s) lus · ${j.proposed + j.created} action(s) trouvée(s)`)
+      else toast.success(`${j.read} mail(s) analysé(s) (${j.readIgnored ?? 0} déjà lus ignorés) · ${j.proposed} à valider · ${j.created} carte(s) créée(s)${j.todoCards ? ` dont ${j.todoCards} « à traiter »` : ''}`, { duration: 12000 })
       load()
     } else toast.error(j.error ?? 'Analyse impossible', { duration: 15000 })
   }

@@ -10,6 +10,8 @@ describe('skipReason', () => {
   it('écarte les expéditeurs automatiques', () => expect(skipReason({ ...base, fromEmail: 'noreply@shop.com' }, 'moi@aelys.fr', [])).not.toBeNull())
   it('écarte les newsletters', () => expect(skipReason({ ...base, headers: { 'list-unsubscribe': '<mailto:x>' } }, 'moi@aelys.fr', [])).not.toBeNull())
   it('écarte les réponses automatiques', () => expect(skipReason({ ...base, subject: 'Réponse automatique : absente' }, 'moi@aelys.fr', [])).not.toBeNull())
+  it('un mail marqué « à traiter » passe les filtres de bruit', () => expect(skipReason({ ...base, fromEmail: 'noreply@shop.com', todo: true }, 'moi@aelys.fr', [])).toBeNull())
+  it('mais reste soumis à la liste d’exclusion', () => expect(skipReason({ ...base, todo: true, text: 'bulletin de paie' }, 'moi@aelys.fr', ['paie'])).not.toBeNull())
   it('respecte la liste d’exclusion (mot dans le corps)', () => expect(skipReason({ ...base, text: 'Votre bulletin de paie' }, 'moi@aelys.fr', parseExclude('Paie, salaire'))).not.toBeNull())
 })
 
