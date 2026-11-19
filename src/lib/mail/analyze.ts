@@ -46,11 +46,29 @@ Règles :
 ${blocks}`
 }
 
+const FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest']
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+/** Surcharge momentanée (429, 500, 503) : on réessaie après une courte pause, puis on tente un modèle de secours. */
+async function withRetry(doFetch: (model: string) => Promise<Response>): Promise<Response> {
+  let last: Response | null = null
+  for (const model of [MODEL, ...FALLBACK_MODELS.filter(m => m !== MODEL)]) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const r = await doFetch(model)
+      if (r.ok) return r
+      last = r
+      if (![429, 500, 502, 503, 504].includes(r.status)) break // 404/400… : passer au modèle suivant
+      await sleep(attempt === 0 ? 3000 : 0)
+    }
+  }
+  return last as Response
+}
+
 /** Analyse un lot de mails avec Gemini (palier gratuit). Lève une erreur en cas d'échec : le lot sera retenté au prochain passage. */
 export async function analyzeMails(mails: RawMail[], today: string): Promise<MailAnalysis[]> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY absente dans Vercel')
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+  const doFetch = (model: string) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
@@ -82,6 +100,7 @@ export async function analyzeMails(mails: RawMail[], today: string): Promise<Mai
       },
     }),
   })
+  const res = await withRetry(doFetch)
   if (!res.ok) {
     let detail = ''
     try { detail = ((await res.json())?.error?.message ?? '').toString().slice(0, 200) } catch { /* noop */ }

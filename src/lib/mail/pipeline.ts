@@ -75,7 +75,10 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
   const today = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date())
   const newItems: { title: string; from: string; subject: string; created: boolean }[] = []
 
+  const startedAt = Date.now()
   for (let i = 0; i < toAnalyse.length; i += BATCH) {
+    // La fonction dispose de 60 s : au-delà de 40 s on s'arrête, le reste sera repris au prochain passage.
+    if (Date.now() - startedAt > 40000) { res.retryLater += toAnalyse.length - i; res.aiError = res.aiError ?? 'Temps écoulé : le reste sera analysé au prochain passage'; break }
     const batch = toAnalyse.slice(i, i + BATCH)
     let analyses
     try { analyses = await analyzeMails(batch, today) } catch (e) {
