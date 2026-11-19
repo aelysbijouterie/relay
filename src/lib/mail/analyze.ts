@@ -5,7 +5,8 @@ export type Priority = 'Urgent' | 'Élevée' | 'Moyenne' | 'Faible'
 export interface MailAction { title: string; description: string; priority: Priority; deadline: string | null }
 export interface MailAnalysis { index: number; actions: MailAction[] }
 
-const MODEL = 'gemini-2.5-flash-lite'
+// Modèle modifiable sans toucher au code (variable GEMINI_MODEL) : Google retire régulièrement d'anciens modèles aux nouveaux comptes.
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
 const PRIORITIES: Priority[] = ['Urgent', 'Élevée', 'Moyenne', 'Faible']
 
 /** Valide et nettoie la réponse de l'IA (jamais de confiance aveugle). */
