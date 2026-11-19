@@ -6,7 +6,7 @@ import { sendEmail } from '@/lib/email'
 import { baseHtml, button, esc } from '@/emails/baseHtml'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://aelys-relays.vercel.app'
-const BATCH = 8
+const BATCH = 3
 
 export interface Owner { id: string; name: string; email: string; department_id: string | null }
 
@@ -77,19 +77,11 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
   const today = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date())
   const newItems: { title: string; from: string; subject: string; created: boolean }[] = []
 
-  for (let i = 0; i < toAnalyse.length; i += BATCH) {
-    // La fonction dispose de 60 s : au-delà de 40 s on s'arrête, le reste sera repris au prochain passage.
-    if (Date.now() > deadline - 14000) { res.retryLater += toAnalyse.length - i; res.aiError = res.aiError ?? 'Temps écoulé : le reste sera analysé au prochain passage'; break }
-    const batch = toAnalyse.slice(i, i + BATCH)
-    let analyses
-    try { analyses = await analyzeMails(batch, today, deadline) } catch (e) {
-      res.aiError = e instanceof Error ? e.message : 'Erreur IA inconnue'
-      const status = (e as { status?: number }).status
-      // Erreur de clé, de modèle ou de requête : inutile d'insister sur les lots suivants. Quota ou panne : on s'arrête aussi (retenté demain).
-      res.retryLater += toAnalyse.length - i
-      void status
-      break
-    }
+  // Petits lots traités EN PARALLÈLE (4 appels à la fois) : chaque appel reste court, l'ensemble tient dans le temps imparti.
+  const batches: RawMail[][] = []
+  for (let i = 0; i < toAnalyse.length; i += BATCH) batches.push(toAnalyse.slice(i, i + BATCH))
+
+  async function saveBatch(batch: RawMail[], analyses: Awaited<ReturnType<typeof analyzeMails>>) {
     const byIdx = new Map(analyses.map(a => [a.index, a.actions]))
     for (let k = 0; k < batch.length; k++) {
       const m = batch[k]
@@ -98,7 +90,7 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
       res.analysed++
       if (actions.length === 0) {
         res.withoutAction++
-        noneRows.push({ message_id: m.messageId, owner_id: owner.id, status: 'none', received_at: m.date.toISOString() })
+        noneRows.push({ message_id: m.messageId, owner_id: owner!.id, status: 'none', received_at: m.date.toISOString() })
         continue
       }
       const from = m.fromName ? `${m.fromName} <${m.fromEmail}>` : m.fromEmail
@@ -106,17 +98,35 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
         const a = actions[n]
         let status = 'pending'; let taskId: string | null = null
         if (auto) {
-          taskId = await createCardFromAction(supabase, owner, { ...a, from, subject: m.subject, received: m.date.toISOString() })
+          taskId = await createCardFromAction(supabase, owner!, { ...a, from, subject: m.subject, received: m.date.toISOString() })
           if (taskId) { status = 'created'; res.created++ } else res.proposed++
         } else res.proposed++
         await supabase.from('mail_suggestions').upsert({
-          message_id: m.messageId, action_idx: n, owner_id: owner.id, status,
+          message_id: m.messageId, action_idx: n, owner_id: owner!.id, status,
           from_name: m.fromName, from_email: m.fromEmail, subject: m.subject, received_at: m.date.toISOString(),
           title: a.title, description: a.description, priority: a.priority, deadline: a.deadline, task_id: taskId,
         }, { onConflict: 'message_id,action_idx' })
         newItems.push({ title: a.title, from: m.fromName || m.fromEmail, subject: m.subject, created: status === 'created' })
       }
     }
+  }
+
+  const PARALLEL = 4
+  for (let i = 0; i < batches.length; i += PARALLEL) {
+    const round = batches.slice(i, i + PARALLEL)
+    const left = batches.slice(i).reduce((n, b) => n + b.length, 0)
+    // La fonction dispose de 60 s : on ne démarre pas un tour s'il reste trop peu de temps, le reste sera repris plus tard.
+    if (Date.now() > deadline - 15000) { res.retryLater += left; res.aiError = res.aiError ?? 'Temps écoulé : le reste sera analysé au prochain passage'; break }
+    const out = await Promise.allSettled(round.map(batch => analyzeMails(batch, today, deadline)))
+    let failed = 0
+    for (let k = 0; k < round.length; k++) {
+      const r = out[k]
+      if (r.status === 'fulfilled') await saveBatch(round[k], r.value)
+      else { failed++; res.retryLater += round[k].length; res.aiError = r.reason instanceof Error ? r.reason.message : 'Erreur IA inconnue' }
+    }
+    if (noneRows.length) { await supabase.from('mail_suggestions').upsert(noneRows.splice(0).map(r => ({ ...r, action_idx: 0 })), { onConflict: 'message_id,action_idx' }) }
+    // Tous les appels du tour ont échoué (clé, quota, panne) : inutile d'insister.
+    if (failed === round.length) { res.retryLater += batches.slice(i + PARALLEL).reduce((n, b) => n + b.length, 0); break }
   }
 
   if (noneRows.length) await supabase.from('mail_suggestions').upsert(noneRows.map(r => ({ ...r, action_idx: 0 })), { onConflict: 'message_id,action_idx' })

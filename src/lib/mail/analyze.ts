@@ -32,7 +32,7 @@ export function sanitizeAnalyses(raw: unknown, count: number): MailAnalysis[] {
 }
 
 function buildPrompt(mails: RawMail[], today: string): string {
-  const blocks = mails.map((m, i) => `### MAIL ${i}\nDe : ${m.fromName} <${m.fromEmail}>\nObjet : ${m.subject}\nDate : ${m.date.toISOString().slice(0, 10)}\n---\n${cleanBody(m.text)}`).join('\n\n')
+  const blocks = mails.map((m, i) => `### MAIL ${i}\nDe : ${m.fromName} <${m.fromEmail}>\nObjet : ${m.subject}\nDate : ${m.date.toISOString().slice(0, 10)}\n---\n${cleanBody(m.text, 2000)}`).join('\n\n')
   return `Tu aides la responsable d'une enseigne de bijouterie (Aelys) à ne rien oublier. Aujourd'hui : ${today}.
 Pour CHAQUE mail ci-dessous, indique les actions que SA DESTINATAIRE doit mener (répondre, envoyer, valider, préparer, relancer, décider…).
 Règles :
@@ -52,17 +52,21 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 /** Surcharge momentanée (429, 500, 503) : on réessaie après une courte pause, puis on tente un modèle de secours. */
 async function withRetry(doFetch: (model: string) => Promise<Response>, deadline: number): Promise<Response> {
   let last: Response | null = null
+  let lastErr: unknown = null
   for (const model of [MODEL, ...FALLBACK_MODELS.filter(m => m !== MODEL)]) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      if (last && Date.now() > deadline - 12000) return last // plus assez de temps pour une autre tentative
-      const r = await doFetch(model)
-      if (r.ok) return r
-      last = r
-      if (![429, 500, 502, 503, 504].includes(r.status)) break // 404/400… : passer au modèle suivant
-      await sleep(attempt === 0 ? 3000 : 0)
+      if ((last || lastErr) && Date.now() > deadline - 12000) break // plus assez de temps pour une autre tentative
+      try {
+        const r = await doFetch(model)
+        if (r.ok) return r
+        last = r
+        if (![429, 500, 502, 503, 504].includes(r.status)) break // 404/400… : passer au modèle suivant
+        await sleep(attempt === 0 ? 3000 : 0)
+      } catch (e) { lastErr = e; break } // délai dépassé : on passe au modèle suivant
     }
   }
-  return last as Response
+  if (last) return last
+  throw lastErr instanceof Error ? lastErr : new Error('IA injoignable')
 }
 
 /** Analyse un lot de mails avec Gemini (palier gratuit). Lève une erreur en cas d'échec : le lot sera retenté au prochain passage. */
@@ -77,6 +81,7 @@ export async function analyzeMails(mails: RawMail[], today: string, deadline = D
       contents: [{ role: 'user', parts: [{ text: buildPrompt(mails, today) }] }],
       generationConfig: {
         temperature: 0.1,
+        maxOutputTokens: 2048,
         responseMimeType: 'application/json',
         responseSchema: {
           type: 'ARRAY',
