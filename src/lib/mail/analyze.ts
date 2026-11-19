@@ -46,23 +46,31 @@ Règles :
 ${blocks}`
 }
 
+type ThinkMode = 'level' | 'budget' | 'none'
+const THINK_ORDER: ThinkMode[] = ['level', 'budget', 'none']
 const FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest']
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 /** Surcharge momentanée (429, 500, 503) : on réessaie après une courte pause, puis on tente un modèle de secours. */
-async function withRetry(doFetch: (model: string) => Promise<Response>, deadline: number): Promise<Response> {
+async function withRetry(doFetch: (model: string, think: ThinkMode) => Promise<Response>, deadline: number): Promise<Response> {
   let last: Response | null = null
   let lastErr: unknown = null
   for (const model of [MODEL, ...FALLBACK_MODELS.filter(m => m !== MODEL)]) {
     for (let attempt = 0; attempt < 2; attempt++) {
       if ((last || lastErr) && Date.now() > deadline - 12000) break // plus assez de temps pour une autre tentative
       try {
-        const r = await doFetch(model)
+        let r: Response | null = null
+        // Réflexion réduite au minimum (réponse bien plus rapide) ; si le modèle refuse ce réglage (400), on essaie l'autre écriture, puis sans.
+        for (const think of THINK_ORDER) {
+          r = await doFetch(model, think)
+          if (r.status !== 400) break
+        }
+        if (!r) break
         if (r.ok) return r
         last = r
         if (![429, 500, 502, 503, 504].includes(r.status)) break // 404/400… : passer au modèle suivant
         await sleep(attempt === 0 ? 3000 : 0)
-      } catch (e) { lastErr = e; break } // délai dépassé : on passe au modèle suivant
+      } catch (e) { lastErr = new Error(`délai dépassé avec le modèle ${model}`); void e; break } // délai dépassé : on passe au modèle suivant
     }
   }
   if (last) return last
@@ -73,14 +81,15 @@ async function withRetry(doFetch: (model: string) => Promise<Response>, deadline
 export async function analyzeMails(mails: RawMail[], today: string, deadline = Date.now() + 40000): Promise<MailAnalysis[]> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY absente dans Vercel')
-  const doFetch = (model: string) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+  const doFetch = (model: string, think: ThinkMode) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
-    signal: AbortSignal.timeout(Math.max(4000, Math.min(20000, deadline - Date.now() - 3000))),
+    signal: AbortSignal.timeout(Math.max(4000, Math.min(15000, deadline - Date.now() - 3000))),
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: buildPrompt(mails, today) }] }],
       generationConfig: {
         temperature: 0.1,
+        ...(think === 'level' ? { thinkingConfig: { thinkingLevel: 'minimal' } } : think === 'budget' ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
         maxOutputTokens: 2048,
         responseMimeType: 'application/json',
         responseSchema: {
