@@ -11,6 +11,8 @@ const securityHeaders = [
 
 const nextConfig = {
   poweredByHeader: false,
+  // Bibliothèques mail (lecture IMAP) : chargées telles quelles côté serveur, non empaquetées.
+  experimental: { serverComponentsExternalPackages: ['imapflow', 'mailparser'] },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },

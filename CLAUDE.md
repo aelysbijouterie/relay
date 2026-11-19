@@ -819,3 +819,12 @@ elays-comptes-siege.csv` (hors dépôt).
   Dépendances : Next.js 14.2.35, nodemailer 10.5.0. **Restent** (mises à jour majeures à planifier) : Next 16, Zod 4, postcss (via Next) — voir `npm audit`.
 - **Migration 031 (À EXÉCUTER PAR MANON, non exécutée)** : `031_lock_client_access.sql` retire tout droit d'accès direct à la base aux rôles `anon`/`authenticated` (l'application passe toujours par le serveur) ; seul le temps réel du Kanban est perdu (rafraîchissement toutes les 30 s).
 - **Ton** : écrans et messages vus par les magasins (connexion, demande de congés, erreurs d'API) passés au vouvoiement.
+
+### Annexe C duodecies — Mails à traiter (boîte OVH → cartes)
+- **Principe** : chaque jour à 08:00 (Paris ; cron à 06:00 ET 07:00 UTC, seul le passage qui tombe à 8 h travaille, `?force=1` pour tester) `cron/mail-digest` lit la boîte de la propriétaire en **IMAP lecture seule** (`lib/mail/imap.ts`, OVH Exchange `ex4.mail.ovh.net:993`),
+  écarte le bruit (`lib/mail/filter.ts` : mails envoyés par soi, expéditeurs automatiques, newsletters, réponses automatiques, mots de `MAIL_EXCLUDE`), envoie le reste par lots de 8 à **Gemini** (palier gratuit, `lib/mail/analyze.ts`, texte limité à 3 000 caractères, pièces jointes ignorées),
+  puis enregistre des **propositions** dans `mail_suggestions` (migration `032`, À EXÉCUTER PAR MANON). Un mail n'est jamais analysé deux fois (statut `none` = rien à faire) ; un lot dont l'IA échoue est retenté le lendemain.
+- **Validation** : page `/mails` (administrateurs ; l'API vérifie que l'utilisateur est bien le profil dont l'e-mail = `MAIL_IMAP_USER`) : modifier titre/description/priorité/échéance, « Créer la carte » (carte au nom de la propriétaire, assignée à elle, service principal, origine du mail en description) ou « Ignorer » ; boutons « Tester la connexion » et « Analyser maintenant ».
+  `MAIL_AUTO_CREATE=true` crée directement les cartes (sans validation). E-mail récapitulatif envoyé à la propriétaire quand il y a du nouveau.
+- **Variables Vercel** : `MAIL_IMAP_HOST`, `MAIL_IMAP_USER`, `MAIL_IMAP_PASSWORD` (Sensitive), `GEMINI_API_KEY` (Sensitive) ; facultatives : `MAIL_AUTO_CREATE`, `MAIL_EXCLUDE` (mots/expéditeurs jamais envoyés à l'IA, séparés par des virgules).
+- **Sécurité** : le contenu des mails est traité comme une donnée non fiable (consigne explicite à l'IA + réponse validée par `sanitizeAnalyses`) ; le palier gratuit de Google peut réutiliser les textes envoyés → utiliser `MAIL_EXCLUDE` pour RH, paie, direction.

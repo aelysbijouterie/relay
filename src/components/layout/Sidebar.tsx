@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import { Columns, Calendar, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Briefcase, ClipboardList } from 'lucide-react'
+import { Columns, Calendar, Clock, User, Archive, Activity, LogOut, Menu, X, Trash2, ListChecks, Sparkles, CalendarDays, Briefcase, ClipboardList, Mail } from 'lucide-react'
 import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
 import { InstallApp } from './InstallApp'
@@ -137,6 +137,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
               // Opérations & Média Kit : visible par TOUS (consultation) ; Marketing et Web peuvent en plus créer et modifier.
               { href: '/pac-media-kit', label: 'Opérations & Média Kit', icon: Briefcase },
               ...NAV_ITEMS.slice(1), // le reste (Calendrier, Chronologie, etc.)
+              ...(profile.role === 'admin' ? [{ href: '/mails', label: 'Mails à traiter', icon: Mail }] : []),
             ]
         ).map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')

@@ -43,6 +43,14 @@
     {
       "path": "/api/cron/leave-escalation",
       "schedule": "30 14 * * *"
+    },
+    {
+      "path": "/api/cron/mail-digest",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/mail-digest",
+      "schedule": "0 7 * * *"
     }
   ]
 }
