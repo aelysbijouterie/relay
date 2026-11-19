@@ -16,7 +16,7 @@ function headerMap(h: Map<string, unknown>): Record<string, string> {
 }
 
 /** Lit les mails de la boîte de réception reçus depuis `days` jours (lecture seule, rien n'est modifié ni supprimé). */
-export async function fetchRecentMails(days = 3, max = 60): Promise<RawMail[]> {
+export async function fetchRecentMails(days = 3, max = 40): Promise<RawMail[]> {
   const cfg = imapConfig()
   if (!cfg) throw new Error('Connexion mail non configurée (MAIL_IMAP_HOST / USER / PASSWORD)')
   const client = new ImapFlow({ host: cfg.host, port: 993, secure: true, auth: { user: cfg.user, pass: cfg.pass }, logger: false })
@@ -29,7 +29,7 @@ export async function fetchRecentMails(days = 3, max = 60): Promise<RawMail[]> {
       const found = await client.search({ since }, { uid: true })
       const uids = (found || []).sort((a, b) => b - a).slice(0, max)
       if (uids.length === 0) return []
-      for await (const msg of client.fetch(uids, { uid: true, internalDate: true, source: { maxLength: 200000 } }, { uid: true })) {
+      for await (const msg of client.fetch(uids, { uid: true, internalDate: true, source: { maxLength: 60000 } }, { uid: true })) {
         if (!msg.source) continue
         try {
           const p = await simpleParser(msg.source)

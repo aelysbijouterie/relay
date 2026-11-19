@@ -36,6 +36,9 @@ export async function POST(request: Request) {
   if ('error' in g) return g.error
   const body = await request.json().catch(() => ({}))
   if (body?.action === 'test') return NextResponse.json(await testConnection())
-  if (body?.action === 'scan') return NextResponse.json(await runMailScan(g.supabase))
+  if (body?.action === 'scan') {
+    try { return NextResponse.json(await runMailScan(g.supabase)) }
+    catch (e) { return NextResponse.json({ ok: false, error: `Erreur interne : ${e instanceof Error ? e.message : 'inconnue'}` }) }
+  }
   return NextResponse.json({ error: 'Action inconnue' }, { status: 400 })
 }

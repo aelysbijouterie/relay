@@ -48,6 +48,8 @@ export interface ScanResult {
  * Un mail n'est jamais traité deux fois ; un lot dont l'analyse échoue est simplement retenté au passage suivant.
  */
 export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult> {
+  const scanStart = Date.now()
+  const deadline = scanStart + 52000 // la fonction dispose de 60 s
   const res: ScanResult = { ok: false, read: 0, skipped: 0, analysed: 0, withoutAction: 0, proposed: 0, created: 0, retryLater: 0 }
   if (!imapConfig()) return { ...res, error: 'Connexion mail non configurée dans Vercel' }
   const owner = await getMailOwner(supabase)
@@ -56,7 +58,7 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
   const exclude = parseExclude(process.env.MAIL_EXCLUDE)
 
   let mails: RawMail[]
-  try { mails = await fetchRecentMails(3, 60) } catch (e) { return { ...res, error: e instanceof Error ? e.message : 'Lecture de la boîte impossible' } }
+  try { mails = await fetchRecentMails(3, 40) } catch (e) { return { ...res, error: e instanceof Error ? e.message : 'Lecture de la boîte impossible' } }
   res.read = mails.length
 
   const { data: seen } = await supabase.from('mail_suggestions').select('message_id').in('message_id', mails.map(m => m.messageId))
@@ -75,13 +77,12 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
   const today = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date())
   const newItems: { title: string; from: string; subject: string; created: boolean }[] = []
 
-  const startedAt = Date.now()
   for (let i = 0; i < toAnalyse.length; i += BATCH) {
     // La fonction dispose de 60 s : au-delà de 40 s on s'arrête, le reste sera repris au prochain passage.
-    if (Date.now() - startedAt > 40000) { res.retryLater += toAnalyse.length - i; res.aiError = res.aiError ?? 'Temps écoulé : le reste sera analysé au prochain passage'; break }
+    if (Date.now() > deadline - 14000) { res.retryLater += toAnalyse.length - i; res.aiError = res.aiError ?? 'Temps écoulé : le reste sera analysé au prochain passage'; break }
     const batch = toAnalyse.slice(i, i + BATCH)
     let analyses
-    try { analyses = await analyzeMails(batch, today) } catch (e) {
+    try { analyses = await analyzeMails(batch, today, deadline) } catch (e) {
       res.aiError = e instanceof Error ? e.message : 'Erreur IA inconnue'
       const status = (e as { status?: number }).status
       // Erreur de clé, de modèle ou de requête : inutile d'insister sur les lots suivants. Quota ou panne : on s'arrête aussi (retenté demain).

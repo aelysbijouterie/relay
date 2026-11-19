@@ -42,7 +42,7 @@ export function MailSuggestionsView() {
   async function run(action: 'test' | 'scan') {
     setBusy(action)
     const r = await fetch('/api/mail-suggestions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
-    const j = await r.json().catch(() => ({}))
+    const j = await r.json().catch(() => ({ ok: false, error: r.status === 504 || r.status === 502 ? `Le serveur a mis trop de temps à répondre (${r.status}) — recliquez, les mails déjà analysés sont conservés` : `Réponse inattendue du serveur (${r.status})` }))
     setBusy(null)
     if (action === 'test') {
       if (j.ok) toast.success(`Connexion OK — ${j.count} mail(s) reçu(s) ces 3 derniers jours`)
@@ -51,7 +51,7 @@ export function MailSuggestionsView() {
       if (j.aiError) toast.error(`L’IA n’a pas répondu : ${j.aiError} — ${j.retryLater} mail(s) seront retentés`, { duration: 15000 })
       else toast.success(`${j.read} mail(s) lus · ${j.proposed + j.created} action(s) trouvée(s)`)
       load()
-    } else toast.error(j.error ?? 'Analyse impossible')
+    } else toast.error(j.error ?? 'Analyse impossible', { duration: 15000 })
   }
 
   if (denied) return <div className="p-8 text-sm text-muted-foreground">Cette page est réservée à la personne dont la boîte mail est analysée.</div>
