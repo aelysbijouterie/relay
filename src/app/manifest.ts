@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'RELAYS — Aelys Bijouterie',
     short_name: 'RELAYS',
     description: 'Gestion de tâches, congés et opérations — Aelys Bijouterie',
-    start_url: '/kanban',
+    start_url: '/',
     scope: '/',
     display: 'standalone',
     background_color: '#ffffff',

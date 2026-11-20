@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { isValidSessionValue } from '@/lib/session-edge'
+import { HOME_COOKIE, sanitizeHome } from '@/lib/home-view'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -10,6 +11,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/favicon.ico' ||
     pathname === '/manifest.webmanifest' ||
     pathname === '/sw.js' ||
+    pathname === '/RELAYS-raccourci.bat' ||
     pathname.startsWith('/icons/')
   ) return NextResponse.next()
 
@@ -31,11 +33,11 @@ export async function middleware(request: NextRequest) {
   }
   // Pages publiques de réinitialisation : accessibles même connecté (lien e-mail).
   const isReset = pathname.startsWith('/mot-de-passe-oublie') || pathname.startsWith('/reinitialiser-mot-de-passe')
-  if (isAuth && isLogin && !isReset) return NextResponse.redirect(new URL('/kanban', request.url))
+  if (isAuth && isLogin && !isReset) return NextResponse.redirect(new URL(sanitizeHome(request.cookies.get(HOME_COOKIE)?.value), request.url))
 
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|RELAYS-raccourci.bat|icons/).*)'],
 }

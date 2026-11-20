@@ -24,7 +24,7 @@ export default function LoginPage() {
         const d = await res.json()
         setError(d.error ?? 'Identifiants incorrects')
       } else {
-        window.location.replace('/kanban')
+        window.location.replace('/')
       }
     } catch {
       setError('Erreur réseau')

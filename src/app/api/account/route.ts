@@ -3,6 +3,7 @@ import { readSessionUserId } from '@/lib/session-cookie'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
+import { HOME_COOKIE, HOME_VIEWS, sanitizeHome } from '@/lib/home-view'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,11 @@ export async function GET() {
     acting_is_cadre = m?.is_cadre === true
   }
 
-  return NextResponse.json({ ...row, active_department_id, acting_member_id, acting_is_cadre }, { headers: { 'Cache-Control': 'no-store' } })
+  // Vue favorite : colonne facultative (migration 033), lue à part pour ne jamais faire échouer le profil.
+  const { data: dv } = await supabase.from('profiles').select('default_view').eq('id', userId).single()
+  const default_view = sanitizeHome((dv as { default_view?: string | null } | null)?.default_view ?? cookies().get(HOME_COOKIE)?.value)
+
+  return NextResponse.json({ ...row, active_department_id, acting_member_id, acting_is_cadre, default_view }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function PATCH(request: NextRequest) {
@@ -73,11 +78,20 @@ export async function PATCH(request: NextRequest) {
     updates.conges_default_dept_ids = ids.length > 0 ? ids : null
   }
 
+  const supabase = createAdminClient()
+
+  // Vue favorite : enregistrée dans le profil si la colonne existe, et TOUJOURS dans le cookie du navigateur.
+  if (typeof body.default_view === 'string' && HOME_VIEWS.some(h => h.href === body.default_view)) {
+    await supabase.from('profiles').update({ default_view: body.default_view }).eq('id', userId)
+    const res = NextResponse.json({ success: true, default_view: body.default_view })
+    res.cookies.set(HOME_COOKIE, body.default_view, { secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 365 })
+    return res
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'Aucune modification valide' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('profiles')
     .update(updates)

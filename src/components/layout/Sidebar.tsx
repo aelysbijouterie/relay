@@ -8,6 +8,7 @@ import { Columns, Calendar, Clock, User, Archive, Activity, LogOut, Menu, X, Tra
 import { cn, getInitials, roleLabel } from '@/lib/utils'
 import { logout } from '@/lib/actions/auth'
 import { InstallApp } from './InstallApp'
+import { readHomeClient } from '@/lib/home-view'
 import { Logo } from '@/components/brand/Logo'
 import type { Profile, Department } from '@/types'
 
@@ -31,6 +32,13 @@ interface SidebarProps {
 
 export function Sidebar({ profile, members, department, extraDepartments = [], isBoutique = false, canValidateBoutiques = false }: SidebarProps) {
   const pathname = usePathname()
+  // Vue favorite (réglage du profil) : elle passe en tête du menu.
+  const [home, setHome] = useState('/kanban')
+  useEffect(() => { setHome(readHomeClient()) }, [])
+  function sortFavoriteFirst<T extends { href: string }>(items: T[]): T[] {
+    const i = items.findIndex(x => x.href === home)
+    return i > 0 ? [items[i], ...items.slice(0, i), ...items.slice(i + 1)] : items
+  }
   const router = useRouter()
 
   const { data: activityData, mutate: refreshActivity } = useSWR<{ unread: number }>(
@@ -129,7 +137,7 @@ export function Sidebar({ profile, members, department, extraDepartments = [], i
 
       {/* Navigation */}
       <nav className="px-3 py-2 space-y-0.5">
-        {(isBoutique
+        {sortFavoriteFirst(isBoutique
           // Boutique : uniquement Kanban, Opérations & Média Kit, puis Congés juste en dessous.
           ? [NAV_ITEMS[0], { href: '/pac-media-kit', label: 'Opérations & Média Kit', icon: Briefcase }, { href: '/conges', label: 'Congés & absences', icon: CalendarDays }]
           : [

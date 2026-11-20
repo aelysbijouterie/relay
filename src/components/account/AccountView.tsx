@@ -1,5 +1,6 @@
 'use client'
 
+import { HOME_VIEWS, readHomeClient, writeHomeClient } from '@/lib/home-view'
 import { InstallApp } from '@/components/layout/InstallApp'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -60,6 +61,14 @@ export function AccountView({ profile, teamSettings }: Props) {
     show_absences_calendar: profile.show_absences_calendar ?? false,
   })
   const [activeTab, setActiveTab] = useState<'profil' | 'notifications' | 'calendrier' | 'conges' | 'equipe'>('profil')
+  const [homeView, setHomeView] = useState('/kanban')
+  const [homeSaved, setHomeSaved] = useState(false)
+  useEffect(() => { setHomeView(readHomeClient()) }, [])
+  async function saveHomeView(href: string) {
+    setHomeView(href); writeHomeClient(href)
+    const r = await fetch('/api/account', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ default_view: href }) })
+    if (r.ok) { setHomeSaved(true); setTimeout(() => setHomeSaved(false), 2500) }
+  }
 
   // Services affichés par défaut dans le tableau des congés.
   const [allDepts, setAllDepts] = useState<{ id: string; name: string; color: string }[]>([])
@@ -271,6 +280,21 @@ export function AccountView({ profile, teamSettings }: Props) {
           </button>
         </div>
         <p className="text-xs text-muted-foreground">L'email et le rôle sont gérés par un administrateur.</p>
+      </section>
+
+      <section className="bg-card border border-border rounded-2xl p-6 space-y-3">
+        <h2 className="font-medium">Vue favorite</h2>
+        <p className="text-xs text-muted-foreground">RELAYS s’ouvre toujours sur cette vue, et elle passe en tête du menu.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {HOME_VIEWS.map(h => (
+            <button key={h.href} type="button" onClick={() => saveHomeView(h.href)} aria-pressed={homeView === h.href}
+              className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-colors ${homeView === h.href ? 'text-white border-transparent' : 'border-border hover:bg-muted'}`}
+              style={homeView === h.href ? { backgroundColor: deptColor } : undefined}>
+              {h.label}
+            </button>
+          ))}
+          {homeSaved && <span className="text-sm text-green-600 font-medium">✓ Enregistré</span>}
+        </div>
       </section>
 
       <section className="bg-card border border-border rounded-2xl p-6 space-y-3">

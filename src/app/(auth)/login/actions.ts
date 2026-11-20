@@ -28,5 +28,5 @@ export async function demoAction(formData: FormData) {
   const deptId = SLUGS[slug]
   if (!deptId) redirect('/login')
   cookies().set('relays-demo', deptId, { path: '/', sameSite: 'lax', httpOnly: true })
-  redirect('/kanban')
+  redirect('/')
 }

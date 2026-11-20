@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { buildSessionCookie } from '@/lib/supabase/session'
 import { signSessionValue } from '@/lib/session-cookie'
 import { createAdminClient } from '@/lib/supabase/server'
+import { HOME_COOKIE, HOME_VIEWS } from '@/lib/home-view'
 
 export async function POST(request: NextRequest) {
   const { email, password } = await request.json()
@@ -48,6 +49,13 @@ export async function POST(request: NextRequest) {
     response.cookies.delete('relays-boutique')
   }
   response.cookies.delete('relays-member')
+
+  // Vue favorite enregistrée dans le profil (colonne facultative : sans elle, on garde le réglage du navigateur).
+  const { data: dv } = await createAdminClient().from('profiles').select('default_view').eq('id', data.user.id).single()
+  const fav = (dv as { default_view?: string | null } | null)?.default_view
+  if (fav && HOME_VIEWS.some(h => h.href === fav)) {
+    response.cookies.set(HOME_COOKIE, fav, { secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 365 })
+  }
 
   return response
 }
