@@ -25,8 +25,11 @@ interface FlagInfo { flags: Set<string>; messageId: string | null }
 async function readFlags(client: ImapFlow, uids: number[]): Promise<Map<number, FlagInfo>> {
   const out = new Map<number, FlagInfo>()
   if (uids.length === 0) return out
-  for await (const msg of client.fetch(uids, { uid: true, flags: true, envelope: true }, { uid: true })) {
-    out.set(msg.uid, { flags: new Set(msg.flags ?? []), messageId: msg.envelope?.messageId?.trim() || null })
+  // Par paquets : une liste de plusieurs milliers d'identifiants dans une seule commande est refusée par le serveur (« Command failed »).
+  for (let i = 0; i < uids.length; i += 150) {
+    for await (const msg of client.fetch(uids.slice(i, i + 150), { uid: true, flags: true, envelope: true }, { uid: true })) {
+      out.set(msg.uid, { flags: new Set(msg.flags ?? []), messageId: msg.envelope?.messageId?.trim() || null })
+    }
   }
   return out
 }

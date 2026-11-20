@@ -77,7 +77,10 @@ export async function runMailScan(supabase: SupabaseClient, opts: ScanOptions = 
     mails = r.mails; res.readIgnored = r.readIgnored; res.scanned = r.scanned; res.candidates = r.candidates
     // Avancement des cartes déjà créées : un mail marqué « en cours » (ou « terminé ») fait passer sa carte dans la bonne colonne.
     if (!opts.backfill) res.moved = await syncCardStatuses(supabase, r.states)
-  } catch (e) { return { ...res, error: e instanceof Error ? e.message : 'Lecture de la boîte impossible' } }
+  } catch (e) {
+    const extra = (e as { responseText?: string }).responseText
+    return { ...res, error: `${e instanceof Error ? e.message : 'Lecture de la boîte impossible'}${extra ? ` — ${extra}` : ''}` }
+  }
   res.read = mails.length
 
   const { data: seen } = await supabase.from('mail_suggestions').select('message_id').in('message_id', mails.map(m => m.messageId))
