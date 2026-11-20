@@ -1,5 +1,6 @@
 'use client'
 
+import { AIImproveButton } from './AIImproveButton'
 import { useState, useEffect, useRef } from 'react'
 import { X, Plus, Search, ChevronDown, ChevronUp, CheckSquare, Paperclip, Trash2, FileText, Repeat } from 'lucide-react'
 import { toast } from 'sonner'
@@ -360,7 +361,10 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
 
           {/* Description */}
           <div>
-            <label className="text-sm font-medium block mb-1.5">Description</label>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <label className="text-sm font-medium">Description</label>
+              <AIImproveButton title={title} description={description} onApply={v => { setTitle(v.title); setDescription(v.description) }} />
+            </div>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
               placeholder="Détails, contexte, instructions…"
               className="w-full border border-border rounded-xl px-3 py-2.5 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"

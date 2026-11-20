@@ -1,5 +1,6 @@
 'use client'
 
+import { AIImproveButton } from './AIImproveButton'
 import { useState, useEffect, useRef } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -345,6 +346,17 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
       await refresh()
       toast.success('Titre modifié')
     } catch { toast.error('Titre non enregistré'); setInlineTitle(task.title) }
+  }
+
+  // « Reformuler avec l'IA » en lecture : après validation de l'aperçu, titre et description sont enregistrés tout de suite.
+  async function applyAIImprovement(v: { title: string; description: string }) {
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: v.title.trim() || task.title, description: v.description.trim() || null }),
+    })
+    if (!res.ok) { toast.error('Modification non enregistrée'); throw new Error('save') }
+    setEditTitle(v.title); setEditDesc(v.description)
+    await refresh()
   }
 
   async function saveEdits() {
@@ -771,6 +783,9 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {canEdit && task.status !== 'Archivé' && !editing && (
+              <AIImproveButton compact title={task.title} description={task.description ?? ''} onApply={applyAIImprovement} />
+            )}
             <button onClick={duplicateTask} disabled={saving}
               title="Dupliquer" className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50">
               <Copy className="w-4 h-4" />
@@ -847,7 +862,10 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                       className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</label>
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</label>
+                      <AIImproveButton title={editTitle} description={editDesc} onApply={v => { setEditTitle(v.title); setEditDesc(v.description) }} />
+                    </div>
                     <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} rows={8}
                       className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground resize-y" />
                   </div>
