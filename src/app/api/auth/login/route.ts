@@ -4,6 +4,7 @@ import { buildSessionCookie } from '@/lib/supabase/session'
 import { signSessionValue } from '@/lib/session-cookie'
 import { createAdminClient } from '@/lib/supabase/server'
 import { HOME_COOKIE, HOME_VIEWS } from '@/lib/home-view'
+import { SESSION_MAX_AGE } from '@/lib/session-config'
 
 export async function POST(request: NextRequest) {
   const { email, password } = await request.json()
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     secure:   true,
     sameSite: 'lax',
     path:     '/',
-    maxAge:   60 * 60 * 24 * 7, // 7 jours
+    maxAge:   SESSION_MAX_AGE, // 1 an, renouvelé à chaque visite (middleware)
   })
 
   // Compte de boutique ? Un cookie restreint les vues accessibles (voir
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     .from('profiles').select('is_boutique_account, boutique_id').eq('id', data.user.id).single()
   if (prof?.is_boutique_account && prof.boutique_id) {
     response.cookies.set('relays-boutique', prof.boutique_id as string, {
-      httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 7,
+      httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: SESSION_MAX_AGE,
     })
   } else {
     response.cookies.delete('relays-boutique')

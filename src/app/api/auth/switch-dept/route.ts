@@ -1,3 +1,4 @@
+import { SESSION_MAX_AGE } from '@/lib/session-config'
 import { NextRequest, NextResponse } from 'next/server'
 import { readSessionUserId } from '@/lib/session-cookie'
 
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: SESSION_MAX_AGE,
   })
   return response
 }

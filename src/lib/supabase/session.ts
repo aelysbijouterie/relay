@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { parseSessionValue, signSessionValue } from '@/lib/session-cookie'
+import { SESSION_MAX_AGE } from '@/lib/session-config'
 
 export interface SessionCookie {
   access_token:  string
@@ -11,7 +12,7 @@ export interface SessionCookie {
 }
 
 const COOKIE_NAME             = 'relays-session'
-const COOKIE_MAX_AGE          = 60 * 60 * 24 * 7 // 7 jours
+const COOKIE_MAX_AGE          = SESSION_MAX_AGE // 1 an, renouvelé à chaque visite
 const REFRESH_MARGIN_SECONDS  = 120 // on rafraîchit 2 min avant l'expiration réelle
 
 function readSessionCookie(): SessionCookie | null {

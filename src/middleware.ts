@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { isValidSessionValue } from '@/lib/session-edge'
 import { HOME_COOKIE, sanitizeHome } from '@/lib/home-view'
+import { SESSION_MAX_AGE } from '@/lib/session-config'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -35,7 +36,17 @@ export async function middleware(request: NextRequest) {
   const isReset = pathname.startsWith('/mot-de-passe-oublie') || pathname.startsWith('/reinitialiser-mot-de-passe')
   if (isAuth && isLogin && !isReset) return NextResponse.redirect(new URL(sanitizeHome(request.cookies.get(HOME_COOKIE)?.value), request.url))
 
-  return NextResponse.next()
+  const res = NextResponse.next()
+  // Connexion « glissante » : à chaque visite on réécrit les cookies de connexion avec une nouvelle durée de 1 an,
+  // pour qu'une personne active ne soit jamais déconnectée automatiquement. Les trois cookies restent synchronisés
+  // (si le cookie « boutique » expirait avant la session, les restrictions d'un compte magasin disparaîtraient).
+  if (isSession) {
+    for (const name of ['relays-session', 'relays-boutique', 'relays-active-dept']) {
+      const v = request.cookies.get(name)?.value
+      if (v) res.cookies.set(name, v, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: SESSION_MAX_AGE })
+    }
+  }
+  return res
 }
 
 export const config = {
