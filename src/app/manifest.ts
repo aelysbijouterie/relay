@@ -3,6 +3,7 @@ import type { MetadataRoute } from 'next'
 // RELAYS installable comme une application (fenêtre dédiée, sans barre d'adresse du navigateur).
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: '/',
     name: 'RELAYS — Aelys Bijouterie',
     short_name: 'RELAYS',
     description: 'Gestion de tâches, congés et opérations — Aelys Bijouterie',

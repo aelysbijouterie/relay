@@ -16,7 +16,7 @@ if not defined NAVIGATEUR (
   exit /b 1
 )
 set /p AUTO=Ouvrir RELAYS automatiquement au demarrage de l'ordinateur ? (O/N) :
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell; $b='%NAVIGATEUR%'; $a='--app=%URL%'; $d=[Environment]::GetFolderPath('Desktop'); $s=$w.CreateShortcut($d+'\RELAYS.lnk'); $s.TargetPath=$b; $s.Arguments=$a; $s.IconLocation=$b+',0'; $s.Save(); if ('%AUTO%' -match '^[oOyY]') { $st=[Environment]::GetFolderPath('Startup'); $t=$w.CreateShortcut($st+'\RELAYS.lnk'); $t.TargetPath=$b; $t.Arguments=$a; $t.IconLocation=$b+',0'; $t.Save() }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell; $b='%NAVIGATEUR%'; $a='--app=%URL%'; $ico=$b+',0'; try { $dir=Join-Path $env:LOCALAPPDATA 'RELAYS'; New-Item -ItemType Directory -Force $dir | Out-Null; $f=Join-Path $dir 'relays.ico'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest 'https://aelys-relays.vercel.app/icons/relays.ico' -OutFile $f -UseBasicParsing; if (Test-Path $f) { $ico=$f } } catch {}; $d=[Environment]::GetFolderPath('Desktop'); $s=$w.CreateShortcut($d+'\RELAYS.lnk'); $s.TargetPath=$b; $s.Arguments=$a; $s.IconLocation=$ico; $s.Save(); if ('%AUTO%' -match '^[oOyY]') { $st=[Environment]::GetFolderPath('Startup'); $t=$w.CreateShortcut($st+'\RELAYS.lnk'); $t.TargetPath=$b; $t.Arguments=$a; $t.IconLocation=$ico; $t.Save() }"
 echo.
 echo Raccourci RELAYS cree sur le Bureau.
 if /i "%AUTO%"=="O" echo RELAYS s'ouvrira aussi tout seul au demarrage de l'ordinateur.

@@ -15,7 +15,7 @@ if not defined NAVIGATEUR (
   pause
   exit /b 1
 )
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell; $b='%NAVIGATEUR%'; $a='--app=%URL%'; foreach ($d in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Startup'))) { $s=$w.CreateShortcut($d+'\RELAYS.lnk'); $s.TargetPath=$b; $s.Arguments=$a; $s.IconLocation=$b+',0'; $s.Save() }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell; $b='%NAVIGATEUR%'; $a='--app=%URL%'; $ico=$b+',0'; try { $dir=Join-Path $env:LOCALAPPDATA 'RELAYS'; New-Item -ItemType Directory -Force $dir | Out-Null; $f=Join-Path $dir 'relays.ico'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest 'https://aelys-relays.vercel.app/icons/relays.ico' -OutFile $f -UseBasicParsing; if (Test-Path $f) { $ico=$f } } catch {}; foreach ($d in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Startup'))) { $s=$w.CreateShortcut($d+'\RELAYS.lnk'); $s.TargetPath=$b; $s.Arguments=$a; $s.IconLocation=$ico; $s.Save() }"
 echo.
 echo RELAYS est installe :
 echo  - un raccourci RELAYS est sur le Bureau
