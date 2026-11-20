@@ -61,7 +61,8 @@ export async function runMailScan(supabase: SupabaseClient, opts: ScanOptions = 
   if (!imapConfig()) return { ...res, error: 'Connexion mail non configurée dans Vercel' }
   const owner = await getMailOwner(supabase)
   if (!owner) return { ...res, error: 'Aucun profil RELAYS ne porte l’adresse de la boîte lue (MAIL_IMAP_USER)' }
-  const auto = process.env.MAIL_AUTO_CREATE === 'true'
+  // Les cartes sont créées directement (sans validation), sauf si MAIL_AUTO_CREATE vaut « false ».
+  const auto = process.env.MAIL_AUTO_CREATE !== 'false'
   const exclude = parseExclude(process.env.MAIL_EXCLUDE)
 
   let mails: RawMail[]

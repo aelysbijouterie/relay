@@ -48,7 +48,7 @@ export interface FetchOptions {
 
 /**
  * Lit les mails de la boîte de réception (lecture seule : rien n'est modifié, déplacé ni marqué comme lu).
- * Un mail est « à traiter » s'il est NON LU, SANS RÉPONSE, ou marqué (« à traiter » / « en cours » / drapeau).
+ * Un mail est « à traiter » s'il est NON LU ou marqué (« à traiter » / « en cours » / drapeau). Ouvert sans marque ou marqué « terminé » : ignoré.
  * `states` donne l'état actuel de tous les mails récents (sert à faire avancer les cartes déjà créées).
  */
 export async function fetchRecentMails(opts: FetchOptions = {}): Promise<{ mails: RawMail[]; scanned: number; candidates: number; readIgnored: number; states: Map<string, MailState> }> {
@@ -74,7 +74,9 @@ export async function fetchRecentMails(opts: FetchOptions = {}): Promise<{ mails
         const st = describeFlags(fi.flags)
         if (fi.messageId) states.set(fi.messageId, st)
         const marked = st.target === 'A Faire' || st.target === 'En cours'
-        if (markedOnly ? marked : (marked || st.unread || !st.answered)) wanted.push(uid)
+        // Marqué « terminé » : jamais de carte. Sinon : marqué « à traiter / en cours » OU non lu. Un mail déjà ouvert (sans marque) est ignoré.
+        if (st.target === 'Terminé') continue
+        if (markedOnly ? marked : (marked || st.unread)) wanted.push(uid)
       }
       readIgnored = all.length - wanted.length
       candidates = wanted.length
