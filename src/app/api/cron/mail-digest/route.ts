@@ -10,7 +10,7 @@ function parisTime(): { hour: number; minute: number } {
   return { hour: Number(parts.find(p => p.type === 'hour')?.value ?? -1), minute: Number(parts.find(p => p.type === 'minute')?.value ?? -1) }
 }
 
-// Toutes les 30 minutes (vercel.json, en UTC) : lecture de la boîte mail, cartes créées / avancées automatiquement.
+// Toutes les heures (vercel.json, en UTC : une entrée par heure car l'offre Vercel Hobby limite chaque tâche à une exécution par jour) : lecture de la boîte mail, cartes créées / avancées automatiquement.
 // Seuls les passages entre 07 h et 20 h (heure de Paris) travaillent ; le récapitulatif par e-mail ne part qu'au premier passage de 08 h.
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization')

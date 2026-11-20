@@ -73,7 +73,7 @@ export function MailSuggestionsView() {
         <div>
           <h2 className="font-heading text-2xl font-bold mb-1 flex items-center gap-2"><Mail className="w-5 h-5" /> Mails à traiter</h2>
           <p className="text-sm text-muted-foreground">
-            Toutes les 30 minutes (de 7 h à 20 h), RELAYS lit vos mails non lus, sans réponse ou marqués, et propose les actions à mener.{' '}
+            Toutes les heures (de 7 h à 20 h), RELAYS lit vos mails non lus, sans réponse ou marqués, et propose les actions à mener.{' '}
             {data.auto ? 'Les cartes sont créées automatiquement.' : 'Vous validez celles qui deviennent des cartes.'}
           </p>
         </div>
