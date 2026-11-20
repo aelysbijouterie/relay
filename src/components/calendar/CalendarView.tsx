@@ -14,6 +14,7 @@ import { TaskModal } from '@/components/tasks/TaskModal'
 import { useTasks } from '@/hooks/useTasks'
 import { useTaskStore } from '@/store/tasks'
 import type { Task } from '@/types'
+import { STATUS_LABELS } from '@/types'
 import { holidayName, schoolZonesLabel } from '@/lib/calendar/holidays'
 import { SchoolZoneToggle, ZoneChips, useSchoolZones } from '@/components/calendar/SchoolZones'
 import { occurrencesInRange } from '@/lib/recurring/schedule'
@@ -345,15 +346,22 @@ interface SubViewProps {
   onAddEvent?: (date: Date) => void
 }
 
+// Suivi des tâches dans le calendrier : icône de statut devant le titre ; une tâche terminée passe en gris pâle et barrée.
+const STATUS_ICON: Record<string, string> = { 'A Faire': '○', 'En cours': '◐', 'Bloqué': '⚠', 'A revoir': '◑', 'Terminé': '✓', 'Archivé': '✓' }
+const isDoneStatus = (s: string) => s === 'Terminé' || s === 'Archivé'
+
 function TaskChip({ task, onSelect }: { task: Task; onSelect: (t: Task) => void }) {
+  const done = isDoneStatus(task.status)
   return (
     <button
       onClick={() => onSelect(task)}
-      className="w-full text-left text-xs px-1.5 py-0.5 rounded text-white truncate transition-opacity hover:opacity-80"
-      style={{ backgroundColor: task.department?.color ?? '#94A3B8' }}
-      title={task.title}
+      className={cn('w-full text-left text-xs px-1.5 py-0.5 rounded truncate transition-opacity hover:opacity-80', done ? 'bg-muted text-muted-foreground' : 'text-white')}
+      style={done ? undefined : { backgroundColor: task.department?.color ?? '#94A3B8' }}
+      title={`${task.title} — ${STATUS_LABELS[task.status] ?? task.status}`}
     >
-      {task.title}
+      <span className="mr-1 font-medium" aria-hidden="true">{STATUS_ICON[task.status] ?? '○'}</span>
+      <span className="sr-only">{STATUS_LABELS[task.status] ?? task.status} : </span>
+      <span className={done ? 'line-through' : undefined}>{task.title}</span>
     </button>
   )
 }
@@ -495,8 +503,10 @@ function DayView({ cursor, tasksForDay, onSelect }: SubViewProps) {
             >
               <span className="w-1 self-stretch rounded-full flex-shrink-0" style={{ backgroundColor: task.department?.color ?? '#94A3B8' }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{task.title}</p>
-                {task.department && <p className="text-xs text-muted-foreground">{task.department.name}</p>}
+                <p className={cn('text-sm font-medium truncate', isDoneStatus(task.status) && 'line-through text-muted-foreground')}>
+                  <span className="mr-1.5" aria-hidden="true">{STATUS_ICON[task.status] ?? '○'}</span>{task.title}
+                </p>
+                <p className="text-xs text-muted-foreground">{STATUS_LABELS[task.status] ?? task.status}{task.department ? ` · ${task.department.name}` : ''}</p>
               </div>
               <span className="text-xs px-2 py-0.5 rounded text-white flex-shrink-0" style={{ backgroundColor: task.department?.color ?? '#94A3B8' }}>
                 {task.status}
