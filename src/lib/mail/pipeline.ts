@@ -183,12 +183,18 @@ export async function syncCardStatuses(supabase: SupabaseClient, states: Map<str
 
 /** Récapitulatif du matin : tout ce que RELAYS a repéré depuis la veille (une seule fois par jour, jamais à chaque passage de 30 min). */
 async function sendDailyDigest(supabase: SupabaseClient, owner: Owner, auto: boolean) {
+  // Une seule fois par jour, même si le passage horaire de Vercel est décalé (offre Hobby : l'heure exacte n'est pas garantie).
+  const day = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date())
+  const marker = `digest-${day}`
+  const { data: done } = await supabase.from('mail_suggestions').select('id').eq('message_id', marker).limit(1)
+  if (done && done.length > 0) return
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
   const { data } = await supabase.from('mail_suggestions')
     .select('title, from_name, from_email, subject, status')
     .eq('owner_id', owner.id).in('status', ['pending', 'created']).gte('created_at', since).order('created_at', { ascending: false }).limit(40)
   const items = (data ?? []) as { title: string; from_name: string | null; from_email: string | null; subject: string | null; status: string }[]
   if (items.length === 0) return
+  await supabase.from('mail_suggestions').upsert({ message_id: marker, action_idx: 0, owner_id: owner.id, status: 'none' }, { onConflict: 'message_id,action_idx' })
   const pending = items.filter(i => i.status === 'pending').length
   const rows = items.map(n => `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;font-size:14px;"><strong>${esc(n.title)}</strong>${n.status === 'created' ? ' <span style="color:#1F9D57;font-size:12px;">carte créée</span>' : ''}<br><span style="color:#6B7280;font-size:12px;">${esc(n.from_name || n.from_email)} — ${esc(n.subject)}</span></td></tr>`).join('')
   const head = pending > 0 ? `${pending} action(s) à valider, ${items.length - pending} carte(s) créée(s) depuis hier` : `${items.length} carte(s) créée(s) à partir de vos mails depuis hier`

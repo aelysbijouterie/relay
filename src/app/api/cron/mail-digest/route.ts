@@ -11,15 +11,15 @@ function parisTime(): { hour: number; minute: number } {
 }
 
 // Toutes les heures (vercel.json, en UTC : une entrée par heure car l'offre Vercel Hobby limite chaque tâche à une exécution par jour) : lecture de la boîte mail, cartes créées / avancées automatiquement.
-// Seuls les passages entre 07 h et 20 h (heure de Paris) travaillent ; le récapitulatif par e-mail ne part qu'au premier passage de 08 h.
+// Seuls les passages entre 07 h et 20 h (heure de Paris) travaillent ; le récapitulatif par e-mail part une seule fois par jour, au premier passage à partir de 08 h (mémorisé dans la base).
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization')
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const force = new URL(request.url).searchParams.get('force') === '1'
-  const { hour, minute } = parisTime()
+  const { hour } = parisTime()
   if (!force && (hour < 7 || hour > 19)) return NextResponse.json({ skipped: true, reason: 'hors 07 h–20 h à Paris', hour })
-  const result = await runMailScan(createAdminClient(), { digest: hour === 8 && minute < 30 })
+  const result = await runMailScan(createAdminClient(), { digest: hour >= 8 })
   return NextResponse.json(result)
 }
