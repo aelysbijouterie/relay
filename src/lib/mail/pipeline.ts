@@ -39,7 +39,7 @@ export async function createCardFromAction(
 export interface ScanResult {
   ok: boolean; error?: string
   read: number; skipped: number; analysed: number; withoutAction: number
-  proposed: number; created: number; retryLater: number; readIgnored?: number; todoCards?: number; moved?: number; aiError?: string
+  proposed: number; created: number; retryLater: number; readIgnored?: number; scanned?: number; candidates?: number; todoCards?: number; moved?: number; aiError?: string
 }
 
 export interface ScanOptions {
@@ -73,7 +73,7 @@ export async function runMailScan(supabase: SupabaseClient, opts: ScanOptions = 
         return new Set((data ?? []).map((x: { message_id: string }) => x.message_id))
       },
     })
-    mails = r.mails; res.readIgnored = r.readIgnored
+    mails = r.mails; res.readIgnored = r.readIgnored; res.scanned = r.scanned; res.candidates = r.candidates
     // Avancement des cartes déjà créées : un mail marqué « en cours » (ou « terminé ») fait passer sa carte dans la bonne colonne.
     if (!opts.backfill) res.moved = await syncCardStatuses(supabase, r.states)
   } catch (e) { return { ...res, error: e instanceof Error ? e.message : 'Lecture de la boîte impossible' } }

@@ -39,6 +39,29 @@ export function MailSuggestionsView() {
     else toast.error((await r.json().catch(() => ({}))).error ?? 'Erreur')
   }
 
+  // Importation : un seul clic, l'écran relance tout seul (40 mails par passage) jusqu'à ce que tout soit importé.
+  async function runBackfill() {
+    setBusy('backfill')
+    let total = 0, created = 0, passes = 0, examined = 0, candidates = 0, aiError: string | undefined
+    try {
+      for (;;) {
+        const r = await fetch('/api/mail-suggestions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'backfill' }) })
+        const j = await r.json().catch(() => ({ ok: false, error: r.status === 504 || r.status === 502 ? 'Le serveur a mis trop de temps à répondre — recliquez, ce qui est importé est conservé' : `Réponse inattendue du serveur (${r.status})` }))
+        if (!j.ok) { toast.error(j.error ?? 'Importation impossible', { duration: 15000 }); break }
+        passes++; total += j.read; created += j.created ?? 0; examined = j.scanned ?? examined; if (passes === 1) candidates = j.candidates ?? 0
+        aiError = j.aiError
+        toast.message(`Importation… ${created} carte(s) créée(s) (passage ${passes})`, { id: 'backfill', duration: 20000 })
+        if (j.read === 0 || aiError || (j.analysed ?? 0) + (j.skipped ?? 0) === 0 || passes >= 15) break
+      }
+      if (passes > 0) {
+        if (candidates === 0 && total === 0) toast.error(`Aucun mail marqué détecté parmi ${examined} mail(s) examinés (catégories « à traiter » / « en cours » ou drapeau). OVH ne transmet peut-être pas vos catégories : cliquez sur « Tester la connexion » pour voir ce qu'il transmet.`, { id: 'backfill', duration: 30000 })
+        else if (aiError) toast.error(`Importation interrompue : ${aiError}. ${created} carte(s) créée(s) ; recliquez pour continuer.`, { id: 'backfill', duration: 20000 })
+        else toast.success(`Importation terminée : ${created} carte(s) créée(s) à partir de ${total} mail(s) marqué(s).`, { id: 'backfill', duration: 15000 })
+        load()
+      }
+    } finally { setBusy(null) }
+  }
+
   async function run(action: 'test' | 'scan' | 'backfill') {
     setBusy(action)
     const r = await fetch('/api/mail-suggestions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
@@ -81,7 +104,7 @@ export function MailSuggestionsView() {
           <button onClick={() => run('test')} disabled={!!busy} className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted disabled:opacity-50">
             {busy === 'test' ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlugZap className="w-4 h-4" />} Tester la connexion
           </button>
-          <button onClick={() => run('backfill')} disabled={!!busy || !data.configured.mail || !data.configured.ai} title="Crée les cartes de tous les mails déjà marqués « à traiter » ou « en cours » dans votre boîte"
+          <button onClick={runBackfill} disabled={!!busy || !data.configured.mail || !data.configured.ai} title="Crée les cartes de tous les mails déjà marqués « à traiter » ou « en cours » dans votre boîte"
             className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted disabled:opacity-50">
             {busy === 'backfill' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Importer les mails marqués
           </button>

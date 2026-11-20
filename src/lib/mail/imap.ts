@@ -51,14 +51,14 @@ export interface FetchOptions {
  * Un mail est « à traiter » s'il est NON LU, SANS RÉPONSE, ou marqué (« à traiter » / « en cours » / drapeau).
  * `states` donne l'état actuel de tous les mails récents (sert à faire avancer les cartes déjà créées).
  */
-export async function fetchRecentMails(opts: FetchOptions = {}): Promise<{ mails: RawMail[]; scanned: number; readIgnored: number; states: Map<string, MailState> }> {
+export async function fetchRecentMails(opts: FetchOptions = {}): Promise<{ mails: RawMail[]; scanned: number; candidates: number; readIgnored: number; states: Map<string, MailState> }> {
   const { days = 3, max = 40, markedOnly = false, isSeen } = opts
   const cfg = imapConfig()
   if (!cfg) throw new Error('Connexion mail non configurée (MAIL_IMAP_HOST / USER / PASSWORD)')
   const client = newClient(cfg)
   const mails: RawMail[] = []
   const states = new Map<string, MailState>()
-  let scanned = 0; let readIgnored = 0
+  let scanned = 0; let readIgnored = 0; let candidates = 0
   await client.connect()
   try {
     const lock = await client.getMailboxLock('INBOX', { readOnly: true })
@@ -77,13 +77,14 @@ export async function fetchRecentMails(opts: FetchOptions = {}): Promise<{ mails
         if (markedOnly ? marked : (marked || st.unread || !st.answered)) wanted.push(uid)
       }
       readIgnored = all.length - wanted.length
+      candidates = wanted.length
       if (isSeen) {
         const ids = wanted.map(u => info.get(u)?.messageId).filter((x): x is string => !!x)
         const seen = ids.length ? await isSeen(ids) : new Set<string>()
         wanted = wanted.filter(u => { const id = info.get(u)?.messageId; return !id || !seen.has(id) })
       }
       const uids = wanted.slice(0, max)
-      if (uids.length === 0) return { mails: [], scanned, readIgnored, states }
+      if (uids.length === 0) return { mails: [], scanned, candidates, readIgnored, states }
       for await (const msg of client.fetch(uids, { uid: true, internalDate: true, source: { maxLength: 60000 } }, { uid: true })) {
         if (!msg.source) continue
         try {
@@ -107,7 +108,7 @@ export async function fetchRecentMails(opts: FetchOptions = {}): Promise<{ mails
       }
     } finally { lock.release() }
   } finally { await client.logout().catch(() => { /* noop */ }) }
-  return { mails: mails.sort((a, b) => b.date.getTime() - a.date.getTime()), scanned, readIgnored, states }
+  return { mails: mails.sort((a, b) => b.date.getTime() - a.date.getTime()), scanned, candidates, readIgnored, states }
 }
 
 export interface ConnectionReport {
