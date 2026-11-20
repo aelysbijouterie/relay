@@ -9,7 +9,23 @@ export interface RawMail {
   text: string
   headers: Record<string, string>
   unread?: boolean   // non lu dans la boîte
-  todo?: boolean     // marqué « à traiter » (catégorie Outlook)
+  answered?: boolean // une réponse a été envoyée
+  todo?: boolean     // marqué « à traiter » / « en cours » (catégorie ou drapeau Outlook)
+  target?: CardStatus | null // colonne visée d'après la marque
+}
+
+export type CardStatus = 'A Faire' | 'En cours' | 'Terminé'
+
+/**
+ * Colonne du Kanban visée d'après les marques du mail (catégories Outlook = « mots-clés » IMAP, ou drapeau de suivi) :
+ * « terminé / clos / fini » → Terminé ; « en cours » → En cours ; drapeau ou « à traiter » → À faire ; sinon aucune marque.
+ */
+export function targetStatus(flagged: boolean, marks: string[]): CardStatus | null {
+  const l = marks.map(x => x.toLowerCase())
+  if (l.some(x => /(termin|clos|fini)/.test(x))) return 'Terminé'
+  if (l.some(x => x.includes('cours'))) return 'En cours'
+  if (flagged || l.some(x => x.includes('traiter'))) return 'A Faire'
+  return null
 }
 
 const AUTO_SENDER = /(no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|notifications?@|newsletter|bounce|alerts?@)/i

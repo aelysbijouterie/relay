@@ -5,21 +5,21 @@ import { runMailScan } from '@/lib/mail/pipeline'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-function parisHour(): number {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', hour: 'numeric', hourCycle: 'h23' }).formatToParts(new Date())
-  return Number(parts.find(p => p.type === 'hour')?.value ?? -1)
+function parisTime(): { hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date())
+  return { hour: Number(parts.find(p => p.type === 'hour')?.value ?? -1), minute: Number(parts.find(p => p.type === 'minute')?.value ?? -1) }
 }
 
-// Chaque jour à 08:00 (heure de Paris) : lecture de la boîte mail, analyse, propositions de cartes.
-// Programmé à 06:00 ET 07:00 UTC (vercel.json) ; seul le passage qui tombe à 08 h à Paris travaille (heure d'été / d'hiver).
+// Toutes les 30 minutes (vercel.json, en UTC) : lecture de la boîte mail, cartes créées / avancées automatiquement.
+// Seuls les passages entre 07 h et 20 h (heure de Paris) travaillent ; le récapitulatif par e-mail ne part qu'au premier passage de 08 h.
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization')
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const force = new URL(request.url).searchParams.get('force') === '1'
-  const hour = parisHour()
-  if (!force && hour !== 8) return NextResponse.json({ skipped: true, reason: 'pas 08 h à Paris', hour })
-  const result = await runMailScan(createAdminClient())
+  const { hour, minute } = parisTime()
+  if (!force && (hour < 7 || hour > 19)) return NextResponse.json({ skipped: true, reason: 'hors 07 h–20 h à Paris', hour })
+  const result = await runMailScan(createAdminClient(), { digest: hour === 8 && minute < 30 })
   return NextResponse.json(result)
 }

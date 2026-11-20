@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchRecentMails, imapConfig } from './imap'
 import { analyzeMails, type MailAction } from './analyze'
-import { cleanBody, parseExclude, skipReason, type RawMail } from './filter'
+import { cleanBody, parseExclude, skipReason, type CardStatus, type RawMail } from './filter'
 import { sendEmail } from '@/lib/email'
 import { baseHtml, button, esc } from '@/emails/baseHtml'
 
@@ -21,14 +21,14 @@ export async function getMailOwner(supabase: SupabaseClient): Promise<Owner | nu
 /** Crée la carte RELAYS (au nom du propriétaire, assignée à lui-même) à partir d'une action proposée. */
 export async function createCardFromAction(
   supabase: SupabaseClient, owner: Owner,
-  a: { title: string; description: string | null; priority: string; deadline: string | null; from: string; subject: string; received: string | null },
+  a: { title: string; description: string | null; priority: string; deadline: string | null; from: string; subject: string; received: string | null; status?: CardStatus },
 ): Promise<string | null> {
   if (!owner.department_id) return null
   const origin = `📧 Origine : mail de ${a.from} — « ${a.subject} »${a.received ? ` (${a.received.slice(0, 10)})` : ''}`
   const { data: task, error } = await supabase.from('tasks').insert({
     title: a.title.slice(0, 200),
     description: [a.description?.trim(), origin].filter(Boolean).join('\n\n'),
-    status: 'A Faire', priority: a.priority, department_id: owner.department_id,
+    status: a.status ?? 'A Faire', priority: a.priority, department_id: owner.department_id,
     deadline: a.deadline, created_by: owner.id, is_cross_team: false,
   }).select('id').single()
   if (error || !task) return null
@@ -39,7 +39,14 @@ export async function createCardFromAction(
 export interface ScanResult {
   ok: boolean; error?: string
   read: number; skipped: number; analysed: number; withoutAction: number
-  proposed: number; created: number; retryLater: number; readIgnored?: number; todoCards?: number; aiError?: string
+  proposed: number; created: number; retryLater: number; readIgnored?: number; todoCards?: number; moved?: number; aiError?: string
+}
+
+export interface ScanOptions {
+  /** Importation des mails déjà marqués « à traiter » / « en cours » (toute la boîte, 1 an). */
+  backfill?: boolean
+  /** Envoie le récapitulatif quotidien par e-mail (uniquement le passage de 8 h). */
+  digest?: boolean
 }
 
 /**
@@ -47,7 +54,7 @@ export interface ScanResult {
  * (ou crée directement les cartes si MAIL_AUTO_CREATE=true), puis prévient par e-mail.
  * Un mail n'est jamais traité deux fois ; un lot dont l'analyse échoue est simplement retenté au passage suivant.
  */
-export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult> {
+export async function runMailScan(supabase: SupabaseClient, opts: ScanOptions = {}): Promise<ScanResult> {
   const scanStart = Date.now()
   const deadline = scanStart + 52000 // la fonction dispose de 60 s
   const res: ScanResult = { ok: false, read: 0, skipped: 0, analysed: 0, withoutAction: 0, proposed: 0, created: 0, retryLater: 0 }
@@ -59,8 +66,16 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
 
   let mails: RawMail[]
   try {
-    const r = await fetchRecentMails(3, 40)
+    const r = await fetchRecentMails({
+      days: opts.backfill ? 365 : 3, max: 40, markedOnly: !!opts.backfill,
+      isSeen: async ids => {
+        const { data } = await supabase.from('mail_suggestions').select('message_id').in('message_id', ids)
+        return new Set((data ?? []).map((x: { message_id: string }) => x.message_id))
+      },
+    })
     mails = r.mails; res.readIgnored = r.readIgnored
+    // Avancement des cartes déjà créées : un mail marqué « en cours » (ou « terminé ») fait passer sa carte dans la bonne colonne.
+    if (!opts.backfill) res.moved = await syncCardStatuses(supabase, r.states)
   } catch (e) { return { ...res, error: e instanceof Error ? e.message : 'Lecture de la boîte impossible' } }
   res.read = mails.length
 
@@ -78,7 +93,6 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
   }
 
   const today = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris' }).format(new Date())
-  const newItems: { title: string; from: string; subject: string; created: boolean }[] = []
 
   // Petits lots traités EN PARALLÈLE (4 appels à la fois) : chaque appel reste court, l'ensemble tient dans le temps imparti.
   const batches: RawMail[][] = []
@@ -103,7 +117,7 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
         const a = actions[n]
         let status = 'pending'; let taskId: string | null = null
         if (auto || m.todo) { // les mails marqués « à traiter » deviennent des cartes sans validation
-          taskId = await createCardFromAction(supabase, owner!, { ...a, from, subject: m.subject, received: m.date.toISOString() })
+          taskId = await createCardFromAction(supabase, owner!, { ...a, from, subject: m.subject, received: m.date.toISOString(), status: m.target === 'En cours' ? 'En cours' : 'A Faire' })
           if (taskId) { status = 'created'; res.created++; if (m.todo) res.todoCards = (res.todoCards ?? 0) + 1 } else res.proposed++
         } else res.proposed++
         await supabase.from('mail_suggestions').upsert({
@@ -111,7 +125,6 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
           from_name: m.fromName, from_email: m.fromEmail, subject: m.subject, received_at: m.date.toISOString(),
           title: a.title, description: a.description, priority: a.priority, deadline: a.deadline, task_id: taskId,
         }, { onConflict: 'message_id,action_idx' })
-        newItems.push({ title: a.title, from: m.fromName || m.fromEmail, subject: m.subject, created: status === 'created' })
       }
     }
   }
@@ -136,18 +149,55 @@ export async function runMailScan(supabase: SupabaseClient): Promise<ScanResult>
 
   if (noneRows.length) await supabase.from('mail_suggestions').upsert(noneRows.map(r => ({ ...r, action_idx: 0 })), { onConflict: 'message_id,action_idx' })
 
-  if (newItems.length > 0) {
-    const rows = newItems.map(n => `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;font-size:14px;"><strong>${esc(n.title)}</strong><br><span style="color:#6B7280;font-size:12px;">${esc(n.from)} — ${esc(n.subject)}</span></td></tr>`).join('')
-    const head = auto ? `${newItems.length} carte(s) créée(s) à partir de vos mails` : `${newItems.length} action(s) à valider`
-    await sendEmail({
-      to: owner.email,
-      subject: `📧 ${head}`,
-      html: baseHtml({
-        title: head, preheader: head, prefLabel: 'Mails à traiter',
-        content: `<p style="font-size:15px;">Bonjour ${esc(owner.name.split(' ')[0])}, voici ce que RELAYS a repéré dans vos mails :</p><table width="100%" cellpadding="0" cellspacing="0">${rows}</table><p style="margin-top:18px;">${button({ label: auto ? 'Voir mes cartes' : 'Valider mes actions', color: '#7E6FB0', href: `${APP_URL}${auto ? '/kanban' : '/mails'}` })}</p>`,
-      }),
-    })
-  }
+  if (opts.digest) await sendDailyDigest(supabase, owner, auto)
 
   return { ...res, ok: true }
+}
+
+const STATUS_RANK: Record<string, number> = { 'A Faire': 0, 'En cours': 1, 'A revoir': 2, 'Terminé': 3 }
+
+/**
+ * Fait avancer les cartes créées depuis un mail : si la marque du mail est maintenant « en cours », la carte passe en « En cours » ;
+ * « terminé / clos / fini » → « Terminé ». Une carte ne recule jamais (un mail marqué « à traiter » ne ramène pas une carte avancée en arrière).
+ */
+export async function syncCardStatuses(supabase: SupabaseClient, states: Map<string, { target: CardStatus | null }>): Promise<number> {
+  const ids = [...states.entries()].filter(([, st]) => st.target === 'En cours' || st.target === 'Terminé').map(([id]) => id)
+  if (ids.length === 0) return 0
+  const { data: sug } = await supabase.from('mail_suggestions').select('message_id, task_id').in('message_id', ids).not('task_id', 'is', null)
+  const links = (sug ?? []) as { message_id: string; task_id: string }[]
+  if (links.length === 0) return 0
+  const { data: tasks } = await supabase.from('tasks').select('id, status').in('id', links.map(l => l.task_id)).is('deleted_at', null)
+  const current = new Map((tasks ?? []).map((t: { id: string; status: string }) => [t.id, t.status]))
+  let moved = 0
+  for (const l of links) {
+    const target = states.get(l.message_id)?.target
+    const now = current.get(l.task_id)
+    if (!target || !now || (STATUS_RANK[target] ?? 0) <= (STATUS_RANK[now] ?? 99)) continue
+    const patch: Record<string, unknown> = { status: target, updated_at: new Date().toISOString() }
+    if (target === 'Terminé') patch.completed_at = new Date().toISOString()
+    const { error } = await supabase.from('tasks').update(patch).eq('id', l.task_id)
+    if (!error) moved++
+  }
+  return moved
+}
+
+/** Récapitulatif du matin : tout ce que RELAYS a repéré depuis la veille (une seule fois par jour, jamais à chaque passage de 30 min). */
+async function sendDailyDigest(supabase: SupabaseClient, owner: Owner, auto: boolean) {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+  const { data } = await supabase.from('mail_suggestions')
+    .select('title, from_name, from_email, subject, status')
+    .eq('owner_id', owner.id).in('status', ['pending', 'created']).gte('created_at', since).order('created_at', { ascending: false }).limit(40)
+  const items = (data ?? []) as { title: string; from_name: string | null; from_email: string | null; subject: string | null; status: string }[]
+  if (items.length === 0) return
+  const pending = items.filter(i => i.status === 'pending').length
+  const rows = items.map(n => `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;font-size:14px;"><strong>${esc(n.title)}</strong>${n.status === 'created' ? ' <span style="color:#1F9D57;font-size:12px;">carte créée</span>' : ''}<br><span style="color:#6B7280;font-size:12px;">${esc(n.from_name || n.from_email)} — ${esc(n.subject)}</span></td></tr>`).join('')
+  const head = pending > 0 ? `${pending} action(s) à valider, ${items.length - pending} carte(s) créée(s) depuis hier` : `${items.length} carte(s) créée(s) à partir de vos mails depuis hier`
+  await sendEmail({
+    to: owner.email,
+    subject: `📧 ${head}`,
+    html: baseHtml({
+      title: head, preheader: head, prefLabel: 'Mails à traiter',
+      content: `<p style="font-size:15px;">Bonjour ${esc(owner.name.split(' ')[0])}, voici ce que RELAYS a repéré dans vos mails :</p><table width="100%" cellpadding="0" cellspacing="0">${rows}</table><p style="margin-top:18px;">${button({ label: pending > 0 || !auto ? 'Valider mes actions' : 'Voir mes cartes', color: '#7E6FB0', href: `${APP_URL}${pending > 0 || !auto ? '/mails' : '/kanban'}` })}</p>`,
+    }),
+  })
 }

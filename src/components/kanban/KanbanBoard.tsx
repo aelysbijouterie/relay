@@ -1,5 +1,6 @@
 'use client'
 
+import { effectiveDeadline } from '@/lib/tasks/deadline'
 import { useState, useCallback, useEffect } from 'react'
 import {
   DndContext, DragOverlay, MouseSensor, KeyboardSensor, TouchSensor,
@@ -17,6 +18,16 @@ import { TASK_STATUSES, STATUS_LABELS } from '@/types'
 import type { Task, TaskStatus } from '@/types'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+
+// Ordre de la colonne « À faire » : échéance la plus proche en premier ; sans échéance : ordre de création.
+function compareTodoOrder(a: Task, b: Task): number {
+  const da = effectiveDeadline(a)?.slice(0, 10) ?? null
+  const db = effectiveDeadline(b)?.slice(0, 10) ?? null
+  if (da && db && da !== db) return da < db ? -1 : 1
+  if (da && !db) return -1
+  if (!da && db) return 1
+  return (a.created_at ?? '').localeCompare(b.created_at ?? '')
+}
 
 export function KanbanBoard({
   currentDepartmentId,
@@ -121,6 +132,9 @@ export function KanbanBoard({
 
   const getColumnTasks = (status: TaskStatus) => {
     const cols = visibleTasks.filter(t => t.status === status)
+    // « À faire » : classement automatique — les cartes avec échéance d'abord (celles qui se terminent le plus vite en haut),
+    // puis les cartes sans date par ordre de création (la plus ancienne en haut).
+    if (status === 'A Faire') return [...cols].sort(compareTodoOrder)
     const override = orderOverride[status]
     if (override) {
       // Applique l'ordre local (optimiste) le temps que le serveur réponde.
@@ -154,6 +168,7 @@ export function KanbanBoard({
 
     // ── Cas 1 : réordonnancement DANS la même colonne ──────────────────────
     if (newStatus === task.status) {
+      if (newStatus === 'A Faire') return // classement automatique par échéance puis par date de création
       if (!overTask || overTask.id === task.id) return
       const column = tasks
         .filter(t => t.status === task.status && t.status !== 'Archivé')

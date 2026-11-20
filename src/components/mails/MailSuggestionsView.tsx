@@ -39,7 +39,7 @@ export function MailSuggestionsView() {
     else toast.error((await r.json().catch(() => ({}))).error ?? 'Erreur')
   }
 
-  async function run(action: 'test' | 'scan') {
+  async function run(action: 'test' | 'scan' | 'backfill') {
     setBusy(action)
     const r = await fetch('/api/mail-suggestions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
     const j = await r.json().catch(() => ({ ok: false, error: r.status === 504 || r.status === 502 ? `Le serveur a mis trop de temps à répondre (${r.status}) — recliquez, les mails déjà analysés sont conservés` : `Réponse inattendue du serveur (${r.status})` }))
@@ -48,15 +48,15 @@ export function MailSuggestionsView() {
       if (j.ok) {
         const marks: string[] = j.marks ?? []
         toast.success(
-          `Connexion OK — ${j.count} mail(s) ces 3 derniers jours : ${j.unread} non lu(s), ${j.todo} marqué(s) « à traiter ». ` +
+          `Connexion OK — ${j.count} mail(s) ces 3 derniers jours : ${j.unread} non lu(s), ${j.unanswered} sans réponse, ${j.todo} marqué(s) « à traiter / en cours / drapeau ». ` +
           (marks.length ? `Marques vues : ${marks.join(', ')}.` : 'Aucune marque (drapeau, catégorie) transmise par OVH.') +
-          (j.todo === 0 ? ' Aucun mail avec la catégorie « à traiter » détecté.' : ''),
+          (j.todo === 0 ? ' Aucun mail marqué détecté (catégorie « à traiter » / « en cours » ou drapeau).' : ''),
           { duration: 30000 })
       }
       else toast.error(j.error ?? 'Connexion impossible')
     } else if (j.ok) {
       if (j.aiError) toast.error(`L’IA n’a pas répondu : ${j.aiError} — ${j.retryLater} mail(s) seront retentés`, { duration: 15000 })
-      else toast.success(`${j.read} mail(s) analysé(s) (${j.readIgnored ?? 0} déjà lus ignorés) · ${j.proposed} à valider · ${j.created} carte(s) créée(s)${j.todoCards ? ` dont ${j.todoCards} « à traiter »` : ''}`, { duration: 12000 })
+      else toast.success(`${j.read} mail(s) analysé(s) · ${j.proposed} à valider · ${j.created} carte(s) créée(s)${j.todoCards ? ` dont ${j.todoCards} marquée(s)` : ''}${j.moved ? ` · ${j.moved} carte(s) avancée(s)` : ''}${action === 'backfill' && j.read === 0 ? ' — tout est déjà importé' : action === 'backfill' ? ' — recliquez jusqu’à « tout est déjà importé »' : ''}`, { duration: 12000 })
       load()
     } else toast.error(j.error ?? 'Analyse impossible', { duration: 15000 })
   }
@@ -73,13 +73,17 @@ export function MailSuggestionsView() {
         <div>
           <h2 className="font-heading text-2xl font-bold mb-1 flex items-center gap-2"><Mail className="w-5 h-5" /> Mails à traiter</h2>
           <p className="text-sm text-muted-foreground">
-            Chaque jour à 8 h, RELAYS lit vos mails et propose les actions à mener.{' '}
+            Toutes les 30 minutes (de 7 h à 20 h), RELAYS lit vos mails non lus, sans réponse ou marqués, et propose les actions à mener.{' '}
             {data.auto ? 'Les cartes sont créées automatiquement.' : 'Vous validez celles qui deviennent des cartes.'}
           </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => run('test')} disabled={!!busy} className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted disabled:opacity-50">
             {busy === 'test' ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlugZap className="w-4 h-4" />} Tester la connexion
+          </button>
+          <button onClick={() => run('backfill')} disabled={!!busy || !data.configured.mail || !data.configured.ai} title="Crée les cartes de tous les mails déjà marqués « à traiter » ou « en cours » dans votre boîte"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl border border-border hover:bg-muted disabled:opacity-50">
+            {busy === 'backfill' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />} Importer les mails marqués
           </button>
           <button onClick={() => run('scan')} disabled={!!busy || !data.configured.mail || !data.configured.ai}
             className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl text-white disabled:opacity-50" style={{ backgroundColor: 'var(--accent)' }}>

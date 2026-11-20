@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanBody, parseExclude, skipReason, type RawMail } from '@/lib/mail/filter'
+import { cleanBody, parseExclude, skipReason, targetStatus, type RawMail } from '@/lib/mail/filter'
 import { sanitizeAnalyses } from '@/lib/mail/analyze'
 
 const base: RawMail = { messageId: '<1@x>', fromName: 'Marie Durand', fromEmail: 'marie@client.fr', subject: 'Devis à envoyer', date: new Date(), text: 'Pouvez-vous m’envoyer le devis ?', headers: {} }
@@ -36,4 +36,12 @@ describe('sanitizeAnalyses', () => {
     expect(out[1].actions[0]).toMatchObject({ priority: 'Moyenne', deadline: null })
   })
   it('renvoie une liste vide si la réponse n’est pas un tableau', () => expect(sanitizeAnalyses({ a: 1 }, 3)).toEqual([]))
+})
+
+describe('targetStatus', () => {
+  it('aucune marque', () => expect(targetStatus(false, [])).toBeNull())
+  it('drapeau = À faire', () => expect(targetStatus(true, [])).toBe('A Faire'))
+  it('catégorie « À traiter » = À faire', () => expect(targetStatus(false, ['A_traiter', 'Autre'])).toBe('A Faire'))
+  it('catégorie « En cours » = En cours (prioritaire sur le drapeau)', () => expect(targetStatus(true, ['En_cours'])).toBe('En cours'))
+  it('catégorie « Terminé » = Terminé', () => expect(targetStatus(true, ['Terminé'])).toBe('Terminé'))
 })
