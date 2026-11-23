@@ -3,7 +3,7 @@ import { sendEmail } from '@/lib/email'
 import { baseHtml, button, esc } from '@/emails/baseHtml'
 import { listTempoOperations, tempoConfig, upsertTempoOperation } from './client'
 import {
-  SUBTASK_RULES, buildCgvText, dateConflict, fillDescription, formatOperationTitle, nextStep, normalizeName, parseOperationName,
+  SUBTASK_RULES, buildCgvText, dateConflict, fillDescription, formatOperationTitle, nextStep, normalizeName, parseOperationName, sameEdition,
   type TempoOperation,
 } from './logic'
 
@@ -83,13 +83,28 @@ export async function runTempoSync(supabase: SupabaseClient): Promise<TempoSyncR
     return true
   }
 
-  // 1. Rapprochement
+  const cardPeriod = (c: Card) => ({ debut: day(c.op_date_debut), fin: day(c.op_date_fin) })
+  const opPeriod = (o: TempoOperation) => ({ debut: day(o.date_debut), fin: day(o.date_fin) })
+
+  // 0. Carte liée par erreur à une autre édition (ex. « L'Anniversaire 2027 » liée à l'opération Tempo 2026) : on délie, l'alerte rouge disparaît.
+  const unlinkedOps = new Set<string>()
+  for (const [taskId, link] of [...links]) {
+    const card = cardsById.get(taskId); const op = opsById.get(link.tempo_operation_id)
+    if (!card || !op || sameEdition(cardPeriod(card), opPeriod(op))) continue
+    await supabase.from('tempo_links').delete().eq('task_id', taskId)
+    links.delete(taskId); linkedOps.delete(link.tempo_operation_id); unlinkedOps.add(link.tempo_operation_id)
+    try { await upsertTempoOperation({ relays_task_id: taskId, tempo_operation_id: op.id, nom: op.nom, date_debut: op.date_debut, date_fin: op.date_fin, mecanique: op.mecanique, relays: { date_debut: null, date_fin: null, conflit: null }, delier: true }) }
+    catch (e) { res.notes.push(`« ${card.title} » : Tempo n’a pas pu retirer l’ancien lien (${e instanceof Error ? e.message : 'erreur'})`) }
+    res.notes.push(`« ${card.title} » déliée de l’opération Tempo « ${op.nom} » (${op.date_debut ?? '?'} → ${op.date_fin ?? '?'}) : ce n’est pas la même édition`)
+  }
+
+  // 1. Rapprochement : même nom ET même édition (périodes qui se chevauchent, ou débuts à moins de 60 jours)
   for (const op of ops) {
     if (linkedOps.has(op.id)) continue
     let card = op.relays_task_id ? cardsById.get(op.relays_task_id) : undefined
-    if (card && links.has(card.id)) card = undefined
+    if (card && (links.has(card.id) || !sameEdition(cardPeriod(card), opPeriod(op)))) card = undefined
     if (!card) {
-      const same = cards.filter(c => !links.has(c.id) && normalizeName(parseOperationName(c.title)) === normalizeName(op.nom))
+      const same = cards.filter(c => !links.has(c.id) && normalizeName(parseOperationName(c.title)) === normalizeName(op.nom) && sameEdition(cardPeriod(c), opPeriod(op)))
       card = same.find(c => op.date_debut && day(c.op_date_debut) === op.date_debut) ?? (same.length === 1 ? same[0] : undefined)
     }
     if (card) await saveLink(card.id, op.id)
@@ -130,6 +145,8 @@ export async function runTempoSync(supabase: SupabaseClient): Promise<TempoSyncR
     if (!start || !end || /\[date\]/i.test(c.title) || nom.length < 3) { res.notes.push(`« ${c.title} » : renseignez le titre et les dates de début et de fin pour l’envoyer vers Tempo`); continue }
     try {
       const { id } = await upsertTempoOperation({ relays_task_id: c.id, nom, date_debut: start, date_fin: end, mecanique: c.op_mecanique, relays: { date_debut: start, date_fin: end, conflit: null } })
+      const back = opsById.get(id)
+      if (unlinkedOps.has(id) || (back && !sameEdition({ debut: start, fin: end }, opPeriod(back)))) { res.notes.push(`« ${c.title} » : Tempo a renvoyé l’opération d’une autre édition au lieu d’en créer une nouvelle (Tempo doit gérer « delier »)`); continue }
       if (await saveLink(c.id, id)) res.createdInTempo++
     } catch (e) { res.notes.push(`« ${c.title} » non envoyée à Tempo : ${e instanceof Error ? e.message : 'erreur'}`) }
   }
@@ -153,7 +170,7 @@ export async function runTempoSync(supabase: SupabaseClient): Promise<TempoSyncR
     // Dates de l'opération : on ne remplit que si la carte n'en a pas ; sinon, en cas de différence, c'est une dissonance (rien n'est écrasé).
     if (!card.op_date_debut && op.date_debut) patch.op_date_debut = op.date_debut
     if (!card.op_date_fin && op.date_fin) patch.op_date_fin = op.date_fin
-    const conflict = dateConflict({ debut: day(card.op_date_debut), fin: day(card.op_date_fin) }, { debut: op.date_debut, fin: op.date_fin })
+    const conflict = !sameEdition(cardPeriod(card), opPeriod(op)) ? null : dateConflict({ debut: day(card.op_date_debut), fin: day(card.op_date_fin) }, { debut: op.date_debut, fin: op.date_fin })
 
     const cgv = buildCgvText(op.cgv_magasin, op.cgv_web)
     if (cgv && cgv !== (card.op_cgv ?? '')) patch.op_cgv = cgv

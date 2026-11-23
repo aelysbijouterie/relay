@@ -89,3 +89,18 @@ export function dateConflict(relays: { debut: string | null; fin: string | null 
   if (!d(relays.debut, tempo.debut) && !d(relays.fin, tempo.fin)) return null
   return `RELAYS : ${fmtFr(relays.debut)} → ${fmtFr(relays.fin)} · Tempo : ${fmtFr(tempo.debut)} → ${fmtFr(tempo.fin)}`
 }
+
+const ms = (iso: string) => Date.parse(iso.slice(0, 10) + 'T00:00:00Z')
+
+/**
+ * Même édition d'une opération ? Oui si les périodes se chevauchent, ou si les dates de début sont à moins de 60 jours.
+ * Deux opérations de même nom mais d'années différentes sont DEUX opérations distinctes.
+ * Dates inconnues d'un côté : on ne peut pas conclure, on considère que c'est la même édition.
+ */
+export function sameEdition(a: { debut: string | null; fin: string | null }, b: { debut: string | null; fin: string | null }): boolean {
+  const as = a.debut ?? a.fin; const bs = b.debut ?? b.fin
+  if (!as || !bs) return true
+  const ae = a.fin ?? as; const be = b.fin ?? bs
+  if (ms(as) <= ms(be) && ms(bs) <= ms(ae)) return true
+  return Math.abs(ms(as) - ms(bs)) < 60 * 86400000
+}

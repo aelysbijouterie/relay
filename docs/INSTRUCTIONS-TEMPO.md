@@ -88,6 +88,12 @@ Comportement :
 3. Idempotent : deux appels identiques ne créent jamais deux opérations (clé = `relays_task_id`).
 4. Réponse `200` : `{ "id": "<id Tempo de l'opération>" }`. Erreur : code HTTP ≠ 200 avec un message clair (jamais de page HTML).
 
+### 4 bis. Édition (année) et délien
+- Deux opérations de même nom mais d'années différentes sont **deux opérations distinctes**. RELAYS ne rapproche une carte d'une opération que si les périodes se chevauchent ou si les débuts sont à moins de 60 jours.
+- Si une carte a été liée par erreur à une autre édition, RELAYS envoie un POST avec `"delier": true` et `tempo_operation_id` : Tempo doit alors **effacer** `relays_task_id`, `relays_date_debut`, `relays_date_fin` et `relays_conflit` de cette opération (sans toucher à son nom, ses dates ni sa mécanique), et répondre `{ "id": "<id de cette opération>" }`.
+- Ensuite RELAYS envoie un POST **sans** `tempo_operation_id` pour la nouvelle édition : Tempo crée alors une **nouvelle** opération (la clé `relays_task_id` n'est plus occupée).
+- Une dissonance n'existe que pour une même édition : dates d'années différentes → aucun encadré rouge.
+
 ## 5. Affichage rouge de la dissonance (dans Tempo)
 Quand `relays_conflit` n'est pas vide : afficher **en rouge**, de façon bien visible, sur le **planning**, le **tableau de bord** et la **fiche de l'opération** : « Dates différentes dans RELAYS — RELAYS : jj/mm/aaaa → jj/mm/aaaa · Tempo : … ». Dès que RELAYS renvoie `conflit: null`, l'alerte disparaît toute seule. **Proposer 2-3 maquettes avant de coder** (Manon préfère choisir le rendu).
 Tempo n'envoie **pas** de mail pour une dissonance (RELAYS le fait).

@@ -36,6 +36,8 @@ export interface TempoUpsert {
   mecanique: string | null
   /** Dates saisies dans RELAYS + texte de dissonance (null = tout est d'accord) : Tempo les affiche en rouge si besoin. */
   relays: { date_debut: string | null; date_fin: string | null; conflit: string | null }
+  /** Demande à Tempo de retirer le lien avec cette carte (liée par erreur à une autre édition) : relays_task_id, dates et alerte effacés. */
+  delier?: boolean
 }
 
 export async function upsertTempoOperation(p: TempoUpsert): Promise<{ id: string }> {

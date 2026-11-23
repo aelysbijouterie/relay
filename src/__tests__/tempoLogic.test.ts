@@ -61,3 +61,20 @@ describe('dissonance de dates', () => {
     expect(dateConflict({ debut: '2027-11-02', fin: '2027-11-21' }, { debut: '2027-11-04', fin: '2027-11-21' })).toContain('02/11/2027')
   })
 })
+
+import { sameEdition } from '@/lib/tempo/logic'
+describe('sameEdition', () => {
+  it('même période ou chevauchement', () => {
+    expect(sameEdition({ debut: '2027-01-06', fin: '2027-02-02' }, { debut: '2027-01-06', fin: '2027-02-02' })).toBe(true)
+    expect(sameEdition({ debut: '2026-11-02', fin: '2026-11-21' }, { debut: '2026-11-04', fin: '2026-11-22' })).toBe(true)
+  })
+  it('débuts à moins de 60 jours sans chevauchement', () => {
+    expect(sameEdition({ debut: '2027-03-01', fin: '2027-03-10' }, { debut: '2027-04-15', fin: '2027-04-25' })).toBe(true)
+  })
+  it('années différentes = deux opérations distinctes', () => {
+    expect(sameEdition({ debut: '2027-10-04', fin: '2027-11-01' }, { debut: '2026-10-05', fin: '2026-11-02' })).toBe(false)
+  })
+  it('dates inconnues : on ne tranche pas', () => {
+    expect(sameEdition({ debut: null, fin: null }, { debut: '2026-10-05', fin: '2026-11-02' })).toBe(true)
+  })
+})
