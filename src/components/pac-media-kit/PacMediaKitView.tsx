@@ -3,8 +3,10 @@
 import { schoolZonesLabel } from '@/lib/calendar/holidays'
 import { SchoolZoneToggle, ZoneChips, useSchoolZones } from '@/components/calendar/SchoolZones'
 import { useState, useEffect, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Plus, Briefcase, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Briefcase, X, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTempoConflicts } from '@/hooks/useTempoConflicts'
+import { toast } from 'sonner'
 import { TaskModal } from '@/components/tasks/TaskModal'
 import { NewTaskModal } from '@/components/tasks/NewTaskModal'
 import type { Task, Department, Profile } from '@/types'
@@ -27,6 +29,23 @@ export function PacMediaKitView() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [zones] = useSchoolZones()
   const [showNew, setShowNew] = useState(false)
+  const tempoConflicts = useTempoConflicts()
+  const [syncing, setSyncing] = useState(false)
+  async function syncTempo() {
+    setSyncing(true)
+    try {
+      const r = await fetch('/api/tempo/sync', { method: 'POST' })
+      const j = await r.json().catch(() => ({ ok: false, error: `Réponse inattendue (${r.status})` }))
+      if (!j.ok) { toast.error(j.error ?? 'Synchronisation impossible', { duration: 12000 }); return }
+      const parts = [
+        j.createdInTempo ? `${j.createdInTempo} opération(s) envoyée(s) à Tempo` : '', j.createdInRelays ? `${j.createdInRelays} carte(s) créée(s) depuis Tempo` : '',
+        j.updatedCards ? `${j.updatedCards} carte(s) mise(s) à jour` : '', j.conflicts ? `🔴 ${j.conflicts} dissonance(s) de dates` : '',
+      ].filter(Boolean)
+      toast.success(`Tempo synchronisé (${j.linked} opération(s) liée(s)). ${parts.join(' · ') || 'Rien à changer.'}`, { duration: 9000 })
+      if (j.notes?.length) toast.message(j.notes.slice(0, 4).join(' — '), { duration: 15000 })
+      window.location.reload()
+    } finally { setSyncing(false) }
+  }
   const [profile, setProfile] = useState<Profile | null>(null)
   const [departments, setDepartments] = useState<Department[]>([])
   // Compte boutique : planning en lecture seule (pas de création, pas de carte complète).
@@ -133,11 +152,18 @@ export function PacMediaKitView() {
           </p>
         </div>
         {!readOnly && (
+        <div className="flex items-center gap-2">
+        <button onClick={syncTempo} disabled={syncing}
+          title="Met à jour RELAYS d’après Tempo (dates des étapes, CGV, cases cochées) et envoie à Tempo les nouvelles opérations"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl border border-border hover:bg-muted disabled:opacity-60">
+          <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} /> Synchroniser avec Tempo
+        </button>
         <button onClick={() => setShowNew(true)}
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl text-white transition-transform hover:scale-[1.02]"
           style={{ backgroundColor: 'var(--accent)' }}>
           <Plus className="w-4 h-4" /> Ajouter une opération
         </button>
+        </div>
         )}
       </div>
 
@@ -197,10 +223,10 @@ export function PacMediaKitView() {
                       : (op.op_montant != null ? `${op.op_montant} €` : null)
                     return (
                       <button key={op.id} onClick={() => setSelectedTask(op)}
-                        className="w-full text-left px-1.5 py-0.5 rounded font-medium text-white hover:opacity-90 transition-opacity overflow-hidden"
+                        className={cn('w-full text-left px-1.5 py-0.5 rounded font-medium text-white hover:opacity-90 transition-opacity overflow-hidden', tempoConflicts[op.id] && 'ring-2 ring-red-600 ring-offset-1')}
                         style={{ backgroundColor: OP_CATEGORY_COLORS[op.op_category as OpCategory] }}
-                        title={`${op.title}${secondary ? ' — ' + secondary : ''}`}>
-                        <span className="block text-[0.62rem] leading-tight truncate">{op.title}</span>
+                        title={`${op.title}${secondary ? ' — ' + secondary : ''}${tempoConflicts[op.id] ? ' — 🔴 Dates différentes dans Tempo : ' + tempoConflicts[op.id] : ''}`}>
+                        <span className="block text-[0.62rem] leading-tight truncate">{tempoConflicts[op.id] ? '🔴 ' : ''}{op.title}</span>
                         {secondary && <span className="block text-[0.55rem] leading-tight truncate opacity-80">{secondary}</span>}
                       </button>
                     )

@@ -4,6 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Globe, AlertCircle, Clock, MessageSquare, Check } from 'lucide-react'
 import { cn, isOverdue, formatDeadline, getInitials } from '@/lib/utils'
+import { useTempoConflicts } from '@/hooks/useTempoConflicts'
 import type { Task } from '@/types'
 import { PRIORITY_COLORS } from '@/types'
 import { effectiveDeadline, isDeadlineFromSubtask as isDeadlineFromSubtaskFn } from '@/lib/tasks/deadline'
@@ -32,6 +33,7 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
   }
 
   const deptColor = task.department?.color ?? '#94A3B8'
+  const tempoConflict = useTempoConflicts()[task.id]
 
   // Progression des sous-tâches (si présentes)
   const subtasks = task.subtasks ?? []
@@ -86,6 +88,11 @@ export function TaskCard({ task, onClick, selectMode, selected, onToggleSelect }
         <span className={cn('absolute top-2 right-2 z-10 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors',
           selected ? 'bg-primary border-primary text-white' : 'bg-card border-border')}>
           {selected && <Check className="w-3 h-3" />}
+        </span>
+      )}
+      {tempoConflict && (
+        <span title={`Dates différentes dans Tempo — ${tempoConflict}`} className="absolute -top-1.5 left-3 z-10 inline-flex items-center gap-1 text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white shadow-md">
+          <AlertCircle className="w-2.5 h-2.5" /> Dates ≠ Tempo
         </span>
       )}
       {/* Pastille "en retard" en coin */}

@@ -18,12 +18,47 @@ export async function getMailOwner(supabase: SupabaseClient): Promise<Owner | nu
   return (data?.[0] as Owner | undefined) ?? null
 }
 
-/** Crée la carte RELAYS (au nom du propriétaire, assignée à lui-même) à partir d'une action proposée. */
+/** Sujet comparable : sans « RE: / TR: / FWD: », espaces et majuscules normalisés. */
+export function normalizeSubject(s: string): string {
+  let t = s.trim()
+  for (let i = 0; i < 6; i++) {
+    const n = t.replace(/^\s*(re|tr|fw|fwd|rép|ré|réf)\s*:\s*/i, '')
+    if (n === t) break
+    t = n
+  }
+  return t.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+const esc2 = (s: string) => s.replace(/[\\%_]/g, m => `\\${m}`)
+
+/**
+ * Le sujet est-il déjà en carte ? Oui si une carte non supprimée du propriétaire (120 derniers jours) porte soit le même titre,
+ * soit la même origine de mail (même sujet, « RE: » ignoré). Renvoie l'id de la carte existante, sinon null.
+ */
+export async function findExistingCard(supabase: SupabaseClient, owner: Owner, title: string, subject: string): Promise<string | null> {
+  const since = new Date(Date.now() - 120 * 86400000).toISOString()
+  const t = title.trim().slice(0, 200)
+  const { data: byTitle } = await supabase.from('tasks').select('id').eq('created_by', owner.id).is('deleted_at', null).gte('created_at', since).ilike('title', esc2(t)).limit(1)
+  if (byTitle?.[0]) return byTitle[0].id as string
+  const norm = normalizeSubject(subject)
+  if (!norm) return null
+  const { data: byOrigin } = await supabase.from('tasks').select('id, description').eq('created_by', owner.id).is('deleted_at', null).gte('created_at', since)
+    .ilike('description', `%Origine : mail de%${esc2(norm)} »%`).limit(30)
+  for (const r of (byOrigin ?? []) as { id: string; description: string | null }[]) {
+    const m = /« ([\s\S]*?) »(?: \(\d{4}-\d{2}-\d{2}\))?\s*$/.exec(r.description ?? '')
+    if (m && normalizeSubject(m[1]) === norm) return r.id
+  }
+  return null
+}
+
+/** Crée la carte RELAYS (au nom du propriétaire, assignée à lui-même) à partir d'une action proposée. Jamais de doublon : renvoie la carte existante si le sujet est déjà en carte. */
 export async function createCardFromAction(
   supabase: SupabaseClient, owner: Owner,
   a: { title: string; description: string | null; priority: string; deadline: string | null; from: string; subject: string; received: string | null; status?: CardStatus },
 ): Promise<string | null> {
   if (!owner.department_id) return null
+  const existing = await findExistingCard(supabase, owner, a.title, a.subject)
+  if (existing) return existing
   const origin = `📧 Origine : mail de ${a.from} — « ${a.subject} »${a.received ? ` (${a.received.slice(0, 10)})` : ''}`
   const { data: task, error } = await supabase.from('tasks').insert({
     title: a.title.slice(0, 200),
@@ -39,7 +74,7 @@ export async function createCardFromAction(
 export interface ScanResult {
   ok: boolean; error?: string
   read: number; skipped: number; analysed: number; withoutAction: number
-  proposed: number; created: number; retryLater: number; readIgnored?: number; scanned?: number; candidates?: number; todoCards?: number; moved?: number; aiError?: string
+  proposed: number; created: number; duplicates?: number; retryLater: number; readIgnored?: number; scanned?: number; candidates?: number; todoCards?: number; moved?: number; aiError?: string
 }
 
 export interface ScanOptions {
@@ -61,6 +96,9 @@ export async function runMailScan(supabase: SupabaseClient, opts: ScanOptions = 
   if (!imapConfig()) return { ...res, error: 'Connexion mail non configurée dans Vercel' }
   const owner = await getMailOwner(supabase)
   if (!owner) return { ...res, error: 'Aucun profil RELAYS ne porte l’adresse de la boîte lue (MAIL_IMAP_USER)' }
+  // Sans la table de mémoire (migration 032), chaque passage recréerait les mêmes cartes : on refuse de travailler.
+  const probe = await supabase.from('mail_suggestions').select('id').limit(1)
+  if (probe.error) return { ...res, error: 'Migration 032 non exécutée dans Supabase (table « mail_suggestions » absente) : aucune carte créée, pour éviter les doublons' }
   // Les cartes sont créées directement (sans validation), sauf si MAIL_AUTO_CREATE vaut « false ».
   const auto = process.env.MAIL_AUTO_CREATE !== 'false'
   const exclude = parseExclude(process.env.MAIL_EXCLUDE)
@@ -121,8 +159,12 @@ export async function runMailScan(supabase: SupabaseClient, opts: ScanOptions = 
         const a = actions[n]
         let status = 'pending'; let taskId: string | null = null
         if (auto || m.todo) { // les mails marqués « à traiter » deviennent des cartes sans validation
-          taskId = await createCardFromAction(supabase, owner!, { ...a, from, subject: m.subject, received: m.date.toISOString(), status: m.target === 'En cours' ? 'En cours' : 'A Faire' })
-          if (taskId) { status = 'created'; res.created++; if (m.todo) res.todoCards = (res.todoCards ?? 0) + 1 } else res.proposed++
+          const already = await findExistingCard(supabase, owner!, a.title, m.subject)
+          if (already) { taskId = already; status = 'created'; res.duplicates = (res.duplicates ?? 0) + 1 }
+          else {
+            taskId = await createCardFromAction(supabase, owner!, { ...a, from, subject: m.subject, received: m.date.toISOString(), status: m.target === 'En cours' ? 'En cours' : 'A Faire' })
+            if (taskId) { status = 'created'; res.created++; if (m.todo) res.todoCards = (res.todoCards ?? 0) + 1 } else res.proposed++
+          }
         } else res.proposed++
         await supabase.from('mail_suggestions').upsert({
           message_id: m.messageId, action_idx: n, owner_id: owner!.id, status,

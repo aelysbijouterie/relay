@@ -1,6 +1,7 @@
 'use client'
 
 import { AIImproveButton } from './AIImproveButton'
+import { useTempoConflicts } from '@/hooks/useTempoConflicts'
 import { useState, useEffect, useRef } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -82,6 +83,7 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
   // Édition des détails
   const [editing, setEditing]   = useState(false)
   // PAC & Média Kit (Marketing & Web uniquement) — tous optionnels.
+  const tempoConflicts = useTempoConflicts()
   const [editOpCategory, setEditOpCategory] = useState<OpCategory | ''>(task.op_category ?? '')
   const [editOpDateDebut, setEditOpDateDebut] = useState(task.op_date_debut ?? '')
   const [editOpDateFin, setEditOpDateFin] = useState(task.op_date_fin ?? '')
@@ -1002,6 +1004,11 @@ export function TaskModal({ task, open, onClose, currentUserName }: TaskModalPro
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: OP_CATEGORY_COLORS[task.op_category] }} />
                         {OP_CATEGORY_LABELS[task.op_category]}
                       </p>
+                      {tempoConflicts[task.id] && (
+                        <p className="text-xs font-semibold rounded-lg border border-red-500 bg-red-500/10 text-red-600 px-2.5 py-1.5">
+                          🔴 Dates différentes dans Tempo — {tempoConflicts[task.id]}. Corrigez la bonne plateforme (aucune n’est modifiée automatiquement).
+                        </p>
+                      )}
                       {(task.op_date_debut || task.op_date_fin) && (
                         <p className="text-sm text-foreground/80">
                           {task.op_date_debut ? formatDeadline(task.op_date_debut) : '—'}

@@ -209,6 +209,11 @@ export function NewTaskModal({ open, onClose, onCreated, currentDepartmentId, de
         toast.error('Carte créée, mais un élément (liste/fichier) n\'a pas pu être ajouté')
       }
 
+      // Opération commerciale (catégorie ou modèle) : création immédiate dans Tempo (sinon au prochain passage, dans l'heure).
+      if (opCategory === 'operation_commerciale' || checklist.some(i => /^réalisation des visuels$/i.test(i.title.trim()))) {
+        fetch('/api/tempo/sync', { method: 'POST' }).catch(() => {})
+      }
+
       // Notifier les personnes assignées (la route exclut l'auteur et
       // respecte les préférences de chacun).
       const assignedProfiles = allProfiles.filter(p => assigneeIds.includes(p.id))
