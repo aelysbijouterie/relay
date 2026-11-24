@@ -45,3 +45,19 @@ describe('targetStatus', () => {
   it('catégorie « En cours » = En cours (prioritaire sur le drapeau)', () => expect(targetStatus(true, ['En_cours'])).toBe('En cours'))
   it('catégorie « Terminé » = Terminé', () => expect(targetStatus(true, ['Terminé'])).toBe('Terminé'))
 })
+
+import { isTempoMail } from '@/lib/mail/filter'
+describe('mails de Tempo', () => {
+  const base = { fromName: 'La Réserve', fromEmail: 'x@exemple.fr', text: 'Bonjour' }
+  it('reconnaît les mails Tempo (sujet, nom, lien)', () => {
+    expect(isTempoMail({ ...base, subject: '[Tempo] Livraison aujourd’hui — Un Noël enchanté' })).toBe(true)
+    expect(isTempoMail({ ...base, subject: 'RE: [Tempo] Échéance dans 2 jours — SOLDES' })).toBe(true)
+    expect(isTempoMail({ ...base, subject: 'TEST 3 — SOLDES — impression' })).toBe(true)
+    expect(isTempoMail({ ...base, subject: 'CONTROLE RECEPTION VALIDÉ - SOLDES - 12/01/2027' })).toBe(true)
+    expect(isTempoMail({ ...base, subject: 'Visuels', text: 'Voir https://pac-aelys.vercel.app/operations/12' })).toBe(true)
+  })
+  it('laisse passer les autres mails', () => {
+    expect(isTempoMail({ ...base, subject: 'Erreur horaires Google', text: 'Merci de corriger' })).toBe(false)
+    expect(isTempoMail({ ...base, subject: 'Calendrier de l’Avent Aélys 2026' })).toBe(false)
+  })
+})

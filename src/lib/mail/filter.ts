@@ -31,6 +31,12 @@ export function targetStatus(flagged: boolean, marks: string[]): CardStatus | nu
 const AUTO_SENDER = /(no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|notifications?@|newsletter|bounce|alerts?@)/i
 const AUTO_SUBJECT = /^(accept[ée]|refus[ée]|provisoire|r[ée]ponse automatique|automatic reply|out of office|absence du bureau|undeliverable|delivery status)/i
 
+// Mails envoyés par l'application Tempo (suivi des visuels) : jamais de carte automatique.
+const TEMPO_SUBJECT = /^\s*((re|tr|fwd?)\s*:\s*)*(\[tempo\]|test\s*\d+\s*[—–-]|contr[ôo]le r[ée]ception valid[ée])/i
+export function isTempoMail(m: Pick<RawMail, 'fromName' | 'fromEmail' | 'subject' | 'text'>): boolean {
+  return TEMPO_SUBJECT.test(m.subject) || /\btempo\b/i.test(m.fromName) || /\btempo@/i.test(m.fromEmail) || /pac-aelys\.vercel\.app/i.test(m.text)
+}
+
 /** Raison pour laquelle un mail est écarté AVANT l'IA, ou null s'il doit être analysé. */
 export function skipReason(m: RawMail, ownAddress: string, exclude: string[]): string | null {
   // Un mail marqué « à traiter » n'est écarté que par la liste d'exclusion (confidentialité), jamais par les filtres de bruit.
@@ -40,6 +46,7 @@ export function skipReason(m: RawMail, ownAddress: string, exclude: string[]): s
     return null
   }
   const from = m.fromEmail.toLowerCase()
+  if (isTempoMail(m)) return 'mail de Tempo'
   if (ownAddress && from === ownAddress.toLowerCase()) return 'envoyé par moi'
   if (AUTO_SENDER.test(from)) return 'expéditeur automatique'
   if (AUTO_SUBJECT.test(m.subject.trim())) return 'réponse automatique ou accusé'

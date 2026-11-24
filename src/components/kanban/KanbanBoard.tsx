@@ -12,6 +12,7 @@ import { KanbanColumn } from './KanbanColumn'
 import { TaskCard } from '@/components/tasks/TaskCard'
 import { TaskModal } from '@/components/tasks/TaskModal'
 import { useTasks } from '@/hooks/useTasks'
+import { isFarOperation } from '@/lib/tasks/farOperation'
 import { useTaskStore } from '@/store/tasks'
 import { updateTaskStatus } from '@/lib/actions/tasks'
 import { TASK_STATUSES, STATUS_LABELS } from '@/types'
@@ -39,6 +40,7 @@ export function KanbanBoard({
   const { tasks, refresh }    = useTasks()
   const currentUserId         = useTaskStore(s => s.currentUserId)
   const [taskFilter, setTaskFilter] = useState<'all' | 'delegated'>('all')
+  const [showFarOps, setShowFarOps]   = useState(false) // opérations commerciales qui démarrent dans plus de 3 mois
   const [selectMode, setSelectMode]   = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy]       = useState(false)
@@ -105,8 +107,11 @@ export function KanbanBoard({
     return days <= lead
   }
 
+  // Opérations commerciales qui démarrent dans plus de 3 mois : masquées (sauf recherche en cours ou bouton « Afficher »).
+  const farOpsCount = tasks.filter(t => t.status !== 'Archivé' && isFarOperation(t)).length
   const visibleTasks = tasks
     .filter(inLeadWindow)
+    .filter(t => showFarOps || search.trim() !== '' || !isFarOperation(t))
     .map(t => ({ ...t, status: (optimistic[t.id] ?? t.status) as TaskStatus }))
     .filter(t => {
       if (t.status === 'Archivé') return false
@@ -258,6 +263,13 @@ export function KanbanBoard({
         <span className="text-xs text-muted-foreground">
           {visibleTasks.length} tâche{visibleTasks.length !== 1 ? 's' : ''}
         </span>
+        {farOpsCount > 0 && (
+          <button onClick={() => setShowFarOps(v => !v)}
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
+            title="Les opérations commerciales apparaissent toutes seules 3 mois avant leur début">
+            {showFarOps ? `Masquer les ${farOpsCount} opérations à venir` : `${farOpsCount} opération${farOpsCount > 1 ? 's' : ''} à venir masquée${farOpsCount > 1 ? 's' : ''} (début dans plus de 3 mois) · Afficher`}
+          </button>
+        )}
         {shopMembers ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs text-muted-foreground mr-0.5">Collaborateur :</span>
