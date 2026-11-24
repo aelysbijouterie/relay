@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getActingContext } from '@/lib/boutique/session'
 import { evaluateForBoutique } from '@/lib/absences/leaveRulesServer'
+import { expandWeeklyPeriods, MAX_RECURRING_PERIODS } from '@/lib/absences/recurrence'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,6 +106,31 @@ export async function POST(request: NextRequest) {
   const autoValidated = ctx.isBoutique
     ? (type === 'Alternance' || type === 'Maladie' || type === 'Autre')
     : (me?.role === 'manager' || me?.role === 'admin' || type === 'Alternance')
+
+  // Alternance récurrente (« tous les lundis et mardis jusqu'au … ») : une période par semaine, créées d'un coup.
+  const weekdays: number[] | null = Array.isArray(body.recurrence?.weekdays)
+    ? [...new Set<number>((body.recurrence.weekdays as unknown[]).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))] : null
+  if (weekdays && type === 'Alternance') {
+    const periods = expandWeeklyPeriods(start_date, end_date, weekdays)
+    if (periods.length === 0) return NextResponse.json({ error: 'Aucun des jours choisis ne tombe dans cette période' }, { status: 400 })
+    if (periods.length > MAX_RECURRING_PERIODS) return NextResponse.json({ error: `Trop de périodes (${periods.length}) : limitez la date de fin (maximum ${MAX_RECURRING_PERIODS} périodes)` }, { status: 400 })
+    // Jamais de doublon : les périodes d'alternance déjà enregistrées pour cette personne sont ignorées.
+    const { data: existing } = await supabase.from('absences').select('start_date, end_date').eq('user_id', requesterId).eq('type', 'Alternance')
+      .gte('end_date', start_date).lte('start_date', end_date)
+    const have = new Set((existing ?? []).map((e: { start_date: string; end_date: string }) => `${e.start_date}|${e.end_date}`))
+    const fresh = periods.filter(p => !have.has(`${p.start}|${p.end}`))
+    if (fresh.length === 0) return NextResponse.json({ error: 'Toutes ces périodes sont déjà enregistrées' }, { status: 409 })
+    const note = `Planning récurrent (${fresh.length} période${fresh.length > 1 ? 's' : ''}, jusqu'au ${end_date.slice(8, 10)}/${end_date.slice(5, 7)}/${end_date.slice(0, 4)})`
+    const now = new Date().toISOString()
+    const { data: rows, error: recErr } = await supabase.from('absences').insert(fresh.map(p => ({
+      user_id: requesterId, type, start_date: p.start, end_date: p.end, start_period: 'full', end_period: 'full',
+      reason: [reason?.trim(), note].filter(Boolean).join(' — '), status: 'Validé', reviewed_by: requesterId, reviewed_at: now,
+    }))).select('id')
+    if (recErr || !rows?.length) return NextResponse.json({ error: recErr?.message ?? 'Enregistrement impossible' }, { status: 500 })
+    // Boutique : un seul e-mail d'information à la RH (pas un par semaine).
+    if (ctx.isBoutique) await sendRhRequestMail(supabase, rows[0].id, 'info')
+    return NextResponse.json({ success: true, id: rows[0].id, autoValidated: true, count: rows.length, skipped: periods.length - fresh.length })
+  }
 
   const { data, error } = await supabase
     .from('absences')

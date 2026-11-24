@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Loader2, AlertTriangle, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 import { countWorkdays, boutiqueDayOptions } from '@/lib/absences/workdays'
+import { expandWeeklyPeriods, MAX_RECURRING_PERIODS } from '@/lib/absences/recurrence'
 import { ABSENCE_TYPES, ABSENCE_COLORS, type AbsenceType, type AbsencePeriod, type Absence } from '@/types/absences'
 
 // Opération commerciale (planning PAC) : sert à prévenir quand on pose des congés dessus.
@@ -24,6 +25,9 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
   const [endPeriod, setEndPeriod] = useState<AbsencePeriod>(absence?.end_period ?? 'full')
   const [reason, setReason] = useState(absence?.reason ?? '')
   const [saving, setSaving] = useState(false)
+  // Alternance récurrente : « tous les lundis et mardis, jusqu'au … » (une période par semaine, créées d'un coup).
+  const [repeat, setRepeat] = useState(false)
+  const [weekdays, setWeekdays] = useState<number[]>([])
   // Absence signalée (boutique) : justificatif facultatif, glissé-déposé ou choisi dans les fichiers.
   const [file, setFile] = useState<File | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -59,7 +63,9 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
 
   // Boutique : « Maladie » et « Autre » sont des absences signalées (pas de validation, pas de solde).
   const isReport = !editing && boutique && (type === 'Maladie' || type === 'Autre')
-  const sameDay = startDate && endDate && startDate === endDate
+  const recurring = repeat && type === 'Alternance' && !editing
+  const recurringPeriods = recurring && startDate && endDate ? expandWeeklyPeriods(startDate, endDate, weekdays) : []
+  const sameDay = !recurring && startDate && endDate && startDate === endDate
   // Décompte des jours ouvrés demandés (fériés et week-ends exclus) et solde après la demande.
   // Boutiques : le samedi compte pour les congés payés (magasins ouverts).
   const effectiveType = editing ? absence?.type : type
@@ -89,6 +95,9 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
   async function submit() {
     if (!startDate || !endDate) { toast.error('Indiquez les dates'); return }
     if (new Date(endDate) < new Date(startDate)) { toast.error('La date de fin doit être après le début'); return }
+    if (recurring && weekdays.length === 0) { toast.error('Choisissez au moins un jour de la semaine'); return }
+    if (recurring && recurringPeriods.length === 0) { toast.error('Aucun des jours choisis ne tombe dans cette période'); return }
+    if (recurring && recurringPeriods.length > MAX_RECURRING_PERIODS) { toast.error('Trop de périodes : rapprochez la date de fin'); return }
     setSaving(true)
     try {
       if (editing) {
@@ -111,7 +120,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
       } else {
         const r = await fetch('/api/absences', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type, start_date: startDate, end_date: endDate, start_period: startPeriod, end_period: sameDay ? startPeriod : endPeriod, reason, has_file: isReport && !!file }),
+          body: JSON.stringify({ type, start_date: startDate, end_date: endDate, start_period: recurring ? 'full' : startPeriod, end_period: recurring ? 'full' : (sameDay ? startPeriod : endPeriod), reason, has_file: isReport && !!file, ...(recurring ? { recurrence: { weekdays } } : {}) }),
         })
         if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error ?? 'Envoi impossible') }
         const res = await r.json()
@@ -139,7 +148,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
               fetch(`/api/absences/${res.id}/notify`, { method: 'POST' }).catch(() => {}) // la RH est prévenue quand même, sans justificatif
             }
           }
-          toast.success(type === 'Alternance' ? 'Période enregistrée' : isReport ? (attachFailed ? 'Absence signalée (sans justificatif)' : 'Absence signalée au pôle RH') : 'Absence enregistrée (validée)')
+          toast.success(type === 'Alternance' ? (res.count > 1 ? `${res.count} périodes enregistrées${res.skipped ? ` (${res.skipped} déjà existante${res.skipped > 1 ? 's' : ''})` : ''}` : 'Période enregistrée') : isReport ? (attachFailed ? 'Absence signalée (sans justificatif)' : 'Absence signalée au pôle RH') : 'Absence enregistrée (validée)')
         }
       }
       onCreated()
@@ -172,20 +181,48 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
             </div>
           )}
 
+          {type === 'Alternance' && !editing && (
+            <div className="rounded-lg border border-border p-3">
+              <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer">
+                <input type="checkbox" checked={repeat} onChange={e => setRepeat(e.target.checked)} className="w-4 h-4" />
+                Répéter chaque semaine (planning récurrent)
+              </label>
+              {repeat && (
+                <div className="mt-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {([[1, 'Lun'], [2, 'Mar'], [3, 'Mer'], [4, 'Jeu'], [5, 'Ven'], [6, 'Sam']] as [number, string][]).map(([d, l]) => (
+                      <button key={d} type="button" onClick={() => setWeekdays(w => w.includes(d) ? w.filter(x => x !== d) : [...w, d])}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${weekdays.includes(d) ? 'text-white border-transparent' : 'border-border hover:bg-muted'}`}
+                        style={weekdays.includes(d) ? { backgroundColor: ABSENCE_COLORS['Alternance'] } : {}}>{l}</button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {weekdays.length === 0 ? 'Choisissez les jours de la semaine concernés, puis la date butoire ci-dessous.'
+                      : startDate && endDate
+                        ? (recurringPeriods.length === 0 ? 'Aucun des jours choisis ne tombe dans cette période.'
+                          : recurringPeriods.length > MAX_RECURRING_PERIODS ? `Trop de périodes (${recurringPeriods.length}) : rapprochez la date de fin.`
+                          : `${recurringPeriods.length} période${recurringPeriods.length > 1 ? 's' : ''} seront créées, du ${recurringPeriods[0].start.split('-').reverse().join('/')} au ${recurringPeriods[recurringPeriods.length - 1].end.split('-').reverse().join('/')}. Les jours fériés ne sont pas retirés.`)
+                        : 'Indiquez la date de début et la date butoire.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Du</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{recurring ? 'À partir du' : 'Du'}</label>
               <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); if (!endDate) setEndDate(e.target.value) }}
                 className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Au</label>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{recurring ? 'Jusqu’au (date butoire)' : 'Au'}</label>
               <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)}
                 className="w-full mt-1 px-3 py-2 rounded-lg bg-muted/50 border border-border text-sm focus:outline-none focus:ring-2 focus:ring-muted-foreground" />
             </div>
           </div>
 
-          <div className={sameDay ? '' : 'grid grid-cols-2 gap-3'}>
+          {!recurring && <div className={sameDay ? '' : 'grid grid-cols-2 gap-3'}>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{sameDay ? 'Période' : 'Premier jour'}</label>
               <select value={startPeriod} onChange={e => setStartPeriod(e.target.value as AbsencePeriod)}
@@ -202,7 +239,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
                 </select>
               </div>
             )}
-          </div>
+          </div>}
 
           {!editing && (
             <div>
@@ -334,7 +371,7 @@ export function NewAbsenceModal({ absence, operations = [], allowedTypes, boutiq
           <button onClick={submit} disabled={saving || blocked}
             className="w-full py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50 transition-transform hover:scale-[1.01]"
             style={{ backgroundColor: 'var(--accent)' }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : editing ? 'Envoyer la modification' : isReport ? 'Signaler l\'absence' : 'Envoyer la demande'}
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : editing ? 'Envoyer la modification' : isReport ? 'Signaler l\'absence' : recurring ? 'Enregistrer le planning' : type === 'Alternance' ? 'Enregistrer la période' : 'Envoyer la demande'}
           </button>
         </div>
       </div>
