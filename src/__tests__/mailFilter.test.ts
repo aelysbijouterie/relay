@@ -61,3 +61,30 @@ describe('mails de Tempo', () => {
     expect(isTempoMail({ ...base, subject: 'Calendrier de l’Avent Aélys 2026' })).toBe(false)
   })
 })
+
+import { isReserveMail, recipientRole } from '@/lib/mail/filter'
+const mk = (o: Partial<RawMail>): RawMail => ({ messageId: 'm', fromName: 'Jean', fromEmail: 'jean@client.fr', subject: 'Question', date: new Date(), text: 'Bonjour', headers: {}, ...o })
+const ME = 'manon.mignot@aelys.fr'
+describe('La Réserve, copie et destinataires', () => {
+  it('reconnaît les mails de La Réserve', () => {
+    expect(isReserveMail(mk({ fromName: 'La Réserve', subject: 'Nouvelle commande' }))).toBe(true)
+    expect(isReserveMail(mk({ subject: '[CMD-0010] Nouvelle commande — Aélys Nemours' }))).toBe(true)
+    expect(isReserveMail(mk({ subject: 'RE: [CMD-0011-MKT] Nouvelle demande' }))).toBe(true)
+    expect(isReserveMail(mk({ subject: 'Erreur horaires Google' }))).toBe(false)
+  })
+  it('Tempo et La Réserve sont écartés même marqués « à traiter »', () => {
+    expect(skipReason(mk({ subject: '[Tempo] Livraison aujourd’hui', todo: true }), ME, [])).toBe('mail de Tempo')
+    expect(skipReason(mk({ subject: '[CMD-0010] Nouvelle commande', todo: true }), ME, [])).toContain('La Réserve')
+  })
+  it('rôle du destinataire : À, Cc ou autre', () => {
+    expect(recipientRole({ to: [ME], cc: [] }, ME)).toBe('to')
+    expect(recipientRole({ to: ['a@x.fr'], cc: [ME] }, ME)).toBe('cc')
+    expect(recipientRole({ to: ['liste@aelys.fr'], cc: [] }, ME)).toBe('other')
+    expect(recipientRole({ to: [], cc: [] }, '')).toBe('other')
+  })
+  it('en copie seulement = écarté ; dans « À » ou liste = analysé', () => {
+    expect(skipReason(mk({ to: ['a@x.fr'], cc: [ME] }), ME, [])).toBe('en copie seulement')
+    expect(skipReason(mk({ to: [ME], cc: ['a@x.fr'] }), ME, [])).toBeNull()
+    expect(skipReason(mk({ to: ['liste@aelys.fr'], cc: [] }), ME, [])).toBeNull()
+  })
+})

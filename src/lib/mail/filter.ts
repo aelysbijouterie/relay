@@ -8,6 +8,8 @@ export interface RawMail {
   date: Date
   text: string
   headers: Record<string, string>
+  to?: string[]      // adresses des destinataires directs (À)
+  cc?: string[]      // adresses en copie (Cc)
   unread?: boolean   // non lu dans la boîte
   answered?: boolean // une réponse a été envoyée
   todo?: boolean     // marqué « à traiter » / « en cours » (catégorie ou drapeau Outlook)
@@ -37,8 +39,25 @@ export function isTempoMail(m: Pick<RawMail, 'fromName' | 'fromEmail' | 'subject
   return TEMPO_SUBJECT.test(m.subject) || /\btempo\b/i.test(m.fromName) || /\btempo@/i.test(m.fromEmail) || /pac-aelys\.vercel\.app/i.test(m.text)
 }
 
+// Mails de La Réserve (commandes de produits consommables) : jamais de carte, quoi qu'il arrive.
+export function isReserveMail(m: Pick<RawMail, 'fromName' | 'fromEmail' | 'subject'>): boolean {
+  return /la r[ée]serve/i.test(m.fromName) || /^\s*((re|tr|fwd?)\s*:\s*)*\[cmd-\d+/i.test(m.subject)
+}
+
+/** Rôle de la propriétaire dans le mail : destinataire directe (À), seulement en copie (Cc), ou autre (liste, alias, copie cachée). */
+export function recipientRole(m: Pick<RawMail, 'to' | 'cc'>, own: string): 'to' | 'cc' | 'other' {
+  const o = own.trim().toLowerCase()
+  if (!o) return 'other'
+  if ((m.to ?? []).includes(o)) return 'to'
+  if ((m.cc ?? []).includes(o)) return 'cc'
+  return 'other'
+}
+
 /** Raison pour laquelle un mail est écarté AVANT l'IA, ou null s'il doit être analysé. */
 export function skipReason(m: RawMail, ownAddress: string, exclude: string[]): string | null {
+  // Mails automatiques de Tempo et de La Réserve : écartés dans TOUS les cas, même marqués « à traiter ».
+  if (isTempoMail(m)) return 'mail de Tempo'
+  if (isReserveMail(m)) return 'mail de La Réserve (commandes de consommables)'
   // Un mail marqué « à traiter » n'est écarté que par la liste d'exclusion (confidentialité), jamais par les filtres de bruit.
   if (m.todo) {
     const hayT = `${m.fromName} ${m.fromEmail} ${m.subject} ${m.text}`.toLowerCase()
@@ -46,7 +65,8 @@ export function skipReason(m: RawMail, ownAddress: string, exclude: string[]): s
     return null
   }
   const from = m.fromEmail.toLowerCase()
-  if (isTempoMail(m)) return 'mail de Tempo'
+  // En copie seulement (pas dans « À ») : le mail ne demande rien à la propriétaire.
+  if (recipientRole(m, ownAddress) === 'cc') return 'en copie seulement'
   if (ownAddress && from === ownAddress.toLowerCase()) return 'envoyé par moi'
   if (AUTO_SENDER.test(from)) return 'expéditeur automatique'
   if (AUTO_SUBJECT.test(m.subject.trim())) return 'réponse automatique ou accusé'

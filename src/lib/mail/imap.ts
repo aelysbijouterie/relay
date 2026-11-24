@@ -15,6 +15,12 @@ function headerMap(h: Map<string, unknown>): Record<string, string> {
   return out
 }
 
+/** Adresses (minuscules) d'un champ À / Cc analysé par mailparser. */
+function addresses(f: unknown): string[] {
+  const list = Array.isArray(f) ? f : f ? [f] : []
+  return list.flatMap((x: { value?: { address?: string }[] }) => (x.value ?? []).map(v => (v.address ?? '').toLowerCase())).filter(Boolean)
+}
+
 const newClient = (cfg: { host: string; user: string; pass: string }) =>
   new ImapFlow({ host: cfg.host, port: 993, secure: true, auth: { user: cfg.user, pass: cfg.pass }, logger: false })
 
@@ -105,6 +111,7 @@ export async function fetchRecentMails(opts: FetchOptions = {}): Promise<{ mails
             date: p.date ?? new Date(msg.internalDate ?? Date.now()),
             text: p.text || (typeof p.html === 'string' ? p.html : ''),
             headers: headerMap(p.headers as unknown as Map<string, unknown>),
+            to: addresses(p.to), cc: addresses(p.cc),
             unread: st.unread, answered: st.answered,
             todo: st.target === 'A Faire' || st.target === 'En cours',
             target: st.target,
