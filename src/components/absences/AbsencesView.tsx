@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Fragment, useState, useEffect, useMemo, useCallback } from 'react'
+import { isoWeekNumber } from '@/lib/calendar/weekNumber'
+import { dayPeriodOf, PERIOD_MARK, PERIOD_TEXT } from '@/lib/absences/dayPeriod'
 import { ChevronLeft, ChevronRight, Plus, Check, X, Clock, Loader2, CalendarDays, Trash2, Filter, Ban, Pencil, Stethoscope, Printer } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -358,12 +360,18 @@ export function AbsencesView() {
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
         ) : (
           <>
-            <div className="grid grid-cols-7 gap-1 mb-1">
+            <div className="grid grid-cols-[1.75rem_repeat(7,minmax(0,1fr))] gap-1 mb-1">
+              <div className="text-center text-[0.6rem] font-semibold text-muted-foreground/70 py-1" title="Numéro de semaine">Sem.</div>
               {DAYS.map(d => <div key={d} className="text-center text-xs font-semibold text-muted-foreground py-1">{d}</div>)}
             </div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-[1.75rem_repeat(7,minmax(0,1fr))] gap-1">
               {grid.map((date, i) => {
-                if (!date) return <div key={i} className="aspect-square" />
+                // Numéro de semaine ISO en début de chaque ligne (la semaine se lit sur n'importe quel jour de la ligne).
+                const weekDate = i % 7 === 0 ? grid.slice(i, i + 7).find((x): x is Date => !!x) : undefined
+                const weekCell = weekDate
+                  ? <div key={`w${i}`} className="flex items-center justify-center text-[0.65rem] font-semibold text-muted-foreground/70" title={`Semaine ${isoWeekNumber(weekDate)}`}>{isoWeekNumber(weekDate)}</div>
+                  : null
+                if (!date) return <Fragment key={i}>{weekCell}<div className="aspect-square" /></Fragment>
                 const items = absencesOn(date)
                 const isToday = localDs(date) === todayStr
                 const isWeekend = (date.getDay() === 0 || date.getDay() === 6)
@@ -376,7 +384,9 @@ export function AbsencesView() {
                 const showZones = me?.show_school_holidays ?? true
                 const vacances = showZones ? schoolZonesLabel(ds, zones) : null
                 return (
-                  <div key={i}
+                  <Fragment key={i}>
+                  {weekCell}
+                  <div
                     className={`aspect-square rounded-lg border p-1 overflow-hidden ${isToday ? 'border-2' : 'border-border'}`}
                     style={{
                       ...(isToday ? { borderColor: 'var(--accent)' } : {}),
@@ -401,13 +411,16 @@ export function AbsencesView() {
                       </div>
                     ))}
                     <div className="space-y-0.5">
-                      {items.slice(0, 3).map(a => (
-                        <div key={a.id} title={`${a.user?.boutique ? `${a.user.boutique.code ?? ''} · ` : ''}${a.user?.name} · ${a.type}${a.status.includes('attente') ? ' (en attente)' : ''}`}
+                      {items.slice(0, 3).map(a => {
+                        const per = dayPeriodOf(a, ds)
+                        return (
+                        <div key={a.id} title={`${a.user?.boutique ? `${a.user.boutique.code ?? ''} · ` : ''}${a.user?.name} · ${a.type} · ${PERIOD_TEXT[per]}${a.status.includes('attente') ? ' (en attente)' : ''}`}
                           className="text-[0.55rem] leading-tight px-1 py-0.5 rounded truncate text-white font-medium"
                           style={{ backgroundColor: ABSENCE_COLORS[a.type], opacity: a.status.includes('attente') ? 0.5 : 1 }}>
-                          {a.user?.boutique ? `${a.user.boutique.code ?? ''} · ${a.user.name}` : a.type === 'Alternance' ? `Alternance ${(a.user?.name ?? '?').split(' ')[0]}` : (a.user?.name ?? '?').split(' ')[0]}
+                          <span aria-hidden="true">{PERIOD_MARK[per]}</span> {a.user?.boutique ? `${a.user.boutique.code ?? ''} · ${a.user.name}` : a.type === 'Alternance' ? `Alternance ${(a.user?.name ?? '?').split(' ')[0]}` : (a.user?.name ?? '?').split(' ')[0]}
                         </div>
-                      ))}
+                        )
+                      })}
                       {items.length > 3 && (
                         <button onClick={() => setDayDetail(date)}
                           className="w-full text-left text-[0.55rem] font-semibold text-muted-foreground px-1 rounded hover:bg-muted transition-colors">
@@ -416,6 +429,7 @@ export function AbsencesView() {
                       )}
                     </div>
                   </div>
+                  </Fragment>
                 )
               })}
             </div>
@@ -429,6 +443,9 @@ export function AbsencesView() {
               <span className="text-xs text-muted-foreground">{type}</span>
             </div>
           ))}
+          <div className="flex items-center gap-1.5" title="Sur chaque absence du calendrier">
+            <span className="text-xs text-muted-foreground">● journée entière · ◐ matin · ◑ après-midi</span>
+          </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.25)' }} />
             <span className="text-xs text-muted-foreground">Période d'activité</span>
@@ -517,7 +534,7 @@ export function AbsencesView() {
                 <div key={a.id} className="flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-muted/40">
                   <span className="text-sm font-medium">{a.user?.boutique ? `${a.user.boutique.code ?? ''} · ${a.user.name}` : (a.user?.name ?? '?')}</span>
                   <span className="text-xs px-2 py-0.5 rounded-md font-medium text-white" style={{ backgroundColor: ABSENCE_COLORS[a.type], opacity: a.status.includes('attente') ? 0.6 : 1 }}>
-                    {a.type}{a.status.includes('attente') ? ' (en attente)' : ''}
+                    {a.type} · {PERIOD_TEXT[dayPeriodOf(a, localDs(dayDetail))]}{a.status.includes('attente') ? ' (en attente)' : ''}
                   </span>
                 </div>
               ))}

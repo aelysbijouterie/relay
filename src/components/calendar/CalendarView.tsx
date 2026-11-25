@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { Fragment, useState, useMemo, useEffect } from 'react'
+import { isoWeekNumber } from '@/lib/calendar/weekNumber'
 import {
   format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay,
   isSameDay, isToday, isSameMonth, addMonths, subMonths,
@@ -233,7 +234,10 @@ export function CalendarView() {
           <button onClick={goPrev} className="p-2 rounded-lg hover:bg-muted transition-colors" aria-label="Précédent">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <h2 className="font-heading text-xl font-semibold capitalize min-w-[12rem] text-center">{title}</h2>
+          <h2 className="font-heading text-xl font-semibold capitalize min-w-[12rem] text-center">
+            {title}
+            {view === 'week' && <span className="ml-2 text-sm font-medium text-muted-foreground normal-case">· Semaine {isoWeekNumber(cursor)}</span>}
+          </h2>
           <button onClick={goNext} className="p-2 rounded-lg hover:bg-muted transition-colors" aria-label="Suivant">
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -374,16 +378,20 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-border">
+      <div className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] border-b border-border">
+        <div className="py-2 text-center text-[0.6rem] font-medium text-muted-foreground/70" title="Numéro de semaine">Sem.</div>
         {DAY_NAMES.map(d => (
           <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7">
+      <div className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))]">
         {Array.from({ length: startOffset }).map((_, i) => (
-          <div key={`offset-${i}`} className="min-h-[100px] border-b border-r border-border bg-muted/20" />
+          <Fragment key={`offset-${i}`}>
+            {i === 0 && <WeekCell date={days[0]} />}
+            <div className="min-h-[100px] border-b border-r border-border bg-muted/20" />
+          </Fragment>
         ))}
-        {days.map(day => {
+        {days.map((day, idx) => {
           const dayTasks = tasksForDay(day)
           const today = isToday(day)
           const ds = dsLocal(day)
@@ -392,8 +400,12 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
           const projections = projectionsByDay?.get(ds) ?? []
           const dayAbsences = absencesByDay?.get(ds) ?? []
           const dayEvents = eventsByDay?.get(ds) ?? []
+          // Début de ligne : numéro de semaine (le 1er du mois ouvre la première ligne seulement s'il tombe un lundi).
+          const weekStart = (startOffset + idx) % 7 === 0
           return (
-            <div key={day.toISOString()} className={cn('group relative min-h-[100px] p-2 border-b border-r border-border', today && 'bg-primary/5')}
+            <Fragment key={day.toISOString()}>
+            {weekStart && <WeekCell date={day} />}
+            <div className={cn('group relative min-h-[100px] p-2 border-b border-r border-border', today && 'bg-primary/5')}
               style={!today && ferie ? { backgroundColor: 'rgba(217,70,239,0.07)' } : undefined}
               title={ferie ?? vacances ?? undefined}>
               <div className="flex items-center justify-between mb-1">
@@ -441,9 +453,20 @@ function MonthView({ cursor, tasksForDay, onSelect, showHol, showSchool, project
                 )}
               </div>
             </div>
+            </Fragment>
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/** Case « numéro de semaine » (ISO) en début de ligne du mois. */
+function WeekCell({ date }: { date: Date }) {
+  const n = isoWeekNumber(date)
+  return (
+    <div className="min-h-[100px] border-b border-r border-border bg-muted/20 flex items-start justify-center pt-2.5 text-[0.65rem] font-semibold text-muted-foreground/70" title={`Semaine ${n}`}>
+      {n}
     </div>
   )
 }
